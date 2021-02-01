@@ -24,3 +24,9 @@ PERPENDICULAR_THRESHOLD_ANGLE = 10
 ELLIPSOID_MIN_LENGTH = 0.1
 SNAPPING_TOLERANCE = 0.1
 GEOMETRY_SIMPLIFICATION_DISTANCE = 0.25
+# Note that the number of points of an ellipse is only used to identify whether
+# the upper or lower part of an ellipse should be used (fro displacement zones),
+# the number of points used to create an ellipse can not be chosen yet
+# Need to create this variable in H2GIS 
+# https://github.com/locationtech/jts/blob/9d4097312d68cb8f9ae591bec69ce3b403e41e98/modules/core/src/main/java/org/locationtech/jts/util/GeometricShapeFactory.java#L101
+NPOINTS_ELLIPSE = 100

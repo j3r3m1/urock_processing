@@ -1,0 +1,6 @@
+#FileLock
+#Mon Feb 01 11:26:39 CET 2021
+hostName=labsticc
+id=1775d214ac71f61714272564bb343ee2bd2e1f42028
+method=file
+server=127.0.1.1\:34389

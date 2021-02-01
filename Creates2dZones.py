@@ -242,18 +242,28 @@ def createsDisplacementZones(cursor, dicOfInputGeometryTables, dicOfInputLengthT
                                      a.{1},
                                      b.{3},
                                      a.{4},
-                                     a.{10}
+                                     a.{10},
+                                     ST_LENGTH(a.{2})/2 AS R_x,
+                                     b.{7}*SIN(a.{4})*SIN(a.{4}) AS R_y
                              FROM {8} AS a LEFT JOIN {9} AS b ON a.{10} = b.{10}
                              WHERE b.{7}*SIN(a.{4})*SIN(a.{4})>{11})')
-             WHERE {4}>=0.5*PI() AND EXPLOD_ID = 2 OR {4}<=0.5*PI() AND EXPLOD_ID = 1
-                     
+             WHERE      {4}>=0.5*PI()
+                            -0.5*PI()+ACOS((1-COS(2*PI()/{13}))*R_x
+                                  /SQRT(POWER((1-COS(2*PI()/{13}))*R_x,2)
+                                        +POWER(SIN(2*PI()/{13})*R_y,2)))
+                   AND EXPLOD_ID = 2 
+                   OR   {4}<0.5*PI()
+                            -0.5*PI()+ACOS((1-COS(2*PI()/{13}))*R_x
+                                  /SQRT(POWER((1-COS(2*PI()/{13}))*R_x,2)
+                                        +POWER(SIN(2*PI()/{13})*R_y,2)))
+                   AND EXPLOD_ID = 1
            """.format(dicOfDisplacementZoneTables[t]    , UPWIND_FACADE_FIELD,
                        GEOM_FIELD                       , HEIGHT_FIELD,
                        UPWIND_FACADE_ANGLE_FIELD        , PERPENDICULAR_THRESHOLD_ANGLE,
                        PERPENDICULAR_FIELD              , DISPLACEMENT_LENGTH_FIELD,
                        dicOfInputGeometryTables[t]      , dicOfInputLengthTables[t],
                        ID_FIELD_STACKED_BLOCK           , ELLIPSOID_MIN_LENGTH,
-                       SNAPPING_TOLERANCE) 
+                       SNAPPING_TOLERANCE               , NPOINTS_ELLIPSE) 
                      for t in dicOfDisplacementZoneTables.keys()]
     cursor.execute(";".join(listOfQueries))
     
