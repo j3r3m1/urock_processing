@@ -5,6 +5,8 @@ import shutil
 import errno
 import numpy as np
 
+from URock.GlobalVariables import *
+
 
 def decompressZip(dirPath, inputFileName, outputFileBaseName=None, 
                   deleteZip = False):
@@ -77,19 +79,42 @@ def degToRad(angleDeg, origin = 0, direction = "CLOCKWISE"):
     
     return (angleDeg+d*origin)*np.pi/180
 
-def postfix(tableName):
+def postfix(tableName, suffix = SUFFIX_NAME, separator = "_"):
     """ Add a suffix to an input table name
     
     Parameters
 	_ _ _ _ _ _ _ _ _ _ 
 		tableName : String
 			Name of the input table
+        suffix : String, default current datetime as string
+            Suffix to add to the table name
+        separator : String, default "_"
+            Character to separate tableName from suffix
+            
     
     Returns
 	_ _ _ _ _ _ _ _ _ _ 	
 		The input table name with the suffix"""
         
-    return tableName
+    return tableName+separator+suffix
+
+def prefix(tableName, prefix = PREFIX_NAME, separator = "_"):
+    """ Add a suffix to an input table name
+    
+    Parameters
+	_ _ _ _ _ _ _ _ _ _ 
+		tableName : String
+			Name of the input table
+        prefix : String
+            Prefix to add to the table name
+        separator : String, default "_"
+            Character to separate prefix from tableName 
+    
+    Returns
+	_ _ _ _ _ _ _ _ _ _ 	
+		The input table name with the prefix"""
+        
+    return prefix+separator+tableName
 
 def getColumns(cursor, tableName):
     """ Get the column name of a table into a list

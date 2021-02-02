@@ -96,8 +96,10 @@ def createBlocks(cursor, inputBuildings, snappingTolerance = SNAPPING_TOLERANCE)
     
     # Create temporary table names (for tables that will be removed at the end of the IProcess)
     correlTable = DataUtil.postfix("correl_table")
-    blockTable = DataUtil.postfix("block_table")
-    stackedBlockTable = DataUtil.postfix("stacked_block_table")
+    
+    # Creates final tables
+    blockTable = DataUtil.prefix("block_table")
+    stackedBlockTable = DataUtil.prefix("stacked_block_table")
 
     # Creates the block (a method based on network - such as H2network
     # would be much more efficient)
@@ -154,4 +156,7 @@ def createBlocks(cursor, inputBuildings, snappingTolerance = SNAPPING_TOLERANCE)
             AS {5}""".format(stackedBlockTable, ID_FIELD_STACKED_BLOCK, ID_FIELD_BLOCK,
                                 GEOM_FIELD, HEIGHT_FIELD, " UNION ALL ".join(listOfSqlQueries)))
     
+    # Drop intermediate tables
+    cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([correlTable])))
+                        
     return blockTable, stackedBlockTable

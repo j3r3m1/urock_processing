@@ -157,14 +157,16 @@ def initUpwindFacades(cursor, dicOfInputTables):
     
     listOfQueries = ["""
        DROP TABLE IF EXISTS {0};
-       CREATE TABLE {0}({5} SERIAL, {1} INTEGER, {2} GEOMETRY, {3} DOUBLE)
+       CREATE TABLE {0}({5} SERIAL, {1} INTEGER, {2} GEOMETRY, {3} DOUBLE, {6} INTEGER)
            AS SELECT   NULL AS {5},
                        {1},
-                       {2} AS {2} ,
+                       {2} AS {2},
                        ST_AZIMUTH(ST_STARTPOINT({2}), 
-                                  ST_ENDPOINT({2})) AS {3}
+                                  ST_ENDPOINT({2})) AS {3},
+                       {6},
            FROM ST_EXPLODE('(SELECT ST_TOMULTISEGMENTS({2}) AS {2},
-                                  {1}
+                                  {1},
+                                  {6}
                                   FROM {4})')
            WHERE ST_AZIMUTH(ST_STARTPOINT({2}), 
                             ST_ENDPOINT({2})) < PI()
@@ -283,10 +285,13 @@ def createsCavityAndWakeZones(cursor, dicOfInputTables):
     to calculate effective length and width instead of maximum length and width...
 
     References:
-       Kaplan, H., et N. Dinar. « A Lagrangian Dispersion Model for Calculating
-       Concentration Distribution within a Built-up Domain ». Atmospheric 
-       Environment 30, nᵒ 24 (1 décembre 1996): 4197‑4207.
-       https://doi.org/10.1016/1352-2310(96)00144-6.
+            Kaplan, H., et N. Dinar. « A Lagrangian Dispersion Model for Calculating
+        Concentration Distribution within a Built-up Domain ». Atmospheric 
+        Environment 30, nᵒ 24 (1 décembre 1996): 4197‑4207.
+        https://doi.org/10.1016/1352-2310(96)00144-6.
+           Nelson, Matthew, Bhagirath Addepalli, Fawn Hornsby, Akshay Gowardhan, 
+        Eric Pardyjak, et Michael Brown. « 5.2 Improvements to a Fast-Response 
+        Urban Wind Model », 2008.
 
 
 		Parameters
@@ -373,3 +378,113 @@ def createsCavityAndWakeZones(cursor, dicOfInputTables):
     cursor.execute(";".join(listOfQueries))    
     
     return dicOfCavityZoneTables, dicOfWakeZoneTables
+
+def createsStreetCanyonZones(cursor, dicOfStackedTables, dicOfUpwindTables):
+    """ Creates the street canyon zones for each of the stacked building
+    based on Nelson et al. (2008) Figure 8b. The method is slightly different
+    since we use the cavity zone instead of the Lr buffer.
+
+    References:
+           Nelson, Matthew, Bhagirath Addepalli, Fawn Hornsby, Akshay Gowardhan, 
+        Eric Pardyjak, et Michael Brown. « 5.2 Improvements to a Fast-Response 
+        Urban Wind Model », 2008.
+
+
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            cavityZoneTable: String
+                Name of the table containing the cavity zones and the ID of
+                each stacked obstacle
+            stackedObstacleTable: String
+                Name of the table containing the geometry, zone length, height
+                and ID of each stacked obstacle
+            upwindTables: String
+                Name of the table containing upwind segment geometries
+                (and also the ID of each stacked obstacle)
+            
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+            streetCanyonZoneTable: String
+                Name of the table containing the street canyon zones"""
+    print("Creates street canyon zones")
+    
+    # Name of the output tables
+    streetCanyonZoneTable = PREFIX_NAME+"_STREETCANYON_ZONE"
+    
+    # Create temporary table names (for tables that will be removed at the end of the IProcess)
+    intersectTable = DataUtil.postfix("intersect_table")
+    canyonExtendTable = DataUtil.postfix("canyon_extend_table")
+    
+    # Identify upwind facades intersected by cavity zones
+    intersectionQuery = """
+        CREATE INDEX IF NOT EXISTS idx_geo_{3} ON {3} USING RTREE({2});
+        CREATE INDEX IF NOT EXISTS idx_geo_{4} ON {4} USING RTREE({2});
+        DROP TABLE IF EXISTS {0};
+        CREATE TABLE {0}
+            AS SELECT   {1},
+                        {2},
+            FROM    ST_EXPLODE('(SELECT    b.{1}, 
+                                           ST_INTERSECTION(a.{2}, b.{2}) AS {2},
+                               FROM {3} AS a, {4} AS b
+                               WHERE a.{2} & b.{2} AND ST_INTERSECTS(a.{2}, b.{2}))')
+                     
+           """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
+                       GEOM_FIELD                       , upwindTables,
+                       cavityZoneTable)
+    cursor.execute(intersectionQuery)
+    
+    # Identify street canyon extend
+    canyonExtendQuery = """
+        CREATE INDEX IF NOT EXISTS idx_{0} ON {0} USING BTREE({1});
+        CREATE INDEX IF NOT EXISTS idx_{2} ON {2} USING BTREE({1});
+        DROP TABLE IF EXISTS {3};
+        CREATE TABLE {3}
+            AS SELECT   a.{1},
+                        a.{6} AS {7},
+                        b.{6} AS {8},
+                        ST_MAKEPOLYGON(ST_MAKELINE(ST_STARTPOINT(a.{4}),
+                    								ST_STARTPOINT(ST_TRANSLATE(a.{4}, 
+                                                                               0, 
+                                                                               ST_YMAX(b.{4})-ST_YMIN(b.{4})+b.{5})),
+                    								ST_ENDPOINT(ST_TRANSLATE(a.{4},
+                                                                             0, 
+                                                                             ST_YMAX(b.{4})-ST_YMIN(b.{4})+b.{5})),
+                    								ST_TOMULTIPOINT(ST_REVERSE(a.{4})))) AS THE_GEOM
+            FROM {3} AS a LEFT JOIN {4} AS b ON a.{1} = b.{1}
+                     
+           """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
+                       stackedObstacleTable             , canyonExtendTable,
+                       GEOM_FIELD                       , CAVITY_LENGTH_FIELD,
+                       HEIGHT_FIELD                     , DOWNSTREAM_HEIGHT_FIELD,
+                       UPSTREAM_HEIGHT_FIELD)
+    cursor.execute(canyonExtendQuery)
+    
+    # Creates street canyon zones
+    streetCanyonQuery = """
+        CREATE INDEX IF NOT EXISTS idx_{0} ON {0} USING BTREE({1});
+        DROP TABLE IF EXISTS {2};
+        CREATE TABLE {2}
+            AS SELECT   a.{1},
+                        ST_GeometryN(ST_SPLIT(ST_SNAP(a.{3},
+                                                     ST_TOMULTILINE(b.{3}),
+                                                     {6}),
+                                              ST_TOMULTILINE(b.{3})),1) AS {3},
+                        a.{4},
+                        a.{5}
+            FROM        {0} AS a LEFT JOIN {6} AS b ON a.{1}=b.{1}
+                     
+           """.format( canyonExtendTable                , ID_FIELD_STACKED_BLOCK,
+                       streetCanyonZoneTable            , GEOM_FIELD,
+                       DOWNSTREAM_HEIGHT_FIELD          , UPSTREAM_HEIGHT_FIELD,
+                       SNAPPING_TOLERANCE               , stackedObstacleTable)
+    cursor.execute(streetCanyonQuery)
+    
+    # Drop intermediate tables
+    cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([intersectTable,
+                                                               canyonExtendTable])))
+    
+    return streetCanyonZoneTable
