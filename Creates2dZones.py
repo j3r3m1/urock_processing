@@ -10,7 +10,7 @@ import pandas as pd
 from URock.GlobalVariables import *
 
 
-def calculatesObstacleProperties(cursor, dicOfInputTables):
+def calculatesObstacleProperties(cursor, obstaclesTable):
     """ Calculates obstacle properties (effective width and length) 
     for a wind coming from North (thus you first need to rotate your
                                   obstacles to make them facing north if you 
@@ -29,28 +29,27 @@ def calculatesObstacleProperties(cursor, dicOfInputTables):
 
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
-            dicOfInputTables: dictionary of String
-                Dictionary of String with type of obstacle as key and as value
-                input table name (tables containing the geometries 
-                                  to characterize)
+            obstaclesTable: String
+                Name of the table containing the obstacle geometries to characterize
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 
-            dicOfPropertiesTables: dictionary
-                Map of initial table names as keys and geometric properties 
-                table names as values"""
+            obstaclePropertiesTable: String
+                Name of the table containing the properties of each obstacle"""
     print("Calculates obstacle properties")
     
-    # Name of the output tables
-    dicOfPropertiesTables = {t: dicOfInputTables[t]+"_PROPERTIES" 
-                             for t in dicOfInputTables.keys()}
+    # Output base name
+    outputBaseName = "PROPERTIES"
+    
+    # Name of the output table
+    obstaclePropertiesTable = DataUtil.prefix(outputBaseName)
     
     # Calculates the effective width (Weff) and effective length (Leff)
     # of each obstacle, respectively  based on their maximum cross-wind and
     # along-wind extends of the obstacle, weighted by the area ratio between
     # obstacle area and envelope area
-    listOfQueries = ["""
+    query = """
        DROP TABLE IF EXISTS {0};
        CREATE TABLE {0}
            AS SELECT   {1},
@@ -59,19 +58,19 @@ def calculatesObstacleProperties(cursor, dicOfInputTables):
                        {4},
                        (ST_XMAX(ST_ENVELOPE({3}))-ST_XMIN({3}))*ST_AREA({3})/ST_AREA(ST_ENVELOPE({3})) AS {6},
                        (ST_YMAX(ST_ENVELOPE({3}))-ST_YMIN({3}))*ST_AREA({3})/ST_AREA(ST_ENVELOPE({3})) AS {7}
-           FROM {5}""".format(dicOfPropertiesTables[t], 
+           FROM {5}""".format(obstaclePropertiesTable, 
                                ID_FIELD_STACKED_BLOCK,
                                ID_FIELD_BLOCK,
                                GEOM_FIELD,
                                HEIGHT_FIELD,
-                               dicOfInputTables[t],
+                               obstacleTable,
                                EFFECTIVE_WIDTH_FIELD, 
-                               EFFECTIVE_LENGTH_FIELD) for t in dicOfPropertiesTables.keys()]
-    cursor.execute(";".join(listOfQueries))
+                               EFFECTIVE_LENGTH_FIELD)
+    cursor.execute(query)
     
-    return dicOfPropertiesTables
+    return obstaclePropertiesTable
 
-def calculatesZoneLength(cursor, dicOfInputTables):
+def calculatesZoneLength(cursor, obstaclePropertiesTable):
     """ Calculates the length of the displacement zone (Lf), the cavity zone (Lr)
     and the wake zone (3*Lr) based on Kaplan et al. (1996) formulae. Note that
     L and W in the equation are respectively replaced by the effective length
@@ -88,26 +87,26 @@ def calculatesZoneLength(cursor, dicOfInputTables):
 
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
-            dicOfInputTables: dictionary of String
-                Dictionary of String with type of obstacle as key and as value
-                input table name (tables containing the obstacle properties
-                                  Weff, Leff and height)
+            obstaclePropertiesTable: String
+                Name  of the table containing the obstacle properties Weff, Leff
+                and height
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 
-            dicOfZoneLengthTables: dictionary
-                Map of initial table names as keys and geometric properties 
-                table names as values"""
+            zoneLengthTable: String
+                Name of the table containing the length of each obstacle zones"""
     print("Calculates zone length of each obstacle")
     
-    # Name of the output tables
-    dicOfZoneLengthTables = {t: dicOfInputTables[t]+"_ZONE_LENGTH" 
-                             for t in dicOfInputTables.keys()}
+    # Output base name
+    outputBaseName = "ZONE_LENGTH"
+    
+    # Name of the output table
+    zoneLengthTable = DataUtil.prefix(outputBaseName)
     
     # Calculates the length of each zone based on Kaplan et Dinard (1996)
     # Lf - equation (1), Lr - equation (3), Lw - 3*Lr
-    listOfQueries = ["""
+    query = """
        DROP TABLE IF EXISTS {0};
        CREATE TABLE {0}
            AS SELECT   {1},
@@ -116,22 +115,21 @@ def calculatesZoneLength(cursor, dicOfInputTables):
                        2*{9}/(1+0.8*{9}/{3}) AS {4},
                        1.8*{9}/(POWER({8}/{3},0.3)*(1+0.24*{9}/{3})) AS {5},
                        3*1.8*{9}/(POWER({8}/{3},0.3)*(1+0.24*{9}/{3})) AS {6}
-           FROM {7}""".format(dicOfZoneLengthTables[t],
+           FROM {7}""".format(zoneLengthTable,
                                ID_FIELD_STACKED_BLOCK,
                                GEOM_FIELD, 
                                HEIGHT_FIELD, 
                                DISPLACEMENT_LENGTH_FIELD, 
                                CAVITY_LENGTH_FIELD,
                                WAKE_LENGTH_FIELD, 
-                               dicOfInputTables[t],
+                               obstaclePropertiesTable,
                                EFFECTIVE_LENGTH_FIELD,
-                               EFFECTIVE_WIDTH_FIELD) 
-                     for t in dicOfZoneLengthTables.keys()]
-    cursor.execute(";".join(listOfQueries))
+                               EFFECTIVE_WIDTH_FIELD)
+    cursor.execute(query)
     
-    return dicOfZoneLengthTables
+    return zoneLengthTable
 
-def initUpwindFacades(cursor, dicOfInputTables):
+def initUpwindFacades(cursor, obstacleTable):
     """ Identify upwind facades, convert them to lines (they are initially
     included within polygons) and calculates their direction from wind speed 
     (90° for a facade perpendicular from the upwind).
@@ -141,21 +139,23 @@ def initUpwindFacades(cursor, dicOfInputTables):
 
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
-            dicOfInputTables: dictionary of String
-                Dictionary of String with type of obstacle as key and as value
-                input table name as value (tables containing the input geometries)
+            obstacleTable: String
+                Name of the table containing the obstacle geometries
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 
-            dicOfUpwindTables: dictionary
-                Map of initial table names as keys and upwind facade table names as values"""
+            upwindTable: String
+                Name of the table containing the upwind obstacle facades"""
     print("Initializes upwind facades")
     
-    # Name of the output tables
-    dicOfUpwindTables = {t: dicOfInputTables[t]+"_UPWIND" for t in dicOfInputTables.keys()}
+    # Output base name
+    outputBaseName = "UPWIND"
     
-    listOfQueries = ["""
+    # Name of the output table
+    zoneLengthTable = DataUtil.prefix(outputBaseName)
+    
+    query = """
        DROP TABLE IF EXISTS {0};
        CREATE TABLE {0}({5} SERIAL, {1} INTEGER, {2} GEOMETRY, {3} DOUBLE, {6} INTEGER)
            AS SELECT   NULL AS {5},
@@ -170,17 +170,17 @@ def initUpwindFacades(cursor, dicOfInputTables):
                                   FROM {4})')
            WHERE ST_AZIMUTH(ST_STARTPOINT({2}), 
                             ST_ENDPOINT({2})) < PI()
-           """.format(dicOfUpwindTables[t], 
+           """.format(zoneLengthTable, 
                        ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD, 
                        UPWIND_FACADE_ANGLE_FIELD, 
-                       dicOfInputTables[t], 
-                       UPWIND_FACADE_FIELD) for t in dicOfUpwindTables.keys()]
-    cursor.execute(";".join(listOfQueries))
+                       obstacleTable, 
+                       UPWIND_FACADE_FIELD)
+    cursor.execute(query)
     
-    return dicOfUpwindTables
+    return zoneLengthTable
 
-def createsDisplacementZones(cursor, dicOfInputGeometryTables, dicOfInputLengthTables):
+def createsDisplacementZones(cursor, upwindTable, zoneLengthTable):
     """ Creates the displacement zone for each of the building upwind facade
     based on Kaplan et Dinar (1996) for the equations of the ellipsoid 
         - Equation 2 when the facade is perpendicular to the wind,
@@ -202,28 +202,27 @@ def createsDisplacementZones(cursor, dicOfInputGeometryTables, dicOfInputLengthT
 
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
-            dicOfInputGeometryTables: dictionary of String
-                Dictionary of String with type of obstacle as key and as value
-                input table name containing upwind segment geometries
+            upwindTable: String
+                Name of the table containing upwind segment geometries
                 (and also the ID of each stacked obstacle)
-            dicOfInputLengthTables: dictionary of String
-                Dictionary of String with type of obstacle as key and as value
-                input table name containing obstacle zone length
+            zoneLengthTable: String
+                Name of the table containing obstacle zone length
                 (and also the ID of each stacked obstacle)
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 
-            dicOfDisplacementZoneTables: dictionary
-                Map of initial table names as keys and table name of the 
-                corresponding displacement zones as value"""
+            displacementZonesTable: String
+                Name of the table containing the displacement zones"""
     print("Creates displacement zones")
     
-    # Name of the output tables
-    dicOfDisplacementZoneTables = {t: dicOfInputGeometryTables[t]+"_DISPLACEMENT_ZONES" 
-                                   for t in dicOfInputGeometryTables.keys()}
+    # Output base name
+    outputBaseName = "DISPLACEMENT_ZONES"
     
-    listOfQueries = ["""
+    # Name of the output table
+    displacementZonesTable = DataUtil.prefix(outputBaseName)
+    
+    query = """
         CREATE INDEX IF NOT EXISTS idx_{8} ON {8} USING BTREE({10});
         CREATE INDEX IF NOT EXISTS idx_{9} ON {9} USING BTREE({10});
         DROP TABLE IF EXISTS {0};
@@ -259,19 +258,18 @@ def createsDisplacementZones(cursor, dicOfInputGeometryTables, dicOfInputLengthT
                                   /SQRT(POWER((1-COS(2*PI()/{13}))*R_x,2)
                                         +POWER(SIN(2*PI()/{13})*R_y,2)))
                    AND EXPLOD_ID = 1
-           """.format(dicOfDisplacementZoneTables[t]    , UPWIND_FACADE_FIELD,
+           """.format(displacementZonesTable            , UPWIND_FACADE_FIELD,
                        GEOM_FIELD                       , HEIGHT_FIELD,
                        UPWIND_FACADE_ANGLE_FIELD        , PERPENDICULAR_THRESHOLD_ANGLE,
                        PERPENDICULAR_FIELD              , DISPLACEMENT_LENGTH_FIELD,
-                       dicOfInputGeometryTables[t]      , dicOfInputLengthTables[t],
+                       upwindTable                      , zoneLengthTable,
                        ID_FIELD_STACKED_BLOCK           , ELLIPSOID_MIN_LENGTH,
-                       SNAPPING_TOLERANCE               , NPOINTS_ELLIPSE) 
-                     for t in dicOfDisplacementZoneTables.keys()]
-    cursor.execute(";".join(listOfQueries))
+                       SNAPPING_TOLERANCE               , NPOINTS_ELLIPSE)
+    cursor.execute(query)
     
-    return dicOfDisplacementZoneTables
+    return displacementZonesTable
 
-def createsCavityAndWakeZones(cursor, dicOfInputTables):
+def createsCavityAndWakeZones(cursor, zoneLengthTable):
     """ Creates the cavity and wake zones for each of the stacked building
     based on Kaplan et Dinar (1996) for the equations of the ellipsoid 
     (Equation 3). When the building has a non rectangular shape or is not
@@ -299,30 +297,29 @@ def createsCavityAndWakeZones(cursor, dicOfInputTables):
 
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
-            dicOfInputTables: dictionary of String
-                Dictionary of String with type of obstacle as key and as value
-                input table name containing stacked obstacle geometries
-                and zone length
+            zoneLengthTable: String
+                Name of the table stacked obstacle geometries and zone length
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 
-            dicOfCavityZoneTables: dictionary
-                Map of initial table names as keys and table name of the 
-                corresponding cavity zones as value
-            dicOfWakeZoneTables: dictionary
-                Map of initial table names as keys and table name of the 
-                corresponding wake zones as value"""
+            cavityZonesTables: String
+                Name of the table containing the cavity zones
+            wakeZonesTables: String
+                Name of the table containing the wake zones"""
     print("Creates cavity and wake zones")
     
+    # Output base name
+    outputBaseNameCavity = "CAVITY_ZONES"
+    outputBaseNameWake = "WAKE_ZONES"
+    
     # Name of the output tables
-    dicOfCavityZoneTables = {t: dicOfInputTables[t]+"_CAVITY_ZONE" 
-                                   for t in dicOfInputTables.keys()}
-    dicOfWakeZoneTables = {t: dicOfInputTables[t]+"_WAKE_ZONE" 
-                                   for t in dicOfInputTables.keys()}
+    cavityZonesTable = DataUtil.prefix(outputBaseNameCavity)
+    wakeZonesTable = DataUtil.prefix(outputBaseNameWake)
+        
     
     # Queries for the cavity zones
-    listOfQueries = ["""
+    queryCavity = """
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
             AS SELECT   {1},
@@ -342,15 +339,14 @@ def createsCavityAndWakeZones(cursor, dicOfInputTables):
                              FROM {5})')
              WHERE EXPLOD_ID = 1
                      
-           """.format(dicOfCavityZoneTables[t]          , ID_FIELD_STACKED_BLOCK,
+           """.format(cavityZonesTable                  , ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD                       , HEIGHT_FIELD,
-                       CAVITY_LENGTH_FIELD              , dicOfInputTables[t],
-                       SNAPPING_TOLERANCE) 
-                     for t in dicOfInputTables.keys()]
-    cursor.execute(";".join(listOfQueries))
+                       CAVITY_LENGTH_FIELD              , zoneLengthTable,
+                       SNAPPING_TOLERANCE)
+    cursor.execute(queryCavity)
     
     # Queries for the wake zones
-    listOfQueries = ["""
+    queryWake = """
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
             AS SELECT   {1},
@@ -370,16 +366,15 @@ def createsCavityAndWakeZones(cursor, dicOfInputTables):
                              FROM {5})')
              WHERE EXPLOD_ID = 1
                      
-           """.format(dicOfWakeZoneTables[t]            , ID_FIELD_STACKED_BLOCK,
+           """.format(outputBaseNameWake            , ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD                       , HEIGHT_FIELD,
-                       WAKE_LENGTH_FIELD                , dicOfInputTables[t],
-                       SNAPPING_TOLERANCE) 
-                     for t in dicOfInputTables.keys()]
-    cursor.execute(";".join(listOfQueries))    
+                       WAKE_LENGTH_FIELD                , zoneLengthTable,
+                       SNAPPING_TOLERANCE)
+    cursor.execute(queryWake)    
     
-    return dicOfCavityZoneTables, dicOfWakeZoneTables
+    return cavityZonesTable, outputBaseNameWake
 
-def createsStreetCanyonZones(cursor, dicOfStackedTables, dicOfUpwindTables):
+def createsStreetCanyonZones(cursor, cavityZonesTable, zoneLengthTable, upwindTables):
     """ Creates the street canyon zones for each of the stacked building
     based on Nelson et al. (2008) Figure 8b. The method is slightly different
     since we use the cavity zone instead of the Lr buffer.
@@ -395,10 +390,10 @@ def createsStreetCanyonZones(cursor, dicOfStackedTables, dicOfUpwindTables):
 
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
-            cavityZoneTable: String
+            cavityZonesTable: String
                 Name of the table containing the cavity zones and the ID of
                 each stacked obstacle
-            stackedObstacleTable: String
+            zoneLengthTable: String
                 Name of the table containing the geometry, zone length, height
                 and ID of each stacked obstacle
             upwindTables: String
@@ -411,9 +406,12 @@ def createsStreetCanyonZones(cursor, dicOfStackedTables, dicOfUpwindTables):
             streetCanyonZoneTable: String
                 Name of the table containing the street canyon zones"""
     print("Creates street canyon zones")
+
+    # Output base name
+    outputBaseName = "STREETCANYON_ZONE"
     
     # Name of the output tables
-    streetCanyonZoneTable = PREFIX_NAME+"_STREETCANYON_ZONE"
+    streetCanyonZoneTable = DataUtil.prefix(outputBaseName)
     
     # Create temporary table names (for tables that will be removed at the end of the IProcess)
     intersectTable = DataUtil.postfix("intersect_table")
@@ -434,7 +432,7 @@ def createsStreetCanyonZones(cursor, dicOfStackedTables, dicOfUpwindTables):
                      
            """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD                       , upwindTables,
-                       cavityZoneTable)
+                       cavityZonesTable)
     cursor.execute(intersectionQuery)
     
     # Identify street canyon extend
@@ -457,7 +455,7 @@ def createsStreetCanyonZones(cursor, dicOfStackedTables, dicOfUpwindTables):
             FROM {3} AS a LEFT JOIN {4} AS b ON a.{1} = b.{1}
                      
            """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
-                       stackedObstacleTable             , canyonExtendTable,
+                       zoneLengthTable                  , canyonExtendTable,
                        GEOM_FIELD                       , CAVITY_LENGTH_FIELD,
                        HEIGHT_FIELD                     , DOWNSTREAM_HEIGHT_FIELD,
                        UPSTREAM_HEIGHT_FIELD)
@@ -480,7 +478,7 @@ def createsStreetCanyonZones(cursor, dicOfStackedTables, dicOfUpwindTables):
            """.format( canyonExtendTable                , ID_FIELD_STACKED_BLOCK,
                        streetCanyonZoneTable            , GEOM_FIELD,
                        DOWNSTREAM_HEIGHT_FIELD          , UPSTREAM_HEIGHT_FIELD,
-                       SNAPPING_TOLERANCE               , stackedObstacleTable)
+                       SNAPPING_TOLERANCE               , zoneLengthTable)
     cursor.execute(streetCanyonQuery)
     
     # Drop intermediate tables
