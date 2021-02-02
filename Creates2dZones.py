@@ -63,7 +63,7 @@ def calculatesObstacleProperties(cursor, obstaclesTable):
                                ID_FIELD_BLOCK,
                                GEOM_FIELD,
                                HEIGHT_FIELD,
-                               obstacleTable,
+                               obstaclesTable,
                                EFFECTIVE_WIDTH_FIELD, 
                                EFFECTIVE_LENGTH_FIELD)
     cursor.execute(query)
@@ -129,7 +129,7 @@ def calculatesZoneLength(cursor, obstaclePropertiesTable):
     
     return zoneLengthTable
 
-def initUpwindFacades(cursor, obstacleTable):
+def initUpwindFacades(cursor, obstaclesTable):
     """ Identify upwind facades, convert them to lines (they are initially
     included within polygons) and calculates their direction from wind speed 
     (90° for a facade perpendicular from the upwind).
@@ -174,8 +174,9 @@ def initUpwindFacades(cursor, obstacleTable):
                        ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD, 
                        UPWIND_FACADE_ANGLE_FIELD, 
-                       obstacleTable, 
-                       UPWIND_FACADE_FIELD)
+                       obstaclesTable, 
+                       UPWIND_FACADE_FIELD,
+                       HEIGHT_FIELD)
     cursor.execute(query)
     
     return zoneLengthTable
@@ -303,9 +304,9 @@ def createsCavityAndWakeZones(cursor, zoneLengthTable):
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 
-            cavityZonesTables: String
+            cavityZonesTable: String
                 Name of the table containing the cavity zones
-            wakeZonesTables: String
+            wakeZonesTable: String
                 Name of the table containing the wake zones"""
     print("Creates cavity and wake zones")
     
@@ -366,15 +367,15 @@ def createsCavityAndWakeZones(cursor, zoneLengthTable):
                              FROM {5})')
              WHERE EXPLOD_ID = 1
                      
-           """.format(outputBaseNameWake            , ID_FIELD_STACKED_BLOCK,
+           """.format(wakeZonesTable            , ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD                       , HEIGHT_FIELD,
                        WAKE_LENGTH_FIELD                , zoneLengthTable,
                        SNAPPING_TOLERANCE)
     cursor.execute(queryWake)    
     
-    return cavityZonesTable, outputBaseNameWake
+    return cavityZonesTable, wakeZonesTable
 
-def createsStreetCanyonZones(cursor, cavityZonesTable, zoneLengthTable, upwindTables):
+def createsStreetCanyonZones(cursor, cavityZonesTable, zoneLengthTable, upwindTable):
     """ Creates the street canyon zones for each of the stacked building
     based on Nelson et al. (2008) Figure 8b. The method is slightly different
     since we use the cavity zone instead of the Lr buffer.
@@ -396,7 +397,7 @@ def createsStreetCanyonZones(cursor, cavityZonesTable, zoneLengthTable, upwindTa
             zoneLengthTable: String
                 Name of the table containing the geometry, zone length, height
                 and ID of each stacked obstacle
-            upwindTables: String
+            upwindTable: String
                 Name of the table containing upwind segment geometries
                 (and also the ID of each stacked obstacle)
             
@@ -414,8 +415,28 @@ def createsStreetCanyonZones(cursor, cavityZonesTable, zoneLengthTable, upwindTa
     streetCanyonZoneTable = DataUtil.prefix(outputBaseName)
     
     # Create temporary table names (for tables that will be removed at the end of the IProcess)
+    linestringTable = DataUtil.postfix("linestring_table")
     intersectTable = DataUtil.postfix("intersect_table")
     canyonExtendTable = DataUtil.postfix("canyon_extend_table")
+    
+    # Upwind facades segments merged as linestring
+    linestringQuery = """
+        CREATE INDEX IF NOT EXISTS idx_{3} ON {3} USING BTREE({1});
+        DROP TABLE IF EXISTS {0};
+        CREATE TABLE {0}
+            AS SELECT   {1},
+                        {2},
+                        {4}
+            FROM    ST_EXPLODE('(SELECT    {1}, 
+                                           MIN({4}) AS {4},
+                                           ST_LINEMERGE(ST_ACCUM({2})) AS {2},
+                               FROM {3}
+                               GROUP BY {1})')
+                     
+           """.format( linestringTable                   , ID_FIELD_STACKED_BLOCK,
+                       GEOM_FIELD                       , upwindTable,
+                       HEIGHT_FIELD)
+    cursor.execute(linestringQuery)
     
     # Identify upwind facades intersected by cavity zones
     intersectionQuery = """
@@ -423,25 +444,32 @@ def createsStreetCanyonZones(cursor, cavityZonesTable, zoneLengthTable, upwindTa
         CREATE INDEX IF NOT EXISTS idx_geo_{4} ON {4} USING RTREE({2});
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
-            AS SELECT   {1},
-                        {2},
-            FROM    ST_EXPLODE('(SELECT    b.{1}, 
-                                           ST_INTERSECTION(a.{2}, b.{2}) AS {2},
+            AS SELECT   {2},
+                        {5},
+                        {6},
+                        {7}
+            FROM    ST_EXPLODE('(SELECT    b.{1}+0 AS {6},
+                                           a.{1}+0 AS {7},
+                                           a.{5},
+                                           ST_COLLECTIONEXTRACT(ST_INTERSECTION(a.{2}, b.{2}), 2) AS {2}
                                FROM {3} AS a, {4} AS b
-                               WHERE a.{2} & b.{2} AND ST_INTERSECTS(a.{2}, b.{2}))')
+                               WHERE a.{2} && b.{2} AND ST_INTERSECTS(a.{2}, b.{2}))')
+            WHERE {2} IS NOT NULL
                      
            """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
-                       GEOM_FIELD                       , upwindTables,
-                       cavityZonesTable)
+                       GEOM_FIELD                       , linestringTable,
+                       cavityZonesTable                 , HEIGHT_FIELD,
+                       ID_UPSTREAM_STACKED_BLOCK        , ID_DOWNSTREAM_STACKED_BLOCK)
     cursor.execute(intersectionQuery)
     
     # Identify street canyon extend
     canyonExtendQuery = """
         CREATE INDEX IF NOT EXISTS idx_{0} ON {0} USING BTREE({1});
-        CREATE INDEX IF NOT EXISTS idx_{2} ON {2} USING BTREE({1});
+        CREATE INDEX IF NOT EXISTS idx_{2} ON {2} USING BTREE({10});
         DROP TABLE IF EXISTS {3};
         CREATE TABLE {3}
             AS SELECT   a.{1},
+                        a.{9},
                         a.{6} AS {7},
                         b.{6} AS {8},
                         ST_MAKEPOLYGON(ST_MAKELINE(ST_STARTPOINT(a.{4}),
@@ -452,13 +480,14 @@ def createsStreetCanyonZones(cursor, cavityZonesTable, zoneLengthTable, upwindTa
                                                                              0, 
                                                                              ST_YMAX(b.{4})-ST_YMIN(b.{4})+b.{5})),
                     								ST_TOMULTIPOINT(ST_REVERSE(a.{4})))) AS THE_GEOM
-            FROM {3} AS a LEFT JOIN {4} AS b ON a.{1} = b.{1}
+            FROM {0} AS a LEFT JOIN {2} AS b ON a.{1} = b.{10}
                      
-           """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
+           """.format( intersectTable                   , ID_UPSTREAM_STACKED_BLOCK,
                        zoneLengthTable                  , canyonExtendTable,
                        GEOM_FIELD                       , CAVITY_LENGTH_FIELD,
                        HEIGHT_FIELD                     , DOWNSTREAM_HEIGHT_FIELD,
-                       UPSTREAM_HEIGHT_FIELD)
+                       UPSTREAM_HEIGHT_FIELD            , ID_DOWNSTREAM_STACKED_BLOCK,
+                       ID_FIELD_STACKED_BLOCK)
     cursor.execute(canyonExtendQuery)
     
     # Creates street canyon zones
@@ -466,23 +495,34 @@ def createsStreetCanyonZones(cursor, cavityZonesTable, zoneLengthTable, upwindTa
         CREATE INDEX IF NOT EXISTS idx_{0} ON {0} USING BTREE({1});
         DROP TABLE IF EXISTS {2};
         CREATE TABLE {2}
-            AS SELECT   a.{1},
-                        ST_GeometryN(ST_SPLIT(ST_SNAP(a.{3},
-                                                     ST_TOMULTILINE(b.{3}),
-                                                     {6}),
-                                              ST_TOMULTILINE(b.{3})),1) AS {3},
-                        a.{4},
-                        a.{5}
-            FROM        {0} AS a LEFT JOIN {6} AS b ON a.{1}=b.{1}
+            AS SELECT   {1},
+                        {8},
+                        {3},
+                        {4},
+                        {5}
+            FROM ST_EXPLODE('(SELECT    a.{1},
+                                        a.{8},
+                                        ST_SPLIT(ST_SNAP(a.{3},
+                                                       ST_GeometryN(ST_TOMULTILINE(b.{3}),1),
+                                                       {6}),
+                                                ST_GeometryN(ST_TOMULTILINE(b.{3}),1)) AS {3},
+                                        a.{4},
+                                        a.{5}
+                            FROM        {0} AS a LEFT JOIN {7} AS b ON a.{1}=b.{9})')
+            WHERE EXPLOD_ID = 1 AND ST_XMAX({3})-ST_XMIN({3})>{10}
                      
-           """.format( canyonExtendTable                , ID_FIELD_STACKED_BLOCK,
+           """.format( canyonExtendTable                , ID_UPSTREAM_STACKED_BLOCK,
                        streetCanyonZoneTable            , GEOM_FIELD,
                        DOWNSTREAM_HEIGHT_FIELD          , UPSTREAM_HEIGHT_FIELD,
-                       SNAPPING_TOLERANCE               , zoneLengthTable)
+                       SNAPPING_TOLERANCE               , zoneLengthTable,
+                       ID_DOWNSTREAM_STACKED_BLOCK      , ID_FIELD_STACKED_BLOCK,
+                       MESH_SIZE)
     cursor.execute(streetCanyonQuery)
     
-    # Drop intermediate tables
-    cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([intersectTable,
-                                                               canyonExtendTable])))
+    if not DEBUG:
+        # Drop intermediate tables
+        cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([intersectTable,
+                                                                   canyonExtendTable,
+                                                                   linestringTable])))
     
     return streetCanyonZoneTable

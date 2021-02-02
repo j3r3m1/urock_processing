@@ -11,6 +11,8 @@ GEOM_FIELD = "THE_GEOM"
 ID_FIELD_BUILD = "ID_BUILD"
 ID_FIELD_BLOCK = "ID_BLOCK"
 ID_FIELD_STACKED_BLOCK = "ID_STACKED_BLOCK"
+ID_UPSTREAM_STACKED_BLOCK = "ID_UPSTREAM_STACKED_BLOCK"
+ID_DOWNSTREAM_STACKED_BLOCK = "ID_DOWNSTREAM_STACKED_BLOCK"
 HEIGHT_FIELD = "HEIGHT_ROO"
 UPSTREAM_HEIGHT_FIELD = "UPSTREAM_HEIGHT"
 DOWNSTREAM_HEIGHT_FIELD = "DOWNSTREAM_HEIGHT"
@@ -27,7 +29,7 @@ SUFFIX_NAME = datetime.now().strftime("%Y%m%d%H%M%S")
 
 PERPENDICULAR_THRESHOLD_ANGLE = 10
 ELLIPSOID_MIN_LENGTH = 0.1
-SNAPPING_TOLERANCE = 0.1
+SNAPPING_TOLERANCE = 0.001
 GEOMETRY_SIMPLIFICATION_DISTANCE = 0.25
 # Note that the number of points of an ellipse is only used to identify whether
 # the upper or lower part of an ellipse should be used (fro displacement zones),
@@ -35,4 +37,6 @@ GEOMETRY_SIMPLIFICATION_DISTANCE = 0.25
 # Need to create this variable in H2GIS 
 # https://github.com/locationtech/jts/blob/9d4097312d68cb8f9ae591bec69ce3b403e41e98/modules/core/src/main/java/org/locationtech/jts/util/GeometricShapeFactory.java#L101
 NPOINTS_ELLIPSE = 100
+MESH_SIZE = 1
 
+DEBUG = True
