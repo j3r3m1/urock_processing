@@ -6,9 +6,9 @@ Created on Tue Feb  9 14:34:12 2021
 @author: Jérémy Bernard, University of Gothenburg
 """
 
-import URock.DataUtil as DataUtil
+import DataUtil as DataUtil
 import pandas as pd
-from URock.GlobalVariables import *
+from GlobalVariables import *
 
 def obstacleProperties(cursor, obstaclesTable):
     """ Calculates obstacle properties (effective width and length) 

@@ -6,9 +6,9 @@ Created on Wed Feb  3 15:39:07 2021
 @author: Jérémy Bernard, University of Gothenburg
 """
 
-import URock.DataUtil as DataUtil
+import DataUtil as DataUtil
 import pandas as pd
-from URock.GlobalVariables import * 
+from GlobalVariables import * 
 
 def createGrid(cursor, dicOfInputTables, 
                alongWindZoneExtend = ALONG_WIND_ZONE_EXTEND, 

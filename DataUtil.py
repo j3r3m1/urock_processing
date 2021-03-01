@@ -5,7 +5,7 @@ import shutil
 import errno
 import numpy as np
 
-from URock.GlobalVariables import *
+from GlobalVariables import *
 
 
 def decompressZip(dirPath, inputFileName, outputFileBaseName=None, 
@@ -134,3 +134,43 @@ def getColumns(cursor, tableName):
     columnNames = [info[0] for info in cursor.description]
     
     return columnNames
+
+def saveTable(cursor, tableName, filedir, delete):
+    """ Save a table in .geojson or .shp
+    
+    Parameters
+	_ _ _ _ _ _ _ _ _ _ 
+        cursor: conn.cursor
+            A cursor object, used to perform spatial SQL queries
+		tableName : String
+			Name of the table to save
+        filedir: String
+            Directory (including filename and extension) of the file where to 
+            store the table
+        delete: Boolean, default False
+            Whether or not the file is delete if exist
+    
+    Returns
+	_ _ _ _ _ _ _ _ _ _ 	
+		None"""
+    # Get extension
+    extension = filedir.split(".")[-1]
+    
+    # Define the H2GIS function depending on extension
+    if extension.upper() == "GEOJSON":
+        h2_function = "GEOJSONWRITE"
+    elif extension.upper() == "SHP":
+        h2_function = "SHPWRITE"
+    else:
+        print("The extension should be .geojson or .shp")
+    
+    # Delete files
+    if delete:
+        os.remove(filedir)
+    
+    # Write files
+    cursor.execute("""CALL {0}('{1}','{2}')""".format(h2_function,
+                                                      filedir,
+                                                      tableName))
+    
+    return None

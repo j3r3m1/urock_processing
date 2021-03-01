@@ -5,9 +5,9 @@ Created on Fri Jan 22 11:05:28 2021
 
 @author: Jérémy Bernard, University of Gothenburg
 """
-import URock.DataUtil as DataUtil
+import DataUtil as DataUtil
 import pandas as pd
-from URock.GlobalVariables import * 
+from GlobalVariables import * 
 
 def windRotation(cursor, dicOfInputTables, rotateAngle, rotationCenterCoordinates = None):
     """ Rotates of 'rotateAngle' degrees counter-clockwise the geometries 
@@ -43,11 +43,11 @@ def windRotation(cursor, dicOfInputTables, rotateAngle, rotationCenterCoordinate
     # If not specified, get the most North-East point of the envelope of all
     # geometries of all tables as the center of rotation
     if rotationCenterCoordinates is None:
-        queryUnionTables = [" UNION ALL ".join(["""
-                                                SELECT {0} FROM {1}
+        queryUnionTables = " UNION ALL ".join(["""
+                                                SELECT {0} FROM ST_EXPLODE('(SELECT {0} FROM {1})')
                                                 """.format( GEOM_FIELD,
                                                             t)
-                                                for t in dicOfInputTables.values()])]
+                                                for t in dicOfInputTables.values()])
         cursor.execute("""
            SELECT  ST_XMAX(ST_EXTENT({0})),
                    ST_YMAX(ST_EXTENT({0}))

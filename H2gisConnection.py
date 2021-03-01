@@ -10,7 +10,7 @@ Created on Thu Jan 21 11:49:12 2021
 from __future__ import print_function
 import os
 import urllib
-import URock.DataUtil as DataUtil
+import DataUtil
 import jaydebeapi
 
 try:
@@ -28,7 +28,7 @@ except ImportError:
 
 H2GIS_VERSION = "2.0.0"
 H2GIS_URL = "https://jenkins-ng.orbisgis.org/job/H2GIS/lastSuccessfulBuild/artifact/h2gis-dist/target/h2gis-standalone-bin.zip"
-H2GIS_UNZIPPED_NAME = "h2gis_standalone"+os.sep+"h2gis-dist-"+H2GIS_VERSION+"-RC1.jar"
+H2GIS_UNZIPPED_NAME = "h2gis-standalone"+os.sep+"h2gis-dist-"+H2GIS_VERSION+"-SNAPSHOT.jar"
 
 
 def downloadH2gis(dbDirectory):

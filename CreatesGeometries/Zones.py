@@ -5,9 +5,9 @@ Created on Mon Jan 25 15:27:25 2021
 
 @author: Jérémy Bernard, University of Gothenburg
 """
-import URock.DataUtil as DataUtil
+import DataUtil as DataUtil
 import pandas as pd
-from URock.GlobalVariables import *
+from GlobalVariables import *
 
 def displacementZones(cursor, upwindTable, zonePropertiesTable):
     """ Creates the displacement zone and the displacement vortex zone
