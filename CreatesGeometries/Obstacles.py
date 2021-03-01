@@ -89,7 +89,7 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
                 A cursor object, used to perform spatial SQL queries
             inputBuildings: String
                 Name of the table containing building geometries and height
-            snappingTolerance: float, default 0.1
+            snappingTolerance: float, default GEOMETRY_MERGE_TOLERANCE
                 Distance in meter below which two buildings are 
                 considered as touching each other (m)
             
