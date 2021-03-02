@@ -53,7 +53,11 @@ tableVegetationTestName = "VEGETATION"
 inputDataAbs = {i : os.path.abspath(inputDataRel[i]) for i in inputDataRel}
 outputDataAbs = {i : os.path.abspath(outputDataRel[i]) for i in outputDataRel}
 
+############################################################################
 ################################ SCRIPT ####################################
+############################################################################
+# ----------------------------------------------------------------------
+# 1. SET H2GIS DATABASE ENVIRONMENT AND LOAD DATA
 #Download H2GIS
 H2gisConnection.downloadH2gis(dbDirectory = dbDir)
 #Initialize a H2GIS database connection
@@ -68,11 +72,21 @@ cursor.execute("""DROP TABLE IF EXISTS {0}, {2}; CALL SHPREAD('{1}','{0}');
                                                            tableVegetationTestName,
                                                            inputDataAbs["vegetation"]))
 
+
+
+# -----------------------------------------------------------------------------------
+# 2. CREATES OBSTACLE GEOMETRIES ----------------------------------------------------
+# -----------------------------------------------------------------------------------
 # Create the stacked blocks
 blockTable, stackedBlockTable = \
     CreatesGeometries.Obstacles.createsBlocks(cursor = cursor, 
                                               inputBuildings = tableBuildingTestName)
 
+
+
+# -----------------------------------------------------------------------------------
+# 3. ROTATES OBSTACLES TO THE RIGHT DIRECTION AND CALCULATES GEOMETRY PROPERTIES ----
+# -----------------------------------------------------------------------------------
 # Define a set of obstacles in a dictionary before the rotation
 dicOfObstacles = {tableBuildingTestName     : stackedBlockTable,
                   tableVegetationTestName   : tableVegetationTestName}
@@ -88,32 +102,43 @@ dicRotatedTables, rotationCenterCoordinates = \
 # Get the rotated block and vegetation table names
 rotatedStackedBlocks = dicRotatedTables[tableBuildingTestName]
 rotatedVegetation = dicRotatedTables[tableVegetationTestName]
+
+# Calculates base block height and base of block cavity zone
+rotatedPropStackedBlocks = \
+    CreatesGeometries.Obstacles.identifyBlockAndCavityBase(cursor, rotatedStackedBlocks)
+    
 # Save the rotating tables as geojson
-DataUtil.saveTable(cursor = cursor                      , tableName = rotatedStackedBlocks,
+DataUtil.saveTable(cursor = cursor                      , tableName = rotatedPropStackedBlocks,
           filedir = outputDataAbs["stacked_blocks"]     , delete = True)
 DataUtil.saveTable(cursor = cursor                         , tableName = rotatedVegetation,
           filedir = outputDataAbs["rotated_vegetation"]    , delete = True)
+
+# Init the upwind facades
+upwindTable = \
+    CreatesGeometries.Obstacles.initUpwindFacades(cursor = cursor,
+                                                  obstaclesTable = rotatedPropStackedBlocks)
+# Save the upwind facades as geojson
+DataUtil.saveTable(cursor = cursor              , tableName = upwindTable,
+          filedir = outputDataAbs["facades"]    , delete = True)
 
 
 # Calculates obstacles properties
 obstaclePropertiesTable = \
     CalculatesIndicators.obstacleProperties(cursor = cursor,
-                                            obstaclesTable = rotatedStackedBlocks)
+                                            obstaclesTable = rotatedPropStackedBlocks)
 
 # Calculates obstacle zone properties
 zonePropertiesTable = \
     CalculatesIndicators.zoneProperties(cursor = cursor,
                                         obstaclePropertiesTable = obstaclePropertiesTable)
 
-# Init the upwind facades
-upwindTable = \
-    CreatesGeometries.Obstacles.initUpwindFacades(cursor = cursor,
-                                                  obstaclesTable = rotatedStackedBlocks)
 
-# Save the upwind facades as geojson
-DataUtil.saveTable(cursor = cursor              , tableName = upwindTable,
-          filedir = outputDataAbs["facades"]    , delete = True)
 
+
+
+# -----------------------------------------------------------------------------------
+# 4. CREATES THE 2D ROCKLE ZONES ----------------------------------------------------
+# -----------------------------------------------------------------------------------
 # Creates the displacement zone (upwind)
 displacementZonesTable, displacementVortexZonesTable = \
     CreatesGeometries.Zones.displacementZones(cursor = cursor,
@@ -161,6 +186,11 @@ DataUtil.saveTable(cursor = cursor                              , tableName = ro
 DataUtil.saveTable(cursor = cursor                      , tableName = rooftopCornerZoneTable,
           filedir = outputDataAbs["rooftop_corner"]     , delete = True)
 
+
+
+# -----------------------------------------------------------------------------------
+# 5. INITIALIZE THE 3D WIND FIELD IN THE ROCKLE ZONES -------------------------------
+# -----------------------------------------------------------------------------------
 # Creates the grid of points
 gridPoint = InitWindField.createGrid(cursor = cursor, 
                                      dicOfInputTables = dicRotatedTables)
