@@ -387,13 +387,14 @@ def initUpwindFacades(cursor, obstaclesTable):
        CREATE INDEX IF NOT EXISTS id_{5}_{2} ON {0} USING BTREE({5});
        DROP TABLE IF EXISTS {3};
        CREATE TABLE {3} 
-           AS SELECT   a.{1}, a.{4}, a.{5}, a.{7},
+           AS SELECT   a.{1}, a.{4}, a.{5}, a.{7}, a.{8},
                        COALESCE(b.{6}, a.{6}) AS {6}
            FROM {0} AS a LEFT JOIN {2} AS b ON a.{5} = b.{5}
        """.format( tempoUpwind              , ID_FIELD_STACKED_BLOCK,
                    tempoUpdatedUpwindBase   , zoneLengthTable,
                    GEOM_FIELD               , UPWIND_FACADE_FIELD,
-                   BASE_HEIGHT_FIELD        , HEIGHT_FIELD))
+                   BASE_HEIGHT_FIELD        , HEIGHT_FIELD,
+                   UPWIND_FACADE_ANGLE_FIELD))
                         
     if not DEBUG:
         # Drop intermediate tables

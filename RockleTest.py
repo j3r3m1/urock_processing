@@ -200,7 +200,9 @@ dicOfRockleZoneTable = {DISPLACEMENT_NAME       : displacementZonesTable,
                         DISPLACEMENT_VORTEX_NAME: displacementVortexZonesTable,
                         CAVITY_NAME             : cavityZonesTable,
                         WAKE_NAME               : wakeZonesTable,
-                        STREET_CANYON_NAME      : streetCanyonTable}
+                        STREET_CANYON_NAME      : streetCanyonTable,
+                        ROOFTOP_PERP_NAME       : rooftopPerpendicularZoneTable,
+                        ROOFTOP_CORN_NAME       : rooftopCornerZoneTable}
 # Affects each point to a Rockle zone and calculates relative distances
 dicOfOutputTables = \
     InitWindField.affectsPointToZone(cursor = cursor, 

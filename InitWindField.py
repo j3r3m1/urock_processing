@@ -109,7 +109,7 @@ def affectsPointToZone(cursor, gridTable, dicOfRockleZoneTable):
     tempoPrefix = "TEMPO"
     prefixZoneLimits = "ZONE_LIMITS"
     
-    # Tables that should keep y value
+    # Tables that should keep y value (distance from upwind building)
     listTabYvalues = [CAVITY_NAME, WAKE_NAME]
     
     query = ["""CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
@@ -142,6 +142,7 @@ def affectsPointToZone(cursor, gridTable, dicOfRockleZoneTable):
             
         query.append(""" 
             CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
+            DROP TABLE IF EXISTS {2};
             CREATE TABLE {2}
                 AS SELECT {4}
                 FROM    {0} AS a, {3} AS b
@@ -179,7 +180,7 @@ def affectsPointToZone(cursor, gridTable, dicOfRockleZoneTable):
                         ID_POINT_Y,
                         idLowerGridRow)
     # Then calculates the coordinate of the upper and lower part of the zones
-    # for each vertical line and last calculate the relative position of each
+    # for each "vertical" line and last calculate the relative position of each
     # point according to the upper and lower part of the Rockle zones
     endOfQuery += ";".join(["""
         CREATE INDEX IF NOT EXISTS id_{1}_{2} ON {2} USING RTREE({1});
@@ -207,6 +208,8 @@ def affectsPointToZone(cursor, gridTable, dicOfRockleZoneTable):
             AS SELECT   b.{8},
                         a.Y_LOWER-b.Y_POINT AS {6},
                         a.{7},
+                        b.{3},
+                        b.{11},
                         a.{9}
             FROM {0} AS a RIGHT JOIN {10} AS b
                         ON a.{3} = b.{3} AND a.{11} = b.{11}
@@ -218,7 +221,7 @@ def affectsPointToZone(cursor, gridTable, dicOfRockleZoneTable):
                               verticalLineTable,
                               dicOfOutputTables[t],
                               DISTANCE_BUILD_TO_POINT_FIELD,
-                              LENGTH_ZONE_FIELD,
+                              LENGTH_ZONE_FIELD+t[0],
                               ID_POINT,
                               HEIGHT_FIELD,
                               DataUtil.prefix(tableName = dicOfOutputTables[t],
@@ -226,17 +229,46 @@ def affectsPointToZone(cursor, gridTable, dicOfRockleZoneTable):
                               ID_POINT_X)
                   for t in listTabYvalues])
     query.append(endOfQuery)
-    
-    # Remove intermediate tables
-    query.append("""
-        DROP TABLE IF EXISTS {0},{1}
-                  """.format(",".join([DataUtil.prefix( tableName = dicOfOutputTables[t],
-                                                        prefix = tempoPrefix)
-                                             for t in listTabYvalues]),
-                              ",".join([DataUtil.prefix(tableName = t,
-                                                        prefix = prefixZoneLimits)
-                                             for t in listTabYvalues]),
-                             verticalLineTable))
     cursor.execute(";".join(query))
+    
+    # Add the cavity zone length into the wake zone table (since it 
+    # is needed for wind speed calculation)
+    cursor.execute("""
+       CREATE INDEX IF NOT EXISTS id_{7}_{2} ON {2} USING BTREE({7});
+       CREATE INDEX IF NOT EXISTS id_{8}_{2} ON {2} USING BTREE({8});
+       DROP TABLE IF EXISTS TEMPO_CAVITY;
+       CREATE TABLE TEMPO_CAVITY
+           AS SELECT MIN({3}) AS {3}, {8}, {7}
+           FROM {2}
+           GROUP BY {7}, {8};
+       CREATE INDEX IF NOT EXISTS id_{7}_{0} ON {0} USING BTREE({7});
+       CREATE INDEX IF NOT EXISTS id_{7}_TEMPO_CAVITY ON TEMPO_CAVITY USING BTREE({7});
+       CREATE INDEX IF NOT EXISTS id_{8}_{0} ON {0} USING BTREE({8});
+       CREATE INDEX IF NOT EXISTS id_{8}_TEMPO_CAVITY ON TEMPO_CAVITY USING BTREE({8});
+       DROP TABLE IF EXISTS TEMPO_WAKE;
+       CREATE TABLE TEMPO_WAKE 
+           AS SELECT   a.{1}, b.{3}, a.{4}, a.{5}, a.{6}
+           FROM     {0} AS a LEFT JOIN TEMPO_CAVITY AS b 
+                   ON a.{7} = b.{7} AND a.{8} = b.{8};
+       DROP TABLE IF EXISTS {0};
+       ALTER TABLE TEMPO_WAKE RENAME TO {0}
+       """.format(  dicOfOutputTables[WAKE_NAME]    , ID_POINT,
+                    dicOfOutputTables[CAVITY_NAME]  , LENGTH_ZONE_FIELD+CAVITY_NAME[0],
+                    LENGTH_ZONE_FIELD+WAKE_NAME[0]  , DISTANCE_BUILD_TO_POINT_FIELD,
+                    HEIGHT_FIELD                    , ID_FIELD_STACKED_BLOCK,
+                    ID_POINT_X))
+    
+    if not DEBUG:
+        # Remove intermediate tables
+        cursor.execute("""
+            DROP TABLE IF EXISTS {0},{1}
+                      """.format(",".join([DataUtil.prefix( tableName = dicOfOutputTables[t],
+                                                            prefix = tempoPrefix)
+                                                 for t in listTabYvalues]),
+                                  ",".join([DataUtil.prefix(tableName = t,
+                                                            prefix = prefixZoneLimits)
+                                                 for t in listTabYvalues]),
+                                 verticalLineTable))
+        
      
     return dicOfOutputTables
