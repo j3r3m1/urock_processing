@@ -421,6 +421,9 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable):
             AS SELECT   {1},
                         {2},
                         {4},
+                        ABS({6}) AS {14},
+                        ST_LENGTH({3}) AS {15},
+                        {5},
                         CASE    WHEN {5} < PI()/2
                                 THEN ST_MAKEPOLYGON(ST_MAKELINE(ST_STARTPOINT({3}),
                                                                 ST_ENDPOINT({3}),
@@ -461,10 +464,14 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable):
                        pieceOfQueryLcCorner             , upwindTable,
                        zonePropertiesTable              , CORNER_THRESHOLD_ANGLE[1],
                        CORNER_THRESHOLD_ANGLE[0]        , ROOFTOP_PERP_LENGTH,
-                       temporaryRooftopPerp             , PERPENDICULAR_THRESHOLD_ANGLE)
+                       temporaryRooftopPerp             , PERPENDICULAR_THRESHOLD_ANGLE,
+                       ROOFTOP_CORNER_LENGTH            , ROOFTOP_CORNER_FACADE_LENGTH)
     cursor.execute(queryTempoRooftop)
     
     # Queries to limit the rooftop zones to the rooftop of the stacked block...
+    extraFieldToKeep = {"perp": "", "corner": "a.{0}, a.{1}, a.{2}, ".format(ROOFTOP_CORNER_LENGTH,
+                                                                           ROOFTOP_CORNER_FACADE_LENGTH,
+                                                                           UPWIND_FACADE_ANGLE_FIELD)}
     queryCutRooftop = ["""
         CREATE INDEX IF NOT EXISTS id_{3}_{5} ON {5} USING RTREE({3});
         CREATE INDEX IF NOT EXISTS id_{3}_{6} ON {6} USING RTREE({3});
@@ -475,13 +482,15 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable):
             AS SELECT   a.{1},
                         a.{2},
                         a.{4},
+                        {7}
                         ST_INTERSECTION(a.{3}, b.{3}) AS {3}
             FROM {5} AS a LEFT JOIN {6} AS b ON a.{1} = b.{1}
             WHERE a.{3} && b.{3} AND ST_INTERSECTS(a.{3}, b.{3})
            """.format( dicTableNames.loc[typeZone, "final"] , ID_FIELD_STACKED_BLOCK,
                        UPWIND_FACADE_FIELD                  , GEOM_FIELD,
                        HEIGHT_FIELD                         , dicTableNames.loc[typeZone, "temporary"],
-                       zonePropertiesTable) for typeZone in dicTableNames.index]
+                       zonePropertiesTable                  , extraFieldToKeep[typeZone])
+               for typeZone in dicTableNames.index]
     cursor.execute(";".join(queryCutRooftop))
     
     if not DEBUG:
