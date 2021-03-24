@@ -22,6 +22,7 @@ from GlobalVariables import *
 ################################ INIT VARIABLES ############################
 # Where will be stored the database management base system
 dbDir = tempfile.gettempdir()
+dbDir = "/home/decide/Téléchargements"
 
 # Define dictionaries of input and output relative directories
 inputDataRel = {}
@@ -44,6 +45,14 @@ outputDataRel["wake"] = "./Ressources/wake.geojson"
 outputDataRel["street_canyon"] = "./Ressources/streetCanyon.geojson"
 outputDataRel["rooftop_perpendicular"] = "./Ressources/rooftopPerp.geojson"
 outputDataRel["rooftop_corner"] = "./Ressources/rooftopCorner.geojson"
+outputDataRel["vegetation_built"] = "./Ressources/vegetationBuilt.geojson"
+outputDataRel["vegetation_open"] = "./Ressources/vegetationOpen.geojson"
+
+# Grid points
+outputDataRel["point_BuildZone"] = "./Ressources/point_BuildZone"
+outputDataRel["point3D_BuildZone"] = "./Ressources/point3D_BuildZone"
+outputDataRel["point_VegZone"] = "./Ressources/point_VegZone"
+outputDataRel["point3D_VegZone"] = "./Ressources/point3D_VegZone"
 
 # Input table names
 tableBuildingTestName = "BUILDINGS"
@@ -75,14 +84,18 @@ cursor.execute("""DROP TABLE IF EXISTS {0}, {2}; CALL SHPREAD('{1}','{0}');
 
 
 # -----------------------------------------------------------------------------------
-# 2. CREATES OBSTACLE GEOMETRIES ----------------------------------------------------
+# 2. CREATES OBSTACLE GEOMETRIES AND CALCULATES THE MAXIMUM SKETCH HEIGHT------------
 # -----------------------------------------------------------------------------------
 # Create the stacked blocks
 blockTable, stackedBlockTable = \
     CreatesGeometries.Obstacles.createsBlocks(cursor = cursor, 
                                               inputBuildings = tableBuildingTestName)
 
-
+# Calculates the height of the top of the "sketch"
+obstacleMaxHeight = CalculatesIndicators.maxObstacleHeight(cursor = cursor, 
+                                                           stackedBlockTable = stackedBlockTable,
+                                                           vegetationTable = tableVegetationTestName)
+sketchHeight = obstacleMaxHeight + VERTICAL_EXTEND
 
 # -----------------------------------------------------------------------------------
 # 3. ROTATES OBSTACLES TO THE RIGHT DIRECTION AND CALCULATES GEOMETRY PROPERTIES ----
@@ -114,12 +127,16 @@ DataUtil.saveTable(cursor = cursor                         , tableName = rotated
           filedir = outputDataAbs["rotated_vegetation"]    , delete = True)
 
 # Init the upwind facades
-upwindTable = \
+upwindInitedTable = \
     CreatesGeometries.Obstacles.initUpwindFacades(cursor = cursor,
                                                   obstaclesTable = rotatedPropStackedBlocks)
+# Update base height of upwind facades (if shared with the building below)
+upwindTable = \
+    CreatesGeometries.Obstacles.updateUpwindFacadeBase(cursor = cursor,
+                                                       upwindTable = upwindInitedTable)
 # Save the upwind facades as geojson
-DataUtil.saveTable(cursor = cursor              , tableName = upwindTable,
-          filedir = outputDataAbs["facades"]    , delete = True)
+DataUtil.saveTable(cursor = cursor                      , tableName = upwindTable,
+                   filedir = outputDataAbs["facades"]   , delete = True)
 
 
 # Calculates obstacles properties
@@ -132,8 +149,12 @@ zonePropertiesTable = \
     CalculatesIndicators.zoneProperties(cursor = cursor,
                                         obstaclePropertiesTable = obstaclePropertiesTable)
 
-
-
+# Calculates roughness properties of the study area
+z0, d = \
+    CalculatesIndicators.studyAreaProperties(cursor = cursor, 
+                                             upwindTable = upwindInitedTable, 
+                                             stackedBlockTable = rotatedStackedBlocks, 
+                                             vegetationTable = rotatedVegetation)
 
 
 # -----------------------------------------------------------------------------------
@@ -152,7 +173,7 @@ DataUtil.saveTable(cursor = cursor                      , tableName = displaceme
 DataUtil.saveTable(cursor = cursor                          , tableName = displacementVortexZonesTable,
           filedir = outputDataAbs["displacement_vortex"]    , delete = True)
 
-# Creates the displacement zone (upwind)
+# Creates the cavity and wake zones
 cavityZonesTable, wakeZonesTable = \
     CreatesGeometries.Zones.cavityAndWakeZones(cursor = cursor, 
                                                zonePropertiesTable = zonePropertiesTable)
@@ -186,6 +207,15 @@ DataUtil.saveTable(cursor = cursor                              , tableName = ro
 DataUtil.saveTable(cursor = cursor                      , tableName = rooftopCornerZoneTable,
           filedir = outputDataAbs["rooftop_corner"]     , delete = True)
 
+# Creates the vegetation zones
+vegetationBuiltZoneTable, vegetationOpenZoneTable = \
+    CreatesGeometries.Zones.vegetationZones(cursor = cursor,
+                                            vegetationTable = rotatedVegetation,
+                                            wakeZonesTable = wakeZonesTable)
+DataUtil.saveTable(cursor = cursor                      , tableName = vegetationBuiltZoneTable,
+          filedir = outputDataAbs["vegetation_built"]   , delete = True)
+DataUtil.saveTable(cursor = cursor                      , tableName = vegetationOpenZoneTable,
+          filedir = outputDataAbs["vegetation_open"]    , delete = True)
 
 
 # -----------------------------------------------------------------------------------
@@ -195,16 +225,99 @@ DataUtil.saveTable(cursor = cursor                      , tableName = rooftopCor
 gridPoint = InitWindField.createGrid(cursor = cursor, 
                                      dicOfInputTables = dicRotatedTables)
 
-# Define a dictionary of all Rockle zones
-dicOfRockleZoneTable = {DISPLACEMENT_NAME       : displacementZonesTable,
-                        DISPLACEMENT_VORTEX_NAME: displacementVortexZonesTable,
-                        CAVITY_NAME             : cavityZonesTable,
-                        WAKE_NAME               : wakeZonesTable,
-                        STREET_CANYON_NAME      : streetCanyonTable,
-                        ROOFTOP_PERP_NAME       : rooftopPerpendicularZoneTable,
-                        ROOFTOP_CORN_NAME       : rooftopCornerZoneTable}
-# Affects each point to a Rockle zone and calculates relative distances
-dicOfOutputTables = \
-    InitWindField.affectsPointToZone(cursor = cursor, 
-                                     gridTable = gridPoint,
-                                     dicOfRockleZoneTable = dicOfRockleZoneTable)
+# Define a dictionary of all building Rockle zones and same for veg
+dicOfBuildRockleZoneTable = {DISPLACEMENT_NAME       : displacementZonesTable,
+                            DISPLACEMENT_VORTEX_NAME: displacementVortexZonesTable,
+                            CAVITY_NAME             : cavityZonesTable,
+                            WAKE_NAME               : wakeZonesTable,
+                            STREET_CANYON_NAME      : streetCanyonTable,
+                            ROOFTOP_PERP_NAME       : rooftopPerpendicularZoneTable,
+                            ROOFTOP_CORN_NAME       : rooftopCornerZoneTable}
+dicOfVegRockleZoneTable = {VEGETATION_BUILT_NAME   : vegetationBuiltZoneTable,
+                           VEGETATION_OPEN_NAME    : vegetationOpenZoneTable}
+
+# Affects each point to a Rockle zone and calculates needed variables for 3D wind speed factors
+dicOfBuildZoneGridPoint = \
+    InitWindField.affectsPointToBuildZone(  cursor = cursor, 
+                                            gridTable = gridPoint,
+                                            dicOfBuildRockleZoneTable = dicOfBuildRockleZoneTable)
+for t in dicOfBuildZoneGridPoint:
+    cursor.execute("""DROP TABLE IF EXISTS point_Buildzone_{0};
+                   CREATE INDEX IF NOT EXISTS id_{1}_{3} ON {3} USING BTREE({1});
+                   CREATE INDEX IF NOT EXISTS id_{1}_{4} ON {4} USING BTREE({1});
+                   CREATE TABLE point_Buildzone_{0}
+                       AS SELECT   a.{2}, b.*
+                       FROM {3} AS a RIGHT JOIN {4} AS b
+                                   ON a.{1} = b.{1}
+                       WHERE b.{1} IS NOT NULL
+                       """.format(t, ID_POINT, GEOM_FIELD, gridPoint, dicOfBuildZoneGridPoint[t]))
+    DataUtil.saveTable(cursor = cursor,
+                       tableName = "point_Buildzone_"+t,
+                       filedir = outputDataAbs["point_BuildZone"]+t+".geojson",
+                       delete = True)
+    
+# Same for vegetation Röckle zones
+dicOfVegZoneGridPoint = \
+    InitWindField.affectsPointToVegZone(cursor = cursor, 
+                                        gridTable = gridPoint,
+                                        dicOfVegRockleZoneTable = dicOfVegRockleZoneTable)
+
+
+    
+# Calculates the 3D wind speed factors for each building Röckle zone
+dicOfBuildZone3DWindFactor = \
+    InitWindField.calculates3dBuildWindFactor(cursor = cursor,
+                                              dicOfBuildZoneGridPoint = dicOfBuildZoneGridPoint,
+                                              maxHeight = obstacleMaxHeight)
+for t in dicOfBuildZone3DWindFactor:
+    cursor.execute("""DROP TABLE IF EXISTS point3D_Buildzone_{0};
+                   CREATE INDEX IF NOT EXISTS id_{1}_{3} ON {3} USING BTREE({1});
+                   CREATE INDEX IF NOT EXISTS id_{1}_{4} ON {4} USING BTREE({1});
+                   CREATE TABLE point3D_Buildzone_{0}
+                       AS SELECT   a.{2}, b.*
+                       FROM {3} AS a RIGHT JOIN {4} AS b
+                                   ON a.{1} = b.{1}
+                       WHERE b.{1} IS NOT NULL
+                       """.format(t, ID_POINT, GEOM_FIELD, gridPoint, dicOfBuildZone3DWindFactor[t]))
+    DataUtil.saveTable(cursor = cursor,
+                       tableName = "point3D_Buildzone_"+t,
+                       filedir = outputDataAbs["point3D_BuildZone"]+t+".geojson",
+                       delete = True)
+    
+# Calculates the 3D wind speed factors of the vegetation (considering all zone types)
+vegetationWeightFactorTable = \
+    InitWindField.calculates3dVegWindFactor(cursor = cursor,
+                                            dicOfVegZoneGridPoint = dicOfVegZoneGridPoint,
+                                            sketchHeight = sketchHeight,
+                                            z0 = z0,
+                                            d = d)
+
+cursor.execute("""DROP TABLE IF EXISTS point3D_AllVegZone;
+               CREATE INDEX IF NOT EXISTS id_{0}_{2} ON {2} USING BTREE({0});
+               CREATE INDEX IF NOT EXISTS id_{0}_{3} ON {3} USING BTREE({0});
+               CREATE TABLE point3D_AllVegZone
+                   AS SELECT   a.{1}, b.*
+                   FROM {2} AS a RIGHT JOIN {3} AS b
+                               ON a.{0} = b.{0}
+                   WHERE b.{0} IS NOT NULL
+                   """.format(ID_POINT, GEOM_FIELD, gridPoint, vegetationWeightFactorTable))
+DataUtil.saveTable(cursor = cursor,
+                   tableName = "point3D_AllVegZone",
+                   filedir = outputDataAbs["point3D_VegZone"]+".geojson",
+                   delete = True)
+
+
+# ----------------------------------------------------------------
+# 5. DEALS WITH SUPERIMPOSED ZONES -------------------------------
+# ----------------------------------------------------------------
+# Calculates the final weighting factor for each point, dealing with duplicates (superimposition)
+dicAllWeightFactorsTables = dicOfBuildZone3DWindFactor.copy()
+dicAllWeightFactorsTables[ALL_VEGETATION_NAME] = vegetationWeightFactorTable
+allZonesPointFactor = \
+    InitWindField.manageSuperimposition(cursor = cursor,
+                                        dicAllWeightFactorsTables = dicAllWeightFactorsTables,
+                                        upstreamPriorityTables = UPSTREAM_PRIORITY_TABLES,
+                                        upstreamWeightingTables = UPSTREAM_WEIGHTING_TABLES,
+                                        upstreamWeightingInterRules = UPSTREAM_WEIGHTING_INTER_RULES,
+                                        upstreamWeightingIntraRules = UPSTREAM_WEIGHTING_INTRA_RULES,
+                                        downstreamWeightingTable = DOWNSTREAM_WEIGTHING_TABLE)

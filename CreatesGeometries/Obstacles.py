@@ -319,15 +319,11 @@ def initUpwindFacades(cursor, obstaclesTable):
                 Name of the table containing the upwind obstacle facades"""
     print("Initializes upwind facades")
     
-    # Create temporary table names (for tables that will be removed at the end of the IProcess)
-    tempoUpwind = DataUtil.postfix("tempo_upwind")
-    tempoUpdatedUpwindBase = DataUtil.postfix("tempo_updated_upwind_base")
-    
     # Output base name
-    outputBaseName = "UPWIND"
+    outputBaseName = "UPWIND_INIT"
     
     # Name of the output table
-    zoneLengthTable = DataUtil.prefix(outputBaseName)
+    upwindTable = DataUtil.prefix(outputBaseName)
     
     # Identify upwind facade
     cursor.execute("""
@@ -350,7 +346,7 @@ def initUpwindFacades(cursor, obstaclesTable):
                                   FROM {4})')
            WHERE ST_AZIMUTH(ST_STARTPOINT({2}), 
                             ST_ENDPOINT({2})) < PI()
-           """.format( tempoUpwind, 
+           """.format( upwindTable, 
                        ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD, 
                        UPWIND_FACADE_ANGLE_FIELD, 
@@ -359,6 +355,38 @@ def initUpwindFacades(cursor, obstaclesTable):
                        HEIGHT_FIELD,
                        BASE_HEIGHT_FIELD,
                        ID_FIELD_BLOCK))
+    
+    return upwindTable
+
+
+def updateUpwindFacadeBase(cursor, upwindTable):
+    """ Update the base height of each upwind facade (when shared with a facade
+    of a stacked block below).
+
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            upwindTable: String
+                Name of the table containing the initialized upwind facades
+            
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+            updatedUpwindBaseTable: String
+                Name of the table containing the upwind obstacle facades with
+                updated base height"""
+    print("Update upwind facades base height")
+    
+    # Create temporary table names (for tables that will be removed at the end of the IProcess)
+    tempoUpwind = DataUtil.postfix("tempo_upwind")
+    
+    # Output base name
+    outputBaseName = "UPWIND_UPDATED_BASE"
+    
+    # Name of the output table
+    updatedUpwindBaseTable = DataUtil.prefix(outputBaseName)
     
     # Update base height for facades being shared with the block below
     cursor.execute("""
@@ -375,13 +403,13 @@ def initUpwindFacades(cursor, obstaclesTable):
                    AND ST_DIMENSION(ST_INTERSECTION(ST_SNAP(a.{1}, b.{1}, {9}),
                                                     b.{1}))=1
            GROUP BY a.{5}, a.{2}, a.{8}
-       """.format(  tempoUpwind              , GEOM_FIELD,
+       """.format(  upwindTable              , GEOM_FIELD,
                     ID_FIELD_BLOCK           , HEIGHT_FIELD,
-                    tempoUpdatedUpwindBase   , ID_FIELD_STACKED_BLOCK,
+                    tempoUpwind              , ID_FIELD_STACKED_BLOCK,
                     BASE_HEIGHT_FIELD        , UPWIND_FACADE_ANGLE_FIELD,
                     UPWIND_FACADE_FIELD      , SNAPPING_TOLERANCE))  
 
-    # Join upwind facades being not updated
+    # Upwind facades being not updated are joined to the updated ones
     cursor.execute("""
        CREATE INDEX IF NOT EXISTS id_{5}_{0} ON {0} USING BTREE({5});
        CREATE INDEX IF NOT EXISTS id_{5}_{2} ON {0} USING BTREE({5});
@@ -390,8 +418,8 @@ def initUpwindFacades(cursor, obstaclesTable):
            AS SELECT   a.{1}, a.{4}, a.{5}, a.{7}, a.{8},
                        COALESCE(b.{6}, a.{6}) AS {6}
            FROM {0} AS a LEFT JOIN {2} AS b ON a.{5} = b.{5}
-       """.format( tempoUpwind              , ID_FIELD_STACKED_BLOCK,
-                   tempoUpdatedUpwindBase   , zoneLengthTable,
+       """.format( upwindTable              , ID_FIELD_STACKED_BLOCK,
+                   tempoUpwind              , updatedUpwindBaseTable,
                    GEOM_FIELD               , UPWIND_FACADE_FIELD,
                    BASE_HEIGHT_FIELD        , HEIGHT_FIELD,
                    UPWIND_FACADE_ANGLE_FIELD))
@@ -400,4 +428,4 @@ def initUpwindFacades(cursor, obstaclesTable):
         # Drop intermediate tables
         cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([tempoUpwind])))
     
-    return zoneLengthTable
+    return updatedUpwindBaseTable

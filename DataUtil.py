@@ -165,7 +165,7 @@ def saveTable(cursor, tableName, filedir, delete):
         print("The extension should be .geojson or .shp")
     
     # Delete files
-    if delete:
+    if delete and os.path.isfile(filedir):
         os.remove(filedir)
     
     # Write files

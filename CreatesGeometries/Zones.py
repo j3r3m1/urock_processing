@@ -272,6 +272,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
         CREATE TABLE {0}
             AS SELECT   b.{1} AS {6},
                         a.{1} AS {7},
+                        a.{9},
                         a.{5},
                         a.{8},
                         ST_COLLECTIONEXTRACT(ST_INTERSECTION(a.{2}, b.{2}), 2) AS {2}
@@ -281,7 +282,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        GEOM_FIELD                       , upwindTable,
                        cavityZonesTable                 , HEIGHT_FIELD,
                        ID_UPSTREAM_STACKED_BLOCK        , ID_DOWNSTREAM_STACKED_BLOCK,
-                       UPWIND_FACADE_ANGLE_FIELD)
+                       UPWIND_FACADE_ANGLE_FIELD        , BASE_HEIGHT_FIELD)
     cursor.execute(intersectionQuery)
     
     # Identify street canyon extend
@@ -295,6 +296,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         a.{6} AS {7},
                         b.{6} AS {8},
                         a.{11},
+                        a.{12},
                         ST_MAKEPOLYGON(ST_MAKELINE(ST_STARTPOINT(a.{4}),
                     								ST_STARTPOINT(ST_TRANSLATE( a.{4}, 
                                                                             0, 
@@ -310,27 +312,38 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        GEOM_FIELD                       , CAVITY_LENGTH_FIELD,
                        HEIGHT_FIELD                     , DOWNSTREAM_HEIGHT_FIELD,
                        UPSTREAM_HEIGHT_FIELD            , ID_DOWNSTREAM_STACKED_BLOCK,
-                       ID_FIELD_STACKED_BLOCK           , UPWIND_FACADE_ANGLE_FIELD)
+                       ID_FIELD_STACKED_BLOCK           , UPWIND_FACADE_ANGLE_FIELD,
+                       BASE_HEIGHT_FIELD)
     cursor.execute(canyonExtendQuery)
     
     # Creates street canyon zones
     streetCanyonQuery = """
         CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING BTREE({1});
         DROP TABLE IF EXISTS {2};
-        CREATE TABLE {2}
-            AS SELECT   {1},
+        CREATE TABLE {2}({13} SERIAL,
+                         {1} INTEGER,
+                         {8} INTEGER,
+                         {3} GEOMETRY,
+                         {4} INTEGER,
+                         {5} INTEGER,
+                         {11} DOUBLE,
+                         {12} INTEGER)
+            AS SELECT   NULL AS {13},
+                        {1},
                         {8},
                         {3},
                         {4},
                         {5},
-                        {11}
+                        {11},
+                        {12}
             FROM ST_EXPLODE('(SELECT    a.{1},
                                         a.{8},
                                         ST_SPLIT(a.{3},
                                                 ST_GeometryN(ST_TOMULTILINE(b.{3}),1)) AS {3},
                                         a.{4},
                                         a.{5},
-                                        a.{11}
+                                        a.{11},
+                                        a.{12}
                             FROM        {0} AS a LEFT JOIN {7} AS b ON a.{1}=b.{9})')
             WHERE EXPLOD_ID = 1
                      
@@ -339,7 +352,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        DOWNSTREAM_HEIGHT_FIELD          , UPSTREAM_HEIGHT_FIELD,
                        SNAPPING_TOLERANCE               , zonePropertiesTable,
                        ID_DOWNSTREAM_STACKED_BLOCK      , ID_FIELD_STACKED_BLOCK,
-                       MESH_SIZE                        , UPWIND_FACADE_ANGLE_FIELD)
+                       MESH_SIZE                        , UPWIND_FACADE_ANGLE_FIELD,
+                       BASE_HEIGHT_FIELD                , ID_FIELD_CANYON)
     cursor.execute(streetCanyonQuery)
     
     if not DEBUG:
@@ -425,12 +439,12 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable):
                         ST_LENGTH({3}) AS {15},
                         {5},
                         CASE    WHEN {5} < PI()/2
-                                THEN ST_MAKEPOLYGON(ST_MAKELINE(ST_STARTPOINT({3}),
-                                                                ST_ENDPOINT({3}),
+                                THEN ST_MAKEPOLYGON(ST_MAKELINE(ST_ENDPOINT({3}),
                                                                 ST_TRANSLATE(ST_STARTPOINT({3}),
                                                                              -{6}*SIN(PI()/2-{5}),
                                                                              {6}*COS(PI()/2-{5})),
-                                                                ST_STARTPOINT({3})))
+                                                                ST_STARTPOINT({3}),
+                                                                ST_ENDPOINT({3})))
                                 ELSE ST_MAKEPOLYGON(ST_MAKELINE(ST_STARTPOINT({3}),
                                                                 ST_ENDPOINT({3}),
                                                                 ST_TRANSLATE(ST_ENDPOINT({3}),
@@ -469,9 +483,12 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable):
     cursor.execute(queryTempoRooftop)
     
     # Queries to limit the rooftop zones to the rooftop of the stacked block...
-    extraFieldToKeep = {"perp": "", "corner": "a.{0}, a.{1}, a.{2}, ".format(ROOFTOP_CORNER_LENGTH,
-                                                                           ROOFTOP_CORNER_FACADE_LENGTH,
-                                                                           UPWIND_FACADE_ANGLE_FIELD)}
+    extraFieldToKeep = {"perp": "b.{0}, b.{1},".format(ROOFTOP_PERP_LENGTH,
+                                                       ROOFTOP_PERP_HEIGHT), 
+                        "corner": "a.{0}, a.{1}, a.{2}, b.{3},".format(ROOFTOP_CORNER_LENGTH,
+                                                                 ROOFTOP_CORNER_FACADE_LENGTH,
+                                                                 UPWIND_FACADE_ANGLE_FIELD,
+                                                                 ROOFTOP_WIND_FACTOR)}
     queryCutRooftop = ["""
         CREATE INDEX IF NOT EXISTS id_{3}_{5} ON {5} USING RTREE({3});
         CREATE INDEX IF NOT EXISTS id_{3}_{6} ON {6} USING RTREE({3});
@@ -498,3 +515,106 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable):
         cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join(dicTableNames["temporary"].values)))
     
     return roofPerpZonesTable, RoofCornerZonesTable
+
+
+def vegetationZones(cursor, vegetationTable, wakeZonesTable):
+    """ Identify vegetation zones which are in "built up" areas and those
+    being in "open areas". Vegetation is considered in a built up area
+    when it intersects with build wake zone.
+
+    References:
+            Nelson et al., Evaluation of an urban vegetative canopy scheme 
+        and impact on plume dispersion. 2009
+
+
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            vegetationTable: String
+                Name of the table containing vegetation footprints
+            wakeZonesTable: String
+                Name of the table containing the wake zones
+            
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+            vegetationBuiltZoneTable: String
+                Name of the table containing the vegetation zone located in 
+                built-up areas
+            vegetationOpenZoneTable: String
+                Name of the table containing the vegetation zone located in 
+                open areas"""
+    print("Creates built-up and open vegetation zones")
+    
+    # Output base name
+    outputBaseNameOpen = "OPEN_VEGETATION_ZONES"
+    outputBaseNameBuilt = "BUILTUP_VEGETATION_ZONES"
+    
+    # Name of the output tables
+    vegetationOpenZoneTable = DataUtil.prefix(outputBaseNameOpen)
+    vegetationBuiltZoneTable = DataUtil.prefix(outputBaseNameBuilt)
+        
+    # Create temporary table names (for tables that will be removed at the end of the IProcess)
+    temporary_built_vegetation = DataUtil.postfix("temporary_built_vegetation")
+    
+    # Identify vegetation zones being in building wake zones
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
+        CREATE INDEX IF NOT EXISTS id_{1}_{2} ON {2} USING RTREE({1});
+        DROP TABLE IF EXISTS {7};
+        CREATE TABLE {7}
+            AS SELECT   ST_INTERSECTION(a.{1}, b.{1}) AS {1},
+                        a.{3},
+                        a.{4},
+                        a.{5},
+                        a.{6}
+            FROM {0} AS a, {2} AS b
+            WHERE a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1});
+        CREATE INDEX IF NOT EXISTS id_{6}_{7} ON {7} USING BTREE({6});
+        DROP TABLE IF EXISTS {8};
+        CREATE TABLE {8}({9} SERIAL     , {1} GEOMETRY   , {3} DOUBLE,
+                         {4} DOUBLE     , {5} DOUBLE     , {6} INTEGER)
+            AS SELECT NULL, {1}, {3}, {4}, {5}, {6}
+            FROM ST_EXPLODE('(SELECT    ST_UNION(ST_ACCUM({1})) AS {1},
+                                        MIN({3}) AS {3},
+                                        MIN({4}) AS {4},
+                                        MIN({5}) AS {5},
+                                        {6}
+                            FROM {7}
+                            GROUP BY {6})')
+        """.format( vegetationTable                  , GEOM_FIELD,
+                    wakeZonesTable                   , VEGETATION_CROWN_BASE_HEIGHT,
+                    VEGETATION_CROWN_TOP_HEIGHT      , VEGETATION_ATTENUATION_FACTOR,
+                    ID_VEGETATION                    , temporary_built_vegetation,
+                    vegetationBuiltZoneTable         , ID_ZONE_VEGETATION))
+    
+    # Identify vegetation zones being in open areas
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS id_{6}_{0} ON {0} USING BTREE({6});
+        CREATE INDEX IF NOT EXISTS id_{6}_{2} ON {2} USING BTREE({6});
+        DROP TABLE IF EXISTS {7};
+        CREATE TABLE {7}({8} SERIAL     , {1} GEOMETRY   , {3} DOUBLE,
+                         {4} DOUBLE     , {5} DOUBLE     , {6} INTEGER)
+            AS SELECT   NULL, {1}, {3}, {4}, {5}, {6}
+            FROM ST_EXPLODE('(SELECT    COALESCE(ST_DIFFERENCE(a.{1}, b.{1}),
+                                                a.{1}) AS {1},
+                                        a.{3},
+                                        a.{4},
+                                        a.{5},
+                                        a.{6}
+                            FROM {0} AS a LEFT JOIN {2} AS b ON a.{6} = b.{6}
+                            WHERE NOT ST_ISEMPTY(COALESCE(ST_DIFFERENCE(a.{1}, b.{1}),
+                                                          a.{1})))')
+        """.format( vegetationTable                  , GEOM_FIELD,
+                    temporary_built_vegetation       , VEGETATION_CROWN_BASE_HEIGHT,
+                    VEGETATION_CROWN_TOP_HEIGHT      , VEGETATION_ATTENUATION_FACTOR,
+                    ID_VEGETATION                    , vegetationOpenZoneTable,
+                    ID_ZONE_VEGETATION))
+    
+    if not DEBUG:
+        # Drop intermediate tables
+        cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([temporary_built_vegetation])))
+    
+    return vegetationBuiltZoneTable, vegetationOpenZoneTable

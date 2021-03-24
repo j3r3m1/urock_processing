@@ -6,6 +6,7 @@ Created on Mon Jan 25 16:26:24 2021
 @author: Jérémy Bernard, University of Gothenburg
 """
 from datetime import datetime
+import pandas as pd
 
 # Note that the number of points of an ellipse is only used to identify whether
 # the upper or lower part of an ellipse should be used (fro displacement zones),
@@ -14,8 +15,10 @@ from datetime import datetime
 # https://github.com/locationtech/jts/blob/9d4097312d68cb8f9ae591bec69ce3b403e41e98/modules/core/src/main/java/org/locationtech/jts/util/GeometricShapeFactory.java#L101
 NPOINTS_ELLIPSE = 100
 MESH_SIZE = 3
+DZ = 1
 ALONG_WIND_ZONE_EXTEND = 75
 CROSS_WIND_ZONE_EXTEND = 20
+VERTICAL_EXTEND = 20
 
 # The "perpendicular vortex scheme" for rooftop and displacement zones is activated
 # if the wind angle if more or less 'PERPENDICULAR_THRESHOLD_ANGLE' ° higher
@@ -26,7 +29,7 @@ PERPENDICULAR_THRESHOLD_ANGLE = 15
 CORNER_THRESHOLD_ANGLE = [30, 70]
 ELLIPSOID_MIN_LENGTH = float(MESH_SIZE)/4
 GEOMETRY_MERGE_TOLERANCE = 0.25
-SNAPPING_TOLERANCE = 0.001
+SNAPPING_TOLERANCE = 0.3
 GEOMETRY_SIMPLIFICATION_DISTANCE = 0.25
 
 GEOM_FIELD = "THE_GEOM"
@@ -35,13 +38,21 @@ ID_FIELD_BLOCK = "ID_BLOCK"
 ID_FIELD_STACKED_BLOCK = "ID_STACKED_BLOCK"
 ID_UPSTREAM_STACKED_BLOCK = "ID_UPSTREAM_STACKED_BLOCK"
 ID_DOWNSTREAM_STACKED_BLOCK = "ID_DOWNSTREAM_STACKED_BLOCK"
+ID_FIELD_CANYON = "ID_CANYON"
+ID_VEGETATION = "ID_VEG"
+ID_ZONE_VEGETATION = "ID_ZONE_VEG"
 ID_POINT = "ID_POINT"
 ID_POINT_X = "ID_X"
 ID_POINT_Y = "ID_Y"
+ID_POINT_Z = "ID_Z"
 
 HEIGHT_FIELD = "HEIGHT_ROO"
 BASE_HEIGHT_FIELD = "BASE_HEIGHT"
 CAVITY_BASE_HEIGHT_FIELD = "CAVITY_BASE_HEIGHT"
+VEGETATION_CROWN_BASE_HEIGHT = "MIN_HEIGHT"
+VEGETATION_CROWN_TOP_HEIGHT = "MAX_HEIGHT"
+TOP_CANOPY_HEIGHT_POINT = "MAX_CANOPY_HEIGHT"
+VEGETATION_ATTENUATION_FACTOR = "ATTENUATIO"
 UPSTREAM_HEIGHT_FIELD = "UPSTREAM_HEIGHT"
 DOWNSTREAM_HEIGHT_FIELD = "DOWNSTREAM_HEIGHT"
 UPWIND_FACADE_ANGLE_FIELD = "THETA_WIND"
@@ -57,11 +68,16 @@ ROOFTOP_CORNER_FACADE_LENGTH = "Lfc"
 ROOFTOP_CORNER_LENGTH = "Lcc"
 ROOFTOP_PERP_HEIGHT = "Hcm"
 ROOFTOP_WIND_FACTOR = "C1"
+ROOFTOP_PERP_VAR_HEIGHT = "Hr"
+ROOFTOP_CORNER_VAR_HEIGHT = "Hccp"
 
 PREFIX_NAME = "BUILDINGS"
 SUFFIX_NAME = datetime.now().strftime("%Y%m%d%H%M%S")
+Y_WALL = "Y_WALL"
 DISTANCE_BUILD_TO_POINT_FIELD = "DY"
 LENGTH_ZONE_FIELD = "D_0"
+POINT_RELATIVE_POSITION_FIELD = "DY_D0"
+WAKE_RELATIVE_POSITION_FIELD = "D0W_DY_15"
 
 DISPLACEMENT_NAME = "DISPLACEMENT"
 DISPLACEMENT_VORTEX_NAME = "DISPLACEMENT_VORTEX"
@@ -70,5 +86,50 @@ WAKE_NAME = "WAKE"
 STREET_CANYON_NAME = "STREET_CANYON"
 ROOFTOP_PERP_NAME = "ROOFTOP_PERPENDICULAR"
 ROOFTOP_CORN_NAME = "ROOFTOP_CORNER"
+VEGETATION_BUILT_NAME = "VEGETATION_BUILT"
+VEGETATION_OPEN_NAME = "VEGETATION_OPEN"
+ALL_VEGETATION_NAME = "VEGETATION_ALL"
+
+UPPER_VERTICAL_THRESHOLD = "Z_UP_THRESH"
+LOWER_VERTICAL_THRESHOLD = "Z_DOWN_THRESH"
+U = "U"
+V = "V"
+W = "W"
+VEGETATION_FACTOR = "VEGETATION_FACTOR"
+
+Z = "Z"
+# Coefficients for displacement zone calculation
+C_DZ = 0.4
+P_DZ = 0.16
+# Coefficient for rooftop perpendicular
+P_RTP = 0.16
+
+# Defines priorities (column "priority") when the zone comes from a same 
+# obstacle of same height. Also contains a column "ref_height" to
+# know by which wind speed height should be multiplied a weigthing factor
+# (1: "Associated building height", 
+#  2: "Reference wind speed measurement height Z_REF",
+#  3: "Point height")
+REF_HEIGHT_FIELD = "REF_HEIGHT"
+PRIORITY_FIELD = "PRIORITY"
+REF_HEIGHT_UPSTREAM_WEIGHTING = 3
+REF_HEIGHT_DOWNSTREAM_WEIGHTING = 3
+UPSTREAM_PRIORITY_TABLES = pd.DataFrame({PRIORITY_FIELD: [1, 2, 3, 3, 3, 4], 
+                                         REF_HEIGHT_FIELD: [1, 1, 2, 2, 1, 1]},
+                                        index = [STREET_CANYON_NAME, 
+                                                 CAVITY_NAME, 
+                                                 ROOFTOP_PERP_NAME,
+                                                 ROOFTOP_CORN_NAME, 
+                                                 DISPLACEMENT_VORTEX_NAME, 
+                                                 DISPLACEMENT_NAME])
+UPSTREAM_WEIGHTING_TABLES = [WAKE_NAME]
+UPSTREAM_WEIGHTING_INTRA_RULES = "upstream"
+UPSTREAM_WEIGHTING_INTER_RULES = "upstream"
+DOWNSTREAM_WEIGTHING_TABLE = ALL_VEGETATION_NAME
+
+ID_3D_POINT = "ID"
+
+# Wind speed input measurement height
+Z_REF = 10
 
 DEBUG = True

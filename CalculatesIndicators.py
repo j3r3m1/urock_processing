@@ -147,3 +147,156 @@ def zoneProperties(cursor, obstaclePropertiesTable):
     cursor.execute(query)
     
     return zoneLengthTable
+
+def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable):
+    """ Calculates roughness height (z0) and displacement length (d) of the study area 
+    for a wind coming from North (thus you first need to rotate your
+                                  obstacles to make them facing north if you 
+                                  want to study a different wind direction).
+    The calculation method is based on Equations 17a to 18c from Hanna and 
+    Britter (2002). For building, each facade facing the wind is considered
+    while the calculation is simplified for vegetation : the frontal area is
+    simply calculated as the cross wind width of each vegetation patch 
+    multiplied by its crown vegetation height.
+    
+    WARNING: Hanna and Britter (2002) say that: "It is suggested that an upper limit to H,
+    should be 20 m and an upper limit to z, is therefore about 3 m. Conse-
+    quently these methods should not be used for skyscrapers in a large city
+    center or for the Rocky Mountains"
+    
+    References:
+        Hanna, SR, et RE Britter. « Wind flow and vapor cloud dispersion at
+        industrial sites. Am. Inst ». Chem Eng, New York, 2002.
+
+
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            upwindTable: String
+                Name of the table containing the obstacle upwind facades
+                (WARNING : WITH BASE HEIGHT NOT UPDATED)
+            stackedBlockTable: String
+                Name of the table containing the stacked blocks
+            vegetationTable: String
+                Name of the table containing the vegetation patches
+            
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+            z0: float
+                Value of the study area roughness height
+            d: float
+                Value of the study area displacement length"""
+    print("Calculates study area properties")
+    
+    # Calculate the area of the study area
+    cursor.execute("""
+           SELECT ST_AREA(ST_CONVEXHULL(ST_ACCUM({0})))
+           FROM   (SELECT    {0}
+                  FROM {1}
+                  UNION ALL
+                  SELECT    {0}
+                  FROM {2}) AS STUDY_AREA_AREA_TAB
+           """.format(  GEOM_FIELD, 
+                        stackedBlockTable,
+                        vegetationTable))
+    area = cursor.fetchall()[0][0]
+    
+    # Calculates the obstacle (stacked blocks and vegetation) 
+    # geometric mean height (H_r)
+    cursor.execute("""
+           CREATE INDEX IF NOT EXISTS id_{0}_{1} ON {1} USING BTREE({0});
+           """.format(  ID_FIELD_BLOCK, 
+                        stackedBlockTable))
+    cursor.execute("""
+           SELECT   EXP(1.0/COUNT(OBSTACLE_HEIGHT_TAB.*)*
+                        SUM(LOG(OBSTACLE_HEIGHT_TAB.HEIGHT))) AS H_r,
+            FROM (SELECT MAX({0}) AS HEIGHT
+                  FROM {1}
+                  GROUP BY {4}
+                  UNION ALL
+                  SELECT {2} AS HEIGHT
+                  FROM {3}) AS OBSTACLE_HEIGHT_TAB;""".format(HEIGHT_FIELD, 
+                    stackedBlockTable,
+                    VEGETATION_CROWN_TOP_HEIGHT,
+                    vegetationTable,
+                    ID_FIELD_BLOCK))
+    H_r = cursor.fetchall()[0][0]
+    
+    # Calculates the obstacle (stacked blocks and vegetation) 
+    # and frontal density (lambda_f)
+    cursor.execute("""
+            SELECT  SUM(FRONTAL_AREA_TAB.CROSS_WIND_LENGTH*
+                        FRONTAL_AREA_TAB.CROSS_WIND_HEIGHT)/{7}
+                     AS LAMBDA_f
+            FROM    (SELECT    ST_XMAX({3})- ST_XMIN({3}) AS CROSS_WIND_LENGTH,
+                            {0}-{4} AS CROSS_WIND_HEIGHT
+                      FROM {5}
+                      UNION ALL
+                      SELECT    ST_XMAX({3})- ST_XMIN({3}) AS CROSS_WIND_LENGTH,
+                                {1}-{6} AS CROSS_WIND_HEIGHT
+                      FROM {2}) AS FRONTAL_AREA_TAB
+         """.format(HEIGHT_FIELD,
+                    VEGETATION_CROWN_TOP_HEIGHT,
+                    vegetationTable,
+                    GEOM_FIELD,
+                    BASE_HEIGHT_FIELD, 
+                    upwindTable,
+                    VEGETATION_CROWN_BASE_HEIGHT,
+                    area))
+    lambda_f = cursor.fetchall()[0][0]
+    
+    # Calculates z0 and d according to Hanna and Britter (2002) Equations 16-17
+    z0 = 0
+    d = 0
+    if lambda_f<=0.15:
+        z0 = lambda_f*H_r
+        if lambda_f<=0.05:
+            d = 3*lambda_f*H_r
+        else:
+            d = 0.15+5.5*(lambda_f-0.05)
+    elif lambda_f>0.15:
+        if lambda_f>1:
+            lambda_f = 1
+        z0 = 0.15*H_r
+        d = 0.7+0.35*(lambda_f-0.15)
+    
+    return z0, d
+
+def maxObstacleHeight(cursor, stackedBlockTable, vegetationTable):
+    """ Calculates the maximum height of the obstacles within the study area.
+
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            stackedBlockTable: String
+                Name of the table containing the stacked blocks
+            vegetationTable: String
+                Name of the table containing the vegetation patches
+            
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+            Hmax: float
+                Value of the maximum obstacle height within the study area"""
+    print("Calculates maximum obstacle height within the study area")
+    
+    # Calculates the obstacle (stacked blocks and vegetation) 
+    # maximum height (Hmax)
+    cursor.execute("""
+           SELECT   MAX(HEIGHT) AS Hmax,
+            FROM (SELECT MAX({0}) AS HEIGHT
+                  FROM {1}
+                  UNION ALL
+                  SELECT MAX({2}) AS HEIGHT
+                  FROM {3}) AS OBSTACLE_HEIGHT_TAB;""".format(HEIGHT_FIELD, 
+                    stackedBlockTable,
+                    VEGETATION_CROWN_TOP_HEIGHT,
+                    vegetationTable))
+    H_max = cursor.fetchall()[0][0]
+    
+    return H_max
