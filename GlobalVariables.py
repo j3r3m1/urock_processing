@@ -7,6 +7,12 @@ Created on Mon Jan 25 16:26:24 2021
 """
 from datetime import datetime
 import pandas as pd
+import tempfile
+import math
+
+# Temporary directory where are saved database and specific files exchanged between
+# the H2Database and Python
+TEMPO_DIRECTORY = tempfile.gettempdir()
 
 # Note that the number of points of an ellipse is only used to identify whether
 # the upper or lower part of an ellipse should be used (fro displacement zones),
@@ -97,6 +103,8 @@ V = "V"
 W = "W"
 VEGETATION_FACTOR = "VEGETATION_FACTOR"
 
+X = "X"
+Y = "Y"
 Z = "Z"
 # Coefficients for displacement zone calculation
 C_DZ = 0.4
@@ -131,5 +139,6 @@ ID_3D_POINT = "ID"
 
 # Wind speed input measurement height
 Z_REF = 10
+V_REF = 2.0
 
 DEBUG = True

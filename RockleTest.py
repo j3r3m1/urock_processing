@@ -13,7 +13,6 @@ import InitWindField
 import DataUtil
 
 import os
-import tempfile
 
 from GlobalVariables import * 
 
@@ -21,8 +20,8 @@ from GlobalVariables import *
 
 ################################ INIT VARIABLES ############################
 # Where will be stored the database management base system
-dbDir = tempfile.gettempdir()
-dbDir = "/home/decide/Téléchargements"
+tempoDirectory = TEMPO_DIRECTORY
+tempoDirectory = "/home/decide/Téléchargements"
 
 # Define dictionaries of input and output relative directories
 inputDataRel = {}
@@ -68,10 +67,10 @@ outputDataAbs = {i : os.path.abspath(outputDataRel[i]) for i in outputDataRel}
 # ----------------------------------------------------------------------
 # 1. SET H2GIS DATABASE ENVIRONMENT AND LOAD DATA
 #Download H2GIS
-H2gisConnection.downloadH2gis(dbDirectory = dbDir)
+H2gisConnection.downloadH2gis(dbDirectory = tempoDirectory)
 #Initialize a H2GIS database connection
-cursor = H2gisConnection.startH2gisInstance(dbDirectory = dbDir,
-                                            dbInstanceDir = dbDir,
+cursor = H2gisConnection.startH2gisInstance(dbDirectory = tempoDirectory,
+                                            dbInstanceDir = tempoDirectory,
                                             instanceName = "myDbH2")
 
 #Load buildings and vegetation into H2GIS
@@ -321,3 +320,31 @@ allZonesPointFactor = \
                                         upstreamWeightingInterRules = UPSTREAM_WEIGHTING_INTER_RULES,
                                         upstreamWeightingIntraRules = UPSTREAM_WEIGHTING_INTRA_RULES,
                                         downstreamWeightingTable = DOWNSTREAM_WEIGTHING_TABLE)
+
+# ----------------------------------------------------------------
+# 6. 3D WIND SPEED CALCULATION -----------------------------------
+# ----------------------------------------------------------------
+# Identify 3D grid points intersected by buildings
+df_gridBuil = \
+    InitWindField.identifyBuildPoints(cursor = cursor,
+                                      gridPoint = gridPoint,
+                                      stackedBlocksWithBaseHeight = rotatedPropStackedBlocks,
+                                      dz = DZ,
+                                      tempoDirectory = tempoDirectory)
+
+# Set the initial 3D wind speed field
+df_wind0 = \
+    InitWindField.setInitialWindField(cursor = cursor, 
+                                      initializedWindFactorTable = allZonesPointFactor,
+                                      gridPoint = gridPoint,
+                                      df_gridBuil = df_gridBuil,
+                                      z0 = z0,
+                                      sketchHeight = sketchHeight,
+                                      meshSize = MESH_SIZE,
+                                      dz = DZ, 
+                                      z_ref = Z_REF,
+                                      V_ref = V_REF, 
+                                      tempoDirectory = tempoDirectory)
+
+# Apply a mass-flow balance to have a more physical 3D wind speed field
+

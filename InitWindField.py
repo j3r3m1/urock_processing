@@ -11,6 +11,7 @@ import pandas as pd
 from GlobalVariables import *
 import math
 import numpy as np
+import os
 
 def createGrid(cursor, dicOfInputTables, 
                alongWindZoneExtend = ALONG_WIND_ZONE_EXTEND, 
@@ -34,7 +35,7 @@ def createGrid(cursor, dicOfInputTables,
                 Distance (in meter) of the extend of the zone around the
                 rotated obstacles in the cross-wind direction
             meshSize: float, default MESH_SIZE
-                Resolution (in meter) of the grid
+                Resolution (in meter) of the grid 
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -1253,3 +1254,341 @@ def identifyUpstreamer( cursor,
                                            tempoUniquePointsTable])))
                              
     return uniqueValuePerPointTable
+
+
+def getVerticalProfile( cursor,
+                        pointHeightList,
+                        z0,
+                        V_ref=V_REF,
+                        z_ref=Z_REF):
+    """ Get the horizontal wind speed of a set of point heights. The
+    wind speed profile used to set wind speed value is the power-law
+    equation proposed by Kuttler (2000) and used in QUIC-URB (Pardyjak et Brown, 2003).
+    Note that the exponent p of the power-law is calculated according to the
+    formulae p = 0.12*z0+0.18 (Matzarakis et al. 2009).
+    
+    References:
+            Kuttler, Wilhelm. "Stadtklima." Umweltwissenschaften und
+        Schadstoff-Forschung 16.3 (2004): 187-199.
+            Matzarakis, A. and Endler, C., 2009: Physiologically Equivalent 
+        Temperature and Climate Change in Freiburg. Eighth Symposium on the 
+        Urban Environment. American Meteorological Society, Phoenix/Arizona, 
+        10. to 15. January 2009 4(2), 1–8.
+            Pardyjak, Eric R, et Michael Brown. « QUIC-URB v. 1.1: Theory and
+        User’s Guide ». Los Alamos National Laboratory, Los Alamos, NM, 2003.
+
+
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+        cursor: conn.cursor
+            A cursor object, used to perform spatial SQL queries
+        pointHeightList: list
+            Height (in meter) of the points for which we want the wind speed
+        z0: float
+            Value of the study area roughness height
+        V_ref: float, default V_REF
+            Wind speed (m/s) measured at measurement height z_ref
+        z_ref: float, DEFAULT Z_REF
+            Height of the wind speed sensor used to set the reference wind speed V_ref
+            
+        
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+        verticalWindProfile: pd.Series
+            Values of the wind speed for each vertical level"""
+    verticalWindProfile = pd.Series([V_ref*(z/z_ref)**(0.12*z0+0.18)
+                                                 for z in pointHeightList],
+                                    index = pointHeightList)
+    
+    return verticalWindProfile
+
+def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
+                        df_gridBuil, z0, sketchHeight, meshSize = MESH_SIZE, 
+                        dz = DZ, z_ref = Z_REF, V_ref = V_REF, 
+                        tempoDirectory = TEMPO_DIRECTORY):
+    """ Set the initial 3D wind speed according to the wind speed factor in
+    the Röckle zones and to the initial vertical wind speed profile.
+    
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+        cursor: conn.cursor
+            A cursor object, used to perform spatial SQL queries
+        initializedWindFactorTable: String
+            Name of the table containing the weighting factor for each 3D point
+            (one value per point, means superimposition have been used)
+        gridPoint: String
+            Name of the grid point table
+        df_gridBuil: pd.DataFrame
+            3D multiindex corresponding to grid points intersecting buildings
+        z0: float
+            Value of the study area roughness height
+        sketchHeight: float
+            Height of the sketch (m)
+        meshSize: float, default MESH_SIZE
+            Resolution (in meter) of the grid
+        dz: float, default DZ
+            Resolution (in meter) of the grid in the vertical direction
+        z_ref: float, DEFAULT Z_REF
+            Height of the wind speed sensor used to set the reference wind speed V_ref
+        V_ref: float, default V_REF
+            Wind speed (m/s) measured at measurement height z_ref
+        tempoDirectory: String, default TEMPO_DIRECTORY
+            Path of the directory where will be stored the grid points
+            having Röckle initial wind speed values (in order to exchange
+                                                     data between H2 to Python)
+            
+        
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+        initial3dWindSpeed: pd.DataFrame
+            3D wind speed value used as "first guess" in the wind solver"""
+    
+    print("Set the initial 3D wind speed field")
+    
+    # File name of the intermediate data saved on disk
+    initRockleFilename = "INIT_WIND_ROCKLE_ZONES.csv"
+    
+    # Temporary tables (and prefix for temporary tables)
+    tempoVerticalProfileTable = DataUtil.postfix("TEMPO_VERTICAL_PROFILE_WIND")
+    tempoBuildingHeightWindTable = DataUtil.postfix("TEMPO_BUILDING_HEIGHT_WIND")
+    tempoZoneWindSpeedFactorTable = DataUtil.postfix("TEMPO_ZONE_WIND_SPEED_FACTOR")
+    
+    # Set a list of the level height and get their horizontal wind speed
+    levelHeightList = [i*dz for i in np.arange(float(dz)/2, 
+                                               math.trunc(sketchHeight/dz)*dz+float(dz)/2,
+                                               dz)]
+    verticalWindSpeedProfile = \
+        getVerticalProfile( cursor = cursor,
+                            pointHeightList = levelHeightList,
+                            z0 = z0,
+                            V_ref=V_ref,
+                            z_ref=z_ref)
+    verticalWindSpeedProfile.index = [i for i in range(1, verticalWindSpeedProfile.size+1)]
+    
+    # Insert the initial vertical wind profile values into a table
+    valuesForEachRowProfile = [str(i)+","+str(j) for i, j in verticalWindSpeedProfile.iteritems()]
+    cursor.execute("""
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
+           INSERT INTO {0} VALUES ({3});
+           """.format( tempoVerticalProfileTable     , ID_POINT_Z,
+                       V                             ,"), (".join(valuesForEachRowProfile)))
+
+    # Get the wind speed at each building height value and insert them in a table
+    cursor.execute(""" SELECT DISTINCT({0}) AS {0}
+                       FROM {1}
+                       WHERE {0} IS NOT NULL;                   
+                   """.format(HEIGHT_FIELD, initializedWindFactorTable))
+    buildingHeightList = pd.Series(pd.DataFrame(cursor.fetchall())[0].values)
+    buildingHeightWindSpeed = \
+            getVerticalProfile( cursor = cursor,
+                                pointHeightList = buildingHeightList,
+                                z0 = z0,
+                                V_ref=V_ref,
+                                z_ref=z_ref)
+            
+    # Insert the building height wind speed values into a table
+    valuesForEachRowBuilding = [str(i)+","+str(j) for i, j in buildingHeightList.iteritems()]
+    cursor.execute("""
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
+           INSERT INTO {0} VALUES ({3});
+           """.format( tempoBuildingHeightWindTable     , HEIGHT_FIELD,
+                       V                                ,"), (".join(valuesForEachRowBuilding)))
+                       
+    # Calculates the initial wind speed field according to each point rule
+    # and join to the table x and y coordinates
+    cursor.execute("""
+           CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
+           CREATE INDEX IF NOT EXISTS id_{2}_{1} ON {1} USING BTREE({2});
+           CREATE INDEX IF NOT EXISTS id_{11}_{0} ON {0} USING BTREE({11});
+           CREATE INDEX IF NOT EXISTS id_{11}_{10} ON {10} USING BTREE({11});
+           CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
+           DROP TABLE IF EXISTS {4};
+           CREATE TABLE {4}
+               AS SELECT   a.{5},
+                           a.{2},
+                           CASE WHEN  a.{3}=1
+                           THEN       (SELECT   c.{6} 
+                                       FROM     {10} AS c
+                                       WHERE    a.{11} = c.{11})
+                           ELSE     CASE WHEN   a.{3} = 2
+                                    THEN        {7}
+                                    ELSE        (SELECT   b.{6} 
+                                                 FROM     {1} AS b
+                                                 WHERE    a.{2} = b.{2})
+                                    END
+                           END AS WIND_SPEED,
+                           a.{8},
+                           a.{6},
+                           a.{9}
+               FROM {0} AS a;
+           CREATE INDEX IF NOT EXISTS id_{5}_{4} ON {4} USING BTREE({5});
+           CREATE INDEX IF NOT EXISTS id_{5}_{12} ON {12} USING BTREE({5});
+           CALL CSVWRITE('{13}',
+                         'SELECT b.{14}, b.{15}, a.{2},
+                                 a.{8}*WIND_SPEED AS {8},
+                                 a.{6}*WIND_SPEED AS {6},
+                                 a.{9}*WIND_SPEED AS {9}
+                          FROM {4} AS a LEFT JOIN {12} AS b
+                          ON a.{5} = b.{5}',
+                         'charset=UTF-8 fieldSeparator=,')
+           """.format( initializedWindFactorTable   , tempoVerticalProfileTable,
+                       ID_POINT_Z                   , REF_HEIGHT_FIELD,
+                       tempoZoneWindSpeedFactorTable, ID_POINT,
+                       V                            , V_ref,
+                       U                            , W,
+                       tempoBuildingHeightWindTable , HEIGHT_FIELD,
+                       gridPoint                    , os.path.join(tempoDirectory,
+                                                                   initRockleFilename),
+                       ID_POINT_X                   , ID_POINT_Y))
+
+    # Get the number of grid point for each axis x, y and z
+    cursor.execute("""SELECT   MAX({0}) AS ID_POINT_X,
+                               MAX({1}) AS ID_POINT_Y
+                       FROM     {2}
+                       """.format(ID_POINT_X, ID_POINT_Y, gridPoint))
+    nPointsResults = cursor.fetchall()
+    nPoints = {X: nPointsResults[0][0]   , Y: nPointsResults[0][1],
+               Z: verticalWindSpeedProfile.index.max()+1}
+    
+    # Initialize the 3D wind speed field considering no obstacles
+    verticalWindSpeedProfile[0] = 0
+    df_wind0 = pd.DataFrame({U: np.zeros(nPoints[X]*nPoints[Y]*nPoints[Z]),
+                             V: [val for j in range(0, nPoints[Y])
+                                     for i in range(0, nPoints[X])
+                                     for val in verticalWindSpeedProfile.sort_index()],
+                             W: np.zeros(nPoints[X]*nPoints[Y]*nPoints[Z])},
+                            index=pd.MultiIndex.from_product([[i for i in range(0, nPoints[X])],
+                                                              [j for j in range(0, nPoints[Y])],
+                                                              [k for k in range(0, nPoints[Z])]]))
+
+    # Update the 3D wind speed field with the initial guess near obstacles
+    df_wind0_rockle = pd.read_csv(os.path.join(tempoDirectory,
+                                               initRockleFilename),
+                                  header = 0,
+                                  index_col = [0, 1, 2])
+    for c in df_wind0_rockle.columns:
+        df_wind0.loc[df_wind0_rockle[c].dropna().index,c] = df_wind0_rockle[c].dropna()
+    
+    # Set to 0 wind speed within buildings...
+    df_wind0.loc[df_gridBuil.index] = 0
+        
+    if not DEBUG:
+        # Remove intermediate tables
+        cursor.execute("""
+            DROP TABLE IF EXISTS {0}
+                      """.format(",".join([tempoVerticalProfileTable,
+                                           tempoBuildingHeightWindTable,
+                                           tempoZoneWindSpeedFactorTable])))
+    
+    return df_wind0
+
+
+def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
+                        dz = DZ, tempoDirectory = TEMPO_DIRECTORY):
+    """ Set the initial 3D wind speed according to the wind speed factor in
+    the Röckle zones and to the initial vertical wind speed profile.
+    
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+        cursor: conn.cursor
+            A cursor object, used to perform spatial SQL queries
+        gridPoint: String
+            Name of the grid point table
+        stackedBlocksWithBaseHeight: String
+            Name of the table containing stacked blocks with block base
+            height
+        dz: float, default DZ
+            Resolution (in meter) of the grid in the vertical direction
+        tempoDirectory: String, default = TEMPO_DIRECTORY
+            Path of the directory where will be stored the grid points
+            intersecting with buildings (in order to exchange
+                                         data between H2 to Python)
+            
+        
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+        df_gridBuil: pd.DataFrame
+            3D multiindex corresponding to grid points intersecting buildings"""
+
+    print("Identify grid points intersecting buildings")
+    
+    # File name of the intermediate data saved on disk
+    buildPointsFilename = "BUILDING_POINTS.csv"
+    
+    # Temporary tables (and prefix for temporary tables)
+    tempoBuildPointsTable = DataUtil.postfix("BUILDING_POINTS")
+    tempoLevelHeightPointTable = DataUtil.postfix("LEVEL_POINTS")
+    
+    # Identify 2D coordinates of points intersecting buildings 
+    cursor.execute("""
+           CREATE INDEX IF NOT EXISTS id_{7}_{5} ON {5} USING RTREE({7});
+           CREATE INDEX IF NOT EXISTS id_{7}_{6} ON {6} USING RTREE({7});
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0}
+               AS SELECT a.{1}, a.{8}, b.{2}, b.{3}, b.{4}
+               FROM {5} AS a, {6} AS b
+               WHERE a.{7} && b.{7} AND ST_INTERSECTS(a.{7}, b.{7})
+           """.format(  tempoBuildPointsTable           , ID_POINT_X,
+                        ID_FIELD_STACKED_BLOCK          , HEIGHT_FIELD ,
+                        BASE_HEIGHT_FIELD               , gridPoint,
+                        stackedBlocksWithBaseHeight     , GEOM_FIELD,
+                        ID_POINT_Y))
+
+    # Get the maximum building height
+    cursor.execute("""
+           SELECT MAX({0}) AS {0} FROM {1};
+           """.format(HEIGHT_FIELD, stackedBlocksWithBaseHeight))
+    buildMaxHeight = cursor.fetchall()[0][0]
+    
+    # Set a list of the level height (and indice) below the max building height...
+    levelHeightList = [str(j+1)+","+str(i*dz)
+                           for j, i in enumerate(np.arange(float(dz)/2, 
+                                                           math.trunc(buildMaxHeight/dz)*dz+float(dz)/2,
+                                                           dz))]
+    # ...and insert them into a table
+    cursor.execute("""
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
+           INSERT INTO {0} VALUES ({3});
+           """.format( tempoLevelHeightPointTable     , ID_POINT_Z,
+                       Z                              ,"), (".join(levelHeightList)))
+                       
+    # Identify the third dimension of points intersecting buildings and save it...
+    cursor.execute("""
+           CREATE INDEX IF NOT EXISTS id_{5}_{4} ON {4} USING BTREE({5});    
+           CREATE INDEX IF NOT EXISTS id_{6}_{3} ON {3} USING BTREE({6});   
+           CREATE INDEX IF NOT EXISTS id_{7}_{3} ON {3} USING BTREE({7});
+           CALL CSVWRITE('{0}',
+                         ' SELECT a.{1}, a.{8}, b.{2}
+                           FROM {3} AS a, {4} AS b
+                           WHERE b.{5} <= a.{6} AND b.{5} > a.{7}',
+                         'charset=UTF-8 fieldSeparator=,')
+           """.format( os.path.join(tempoDirectory,
+                                    buildPointsFilename)    , ID_POINT_X,
+                       ID_POINT_Z                           , tempoBuildPointsTable,
+                       tempoLevelHeightPointTable           , Z,
+                       HEIGHT_FIELD                         , BASE_HEIGHT_FIELD,
+                       ID_POINT_Y))
+    
+    # ...in order to load it back into Python
+    df_gridBuil = pd.read_csv(os.path.join(tempoDirectory,
+                                           buildPointsFilename),
+                                  header = 0,
+                                  index_col = [0, 1, 2])
+
+    if not DEBUG:
+        # Remove intermediate tables
+        cursor.execute("""
+            DROP TABLE IF EXISTS {0}
+                      """.format(",".join([tempoBuildPointsTable,
+                                           tempoLevelHeightPointTable])))
+    
+    return df_gridBuil
