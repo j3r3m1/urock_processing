@@ -6,15 +6,16 @@ Created on Thu Jan 21 11:39:39 2021
 @author: Jérémy Bernard, University of Gothenburg
 """
 
+from GlobalVariables import * 
+
 import H2gisConnection
 import CreatesGeometries
 import CalculatesIndicators
 import InitWindField
 import DataUtil
+import WindSolver
 
 import os
-
-from GlobalVariables import * 
 
 
 
@@ -333,7 +334,7 @@ df_gridBuil = \
                                       tempoDirectory = tempoDirectory)
 
 # Set the initial 3D wind speed field
-df_wind0 = \
+df_wind0, nPoints = \
     InitWindField.setInitialWindField(cursor = cursor, 
                                       initializedWindFactorTable = allZonesPointFactor,
                                       gridPoint = gridPoint,
@@ -347,4 +348,33 @@ df_wind0 = \
                                       tempoDirectory = tempoDirectory)
 
 # Apply a mass-flow balance to have a more physical 3D wind speed field
+buildGrid3D = pd.Series(1, index = df_wind0.index, dtype = np.int32)
+buildGrid3D.loc[df_gridBuil.index] = 0
+nx, ny, nz = nPoints.values()
+
+# Convert to numpy matrix...
+buildGrid3D = np.array([buildGrid3D.xs(i, level = 1).unstack().values for i in range(0,nx-1)])
+indices = np.transpose(np.where(buildGrid3D == 1))
+indices = indices[indices[:, 0] > 0]
+indices = indices[indices[:, 1] > 0]
+indices = indices[indices[:, 2] > 0]
+indices = indices[indices[:, 0] < nx - 1]
+indices = indices[indices[:, 1] < ny - 1]
+indices = indices[indices[:, 2] < nz - 1]
+indices = indices.astype(np.int32)
+buildIndexB = np.stack(np.where(buildGrid3D==0)).astype(np.int32)
+un = np.array([df_wind0[U].xs(i, level = 0).unstack().values for i in range(0,nx)])
+vn = np.array([df_wind0[V].xs(i, level = 0).unstack().values for i in range(0,nx)])
+wn = np.array([df_wind0[W].xs(i, level = 0).unstack().values for i in range(0,nx)])
+
+u = np.zeros((nx, ny, nz))
+v = np.zeros((nx, ny, nz))
+w = np.zeros((nx, ny, nz))
+
+u, v, w, x, y, z, e, lambdaM1  = \
+    WindSolver.solver(  dx = MESH_SIZE              , dy = MESH_SIZE        , dz = DZ, 
+                        nx = nx                     , ny = ny               , nz = nz, 
+                        un = un                     , vn = vn               , wn = wn,
+                        u = u                       , v = v                 , w = w, 
+                        buildIndexB = buildIndexB   , indices = indices     , iterations = 15)
 

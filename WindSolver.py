@@ -7,10 +7,10 @@ Created on Mon Mar 29 14:57:25 2021
 # Vienna Urban Climate Group
 # University of natural sciences (BOKU)
 """
+import numpy as np
 
-def solver(dx, dy, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB, indices, iterations):
+def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB, indices, iterations):
     H = nz / 1.
-    dz = H / nz  # Width of space step(z)
     L = nx / 1.
     B = ny / 1.
 

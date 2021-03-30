@@ -1345,7 +1345,10 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
 		_ _ _ _ _ _ _ _ _ _ 
 
         initial3dWindSpeed: pd.DataFrame
-            3D wind speed value used as "first guess" in the wind solver"""
+            3D wind speed value used as "first guess" in the wind solver
+        nPoints: dictionary
+            Dimension of the 3D grid object with X, Y and Z as key and the
+            number of grid point in the corresponding axis as value"""
     
     print("Set the initial 3D wind speed field")
     
@@ -1486,7 +1489,7 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                                            tempoBuildingHeightWindTable,
                                            tempoZoneWindSpeedFactorTable])))
     
-    return df_wind0
+    return df_wind0, nPoints
 
 
 def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
