@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[543580.0,5822200.0],[543600.0,5822200.0],[543600.0,5822180.0],[543580.0,5822180.0],[543580.0,5822200.0]]]},"properties":{"ID_STACKED_BLOCK":1,"ID_BLOCK":1,"HEIGHT_ROO":10,"BASE_HEIGHT":0,"CAVITY_BASE_HEIGHT":0.0}}]}

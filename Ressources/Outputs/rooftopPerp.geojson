@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[543580.0,5822188.03],[543580.0,5822200.0],[543600.0,5822200.0],[543600.0,5822188.03],[543580.0,5822188.03]]]},"properties":{"ID_STACKED_BLOCK":1,"UPWIND_FACADE_ID":1,"HEIGHT_ROO":10,"LCP":11.97,"HCM":2.926}}]}

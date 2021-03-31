@@ -9,7 +9,8 @@ import DataUtil as DataUtil
 import pandas as pd
 from GlobalVariables import * 
 
-def windRotation(cursor, dicOfInputTables, rotateAngle, rotationCenterCoordinates = None):
+def windRotation(cursor, dicOfInputTables, rotateAngle, rotationCenterCoordinates = None,
+                 prefix = PREFIX_NAME):
     """ Rotates of 'rotateAngle' degrees counter-clockwise the geometries 
     of all tables from the 'rotationCenterCoordinates' specified by the user.
     If none is specified, the center of rotation used is the most North-East
@@ -27,6 +28,8 @@ def windRotation(cursor, dicOfInputTables, rotateAngle, rotationCenterCoordinate
                 Counter clock-wise rotation angle (in degree)
             rotationCenterCoordinates: tuple of float
                 x and y values of the point used as center of rotation
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -79,7 +82,8 @@ def windRotation(cursor, dicOfInputTables, rotateAngle, rotationCenterCoordinate
     
     return dicOfRotateTables, rotationCenterCoordinates
 
-def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOLERANCE):
+def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOLERANCE,
+                  prefix = PREFIX_NAME):
     """ Creates blocks and stacked blocks from buildings touching each other.
 
 		Parameters
@@ -92,6 +96,8 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
             snappingTolerance: float, default GEOMETRY_MERGE_TOLERANCE
                 Distance in meter below which two buildings are 
                 considered as touching each other (m)
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -108,8 +114,8 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
     correlTable = DataUtil.postfix("correl_table")
     
     # Creates final tables
-    blockTable = DataUtil.prefix("block_table")
-    stackedBlockTable = DataUtil.prefix("stacked_block_table")
+    blockTable = DataUtil.prefix("block_table", prefix = prefix)
+    stackedBlockTable = DataUtil.prefix("stacked_block_table", prefix = prefix)
 
     # Creates the block (a method based on network - such as H2network
     # would be much more efficient)
@@ -142,8 +148,8 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
        """.format(correlTable, ID_FIELD_BLOCK))
     cursor.execute("""
        SELECT DISTINCT a.{2} 
-       FROM {0} AS a RIGHT JOIN (SELECT {1}, COUNT({1}) AS NB_BUILD FROM {0} GROUP BY {1}) AS b
-       ON a.{1} = b.{1} AND b.NB_BUILD > 1;
+       FROM {0} AS a RIGHT JOIN (SELECT {1} FROM {0} GROUP BY {1}) AS b
+       ON a.{1} = b.{1};
                    """.format(correlTable, ID_FIELD_BLOCK, HEIGHT_FIELD))
     listOfHeight = pd.DataFrame(cursor.fetchall()).dropna()[0].astype(int).values
     
@@ -173,7 +179,8 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
     return blockTable, stackedBlockTable
 
 
-def identifyBlockAndCavityBase(cursor, stackedBlockTable):
+def identifyBlockAndCavityBase(cursor, stackedBlockTable,
+                               prefix = PREFIX_NAME):
     """ Identify the base of each block and the base of their cavity zone 
     (which may go within the cavity zone of the base block where they sit).
     WARNING: THE CAVITY BASE HEIGHT DEPENDS ON WIND DIRECTION
@@ -185,6 +192,8 @@ def identifyBlockAndCavityBase(cursor, stackedBlockTable):
                 A cursor object, used to perform spatial SQL queries
             stackedBlockTable: String
                 Name of the table containing stacked blocks with block id
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -201,7 +210,8 @@ def identifyBlockAndCavityBase(cursor, stackedBlockTable):
     tempoAllCavityStacked = DataUtil.postfix("tempo_all_cavity_stacked_table")   
     
     # Creates final table
-    stackedBlockPropTable = DataUtil.prefix("stacked_block_prop_table")
+    stackedBlockPropTable = DataUtil.prefix("stacked_block_prop_table",
+                                            prefix = prefix)
 
 
     # Identify each block base height and ratio of area between the stacked and its base block
@@ -298,7 +308,7 @@ def identifyBlockAndCavityBase(cursor, stackedBlockTable):
     return stackedBlockPropTable
 
 
-def initUpwindFacades(cursor, obstaclesTable):
+def initUpwindFacades(cursor, obstaclesTable, prefix = PREFIX_NAME):
     """ Identify upwind facades, convert them to lines (they are initially
     included within polygons) and calculates their direction from wind speed 
     (90° for a facade perpendicular from the upwind). Also get the base height
@@ -311,6 +321,8 @@ def initUpwindFacades(cursor, obstaclesTable):
                 A cursor object, used to perform spatial SQL queries
             obstacleTable: String
                 Name of the table containing the obstacle geometries
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -323,7 +335,7 @@ def initUpwindFacades(cursor, obstaclesTable):
     outputBaseName = "UPWIND_INIT"
     
     # Name of the output table
-    upwindTable = DataUtil.prefix(outputBaseName)
+    upwindTable = DataUtil.prefix(outputBaseName, prefix = prefix)
     
     # Identify upwind facade
     cursor.execute("""
@@ -359,7 +371,7 @@ def initUpwindFacades(cursor, obstaclesTable):
     return upwindTable
 
 
-def updateUpwindFacadeBase(cursor, upwindTable):
+def updateUpwindFacadeBase(cursor, upwindTable, prefix = PREFIX_NAME):
     """ Update the base height of each upwind facade (when shared with a facade
     of a stacked block below).
 
@@ -370,6 +382,8 @@ def updateUpwindFacadeBase(cursor, upwindTable):
                 A cursor object, used to perform spatial SQL queries
             upwindTable: String
                 Name of the table containing the initialized upwind facades
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -386,7 +400,7 @@ def updateUpwindFacadeBase(cursor, upwindTable):
     outputBaseName = "UPWIND_UPDATED_BASE"
     
     # Name of the output table
-    updatedUpwindBaseTable = DataUtil.prefix(outputBaseName)
+    updatedUpwindBaseTable = DataUtil.prefix(outputBaseName, prefix = prefix)
     
     # Update base height for facades being shared with the block below
     cursor.execute("""

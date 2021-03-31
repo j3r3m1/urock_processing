@@ -10,10 +10,24 @@ import pandas as pd
 import numpy as np
 import tempfile
 import math
+import os
+
+# Wind input measurement height
+Z_REF = 10
+V_REF = 2.0
+WIND_DIRECTION = 270
 
 # Temporary directory where are saved database and specific files exchanged between
 # the H2Database and Python
 TEMPO_DIRECTORY = tempfile.gettempdir()
+INPUT_DIRECTORY = os.path.join("./Ressources","Inputs")
+OUTPUT_DIRECTORY = os.path.join("./Ressources","Outputs")
+INPUT_BUILDING_FILENAME = os.path.join("BigArea", "buildingSelection.shp")
+INPUT_VEGETATION_FILENAME = os.path.join("BigArea", "vegetation.shp")
+
+# If debug is True, keep intermediate tables (within each process) and save
+# intermediate tables (such as Röckle zones) as GIS file
+DEBUG = False
 
 # Note that the number of points of an ellipse is only used to identify whether
 # the upper or lower part of an ellipse should be used (fro displacement zones),
@@ -123,23 +137,18 @@ REF_HEIGHT_FIELD = "REF_HEIGHT"
 PRIORITY_FIELD = "PRIORITY"
 REF_HEIGHT_UPSTREAM_WEIGHTING = 3
 REF_HEIGHT_DOWNSTREAM_WEIGHTING = 3
-UPSTREAM_PRIORITY_TABLES = pd.DataFrame({PRIORITY_FIELD: [1, 2, 3, 3, 3, 4], 
-                                         REF_HEIGHT_FIELD: [1, 1, 2, 2, 1, 1]},
+UPSTREAM_PRIORITY_TABLES = pd.DataFrame({PRIORITY_FIELD: [1, 2, 3, 3, 3, 4, 5], 
+                                         REF_HEIGHT_FIELD: [1, 1, 2, 2, 1, 1, 3]},
                                         index = [STREET_CANYON_NAME, 
                                                  CAVITY_NAME, 
                                                  ROOFTOP_PERP_NAME,
                                                  ROOFTOP_CORN_NAME, 
                                                  DISPLACEMENT_VORTEX_NAME, 
-                                                 DISPLACEMENT_NAME])
+                                                 DISPLACEMENT_NAME,
+                                                 WAKE_NAME])
 UPSTREAM_WEIGHTING_TABLES = [WAKE_NAME]
 UPSTREAM_WEIGHTING_INTRA_RULES = "upstream"
 UPSTREAM_WEIGHTING_INTER_RULES = "upstream"
 DOWNSTREAM_WEIGTHING_TABLE = ALL_VEGETATION_NAME
 
 ID_3D_POINT = "ID"
-
-# Wind speed input measurement height
-Z_REF = 10
-V_REF = 2.0
-
-DEBUG = True

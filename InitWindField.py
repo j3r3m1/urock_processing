@@ -15,8 +15,9 @@ import os
 
 def createGrid(cursor, dicOfInputTables, 
                alongWindZoneExtend = ALONG_WIND_ZONE_EXTEND, 
-               crosswindZoneExtend = CROSS_WIND_ZONE_EXTEND, 
-               meshSize = MESH_SIZE):
+               crossWindZoneExtend = CROSS_WIND_ZONE_EXTEND, 
+               meshSize = MESH_SIZE,
+               prefix = PREFIX_NAME):
     """ Creates a grid of points which will be used to initiate the wind
     speed field.
 
@@ -36,6 +37,8 @@ def createGrid(cursor, dicOfInputTables,
                 rotated obstacles in the cross-wind direction
             meshSize: float, default MESH_SIZE
                 Resolution (in meter) of the grid 
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -48,7 +51,7 @@ def createGrid(cursor, dicOfInputTables,
     outputBaseName = "GRID"
     
     # Name of the output table
-    gridTable = DataUtil.prefix(outputBaseName)
+    gridTable = DataUtil.prefix(outputBaseName, prefix = prefix)
     
     # Gather all tables in one
     gatherQuery = ["""SELECT {0} FROM {1}""".format( GEOM_FIELD, dicOfInputTables[t])
@@ -69,7 +72,7 @@ def createGrid(cursor, dicOfInputTables,
                                     {4}, 
                                     {4})""".format(gridTable, 
                                                    GEOM_FIELD,
-                                                   crosswindZoneExtend,
+                                                   crossWindZoneExtend,
                                                    alongWindZoneExtend,
                                                    meshSize,
                                                    " UNION ALL ".join(gatherQuery),
@@ -80,7 +83,8 @@ def createGrid(cursor, dicOfInputTables,
     
     return gridTable
 
-def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable):
+def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
+                            prefix = PREFIX_NAME):
     """ Affects each point to a building Rockle zone and calculates relative
     point position within the zone for some of them.
 
@@ -94,6 +98,8 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable):
             dicOfBuildRockleZoneTable: Dictionary of building Rockle zone tables
                 Dictionary containing as key the building Rockle zone name and
                 as value the corresponding table name
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -105,13 +111,15 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable):
           variables for 3D wind speed""")
     
     # Name of the output tables
-    dicOfOutputTables = {t: DataUtil.postfix(tableName = DataUtil.prefix(tableName = t),
+    dicOfOutputTables = {t: DataUtil.postfix(tableName = DataUtil.prefix(tableName = t, 
+                                                                         prefix = prefix),
                                             suffix = "POINTS") for t in dicOfBuildRockleZoneTable}
                                         
     # Temporary tables (and prefix for temporary tables)
     verticalLineTable = "VERTICAL_LINES"
     tempoPrefix = "TEMPO"
     prefixZoneLimits = "ZONE_LIMITS"
+    tempoCavity = DataUtil.postfix("TEMPO_CAVITY")
     
     # Tables that should keep y value (distance from upwind building)
     listTabYvalues = [CAVITY_NAME, WAKE_NAME    , DISPLACEMENT_NAME,
@@ -440,15 +448,15 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable):
     cursor.execute("""
        CREATE INDEX IF NOT EXISTS id_{6}_{2} ON {2} USING BTREE({6});
        CREATE INDEX IF NOT EXISTS id_{7}_{2} ON {2} USING BTREE({7});
-       DROP TABLE IF EXISTS TEMPO_CAVITY;
-       CREATE TABLE TEMPO_CAVITY
+       DROP TABLE IF EXISTS {11};
+       CREATE TABLE {11}
            AS SELECT MIN({3}) AS {3}, {7}, {6}
            FROM {2}
            GROUP BY {6}, {7};
        CREATE INDEX IF NOT EXISTS id_{6}_{0} ON {0} USING BTREE({6});
-       CREATE INDEX IF NOT EXISTS id_{6}_TEMPO_CAVITY ON TEMPO_CAVITY USING BTREE({6});
+       CREATE INDEX IF NOT EXISTS id_{6}_{11} ON {11} USING BTREE({6});
        CREATE INDEX IF NOT EXISTS id_{7}_{0} ON {0} USING BTREE({7});
-       CREATE INDEX IF NOT EXISTS id_{7}_TEMPO_CAVITY ON TEMPO_CAVITY USING BTREE({7});
+       CREATE INDEX IF NOT EXISTS id_{7}_{11} ON {11} USING BTREE({7});
        DROP TABLE IF EXISTS TEMPO_WAKE;
        CREATE TABLE TEMPO_WAKE 
            AS SELECT   a.{1}, 
@@ -458,7 +466,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable):
                        a.{6},
                        a.{9},
                        a.{10}
-           FROM     {0} AS a LEFT JOIN TEMPO_CAVITY AS b 
+           FROM     {0} AS a LEFT JOIN {11} AS b 
                     ON a.{6} = b.{6} AND a.{7} = b.{7};
        DROP TABLE IF EXISTS {0};
        ALTER TABLE TEMPO_WAKE RENAME TO {0};
@@ -467,7 +475,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable):
                     DISTANCE_BUILD_TO_POINT_FIELD   , HEIGHT_FIELD,                   
                     ID_FIELD_STACKED_BLOCK          , ID_POINT_X,
                     WAKE_RELATIVE_POSITION_FIELD    , UPPER_VERTICAL_THRESHOLD,
-                    Y_WALL))
+                    Y_WALL                          , tempoCavity))
     
     # Special treatment for rooftop corners which have not been calculated previously
     cursor.execute("""DROP TABLE IF EXISTS {8};
@@ -504,20 +512,22 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable):
     if not DEBUG:
         # Remove intermediate tables
         cursor.execute("""
-            DROP TABLE IF EXISTS {0},{1}
+            DROP TABLE IF EXISTS {0},{1},{2}
                       """.format(",".join([DataUtil.prefix( tableName = dicOfOutputTables[t],
                                                             prefix = tempoPrefix)
                                                  for t in listTabYvalues]),
                                   ",".join([DataUtil.prefix(tableName = t,
                                                             prefix = prefixZoneLimits)
                                                  for t in listTabYvalues]),
-                                 verticalLineTable))
+                                 verticalLineTable,
+                                 tempoCavity))
         
      
     return dicOfOutputTables
 
 
-def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable):
+def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable,
+                          prefix = PREFIX_NAME):
     """ Affects each point to a vegetation Rockle zone and calculates the
     maximum vegetation height for each point.
 
@@ -531,6 +541,8 @@ def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable):
             dicOfVegRockleZoneTable: Dictionary of vegetation Röckle zone tables
                 Dictionary containing as key the vegetation Rockle zone name and
                 as value the corresponding vegetation table name
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -542,7 +554,8 @@ def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable):
           needed variables for 3D wind speed""")
     
     # Name of the output tables
-    dicOfOutputTables = {t: DataUtil.postfix(tableName = DataUtil.prefix(tableName = t),
+    dicOfOutputTables = {t: DataUtil.postfix(tableName = DataUtil.prefix(tableName = t,
+                                                                         prefix = prefix),
                                             suffix = "POINTS") for t in dicOfVegRockleZoneTable}
                                         
     # Temporary tables (and prefix for temporary tables)
@@ -587,7 +600,8 @@ def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable):
     return dicOfOutputTables
 
 
-def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight):
+def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
+                                prefix = PREFIX_NAME):
     """ Calculates the 3D wind speed factors for each building zone.
 
 		Parameters
@@ -598,8 +612,8 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight):
             dicOfBuildZoneGridPoint: Dictionary of Rockle zone tables
                 Dictionary having as key the type of Rockle zone and as value
                 the name of the table containing points corresponding to the zone
-            maxHeight: float
-                Height of the highest obstacle in the study area (m)
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -611,12 +625,13 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight):
     print("Calculates the 3D wind speed factor value for each point of each BUILDING zone")
     
     # Name of the output tables
-    dicOfOutputTables = {t: DataUtil.postfix(tableName = DataUtil.prefix(tableName = t),
+    dicOfOutputTables = {t: DataUtil.postfix(tableName = DataUtil.prefix(tableName = t,
+                                                                         prefix = prefix),
                                              suffix = "POINTS_BUILD_3D")
                          for t in dicOfBuildZoneGridPoint}
                                         
     # Temporary tables (and prefix for temporary tables)
-    zValueTable = "Z_VALUES"
+    zValueTable = DataUtil.postfix("Z_VALUES")
     
     # Identify the maximum height where wind speed may be affected by obstacles
     maxHeightQuery = \
@@ -629,6 +644,11 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight):
                                                                           HEIGHT_FIELD),
             ROOFTOP_CORN_NAME       : "MAX({0}+{1}) AS MAX_HEIGHT".format(ROOFTOP_CORNER_VAR_HEIGHT,
                                                                           HEIGHT_FIELD)}
+    cursor.execute(""" SELECT MAX(MAX_HEIGHT) AS MAX_HEIGHT
+                       FROM (SELECT {0})
+                       """.format(" UNION ALL SELECT ".join([maxHeightQuery[t]+" FROM "+dicOfBuildZoneGridPoint[t]
+                                                              for t in maxHeightQuery])))
+    maxHeight = cursor.fetchall()[0][0]
     
     # Creates the table of z levels impacted by obstacles
     listOfZ = [str(i*DZ) for i in np.arange(float(DZ)/2, math.trunc(maxHeight/DZ)*DZ+float(DZ)/2, DZ)]
@@ -670,7 +690,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight):
                              ID_POINT),
             CAVITY_NAME       : """
                  b.{0},
-                 POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2) AS {4},
+                 -POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2) AS {4},
                  a.{5},
                  a.{3}
                  """.format( ID_POINT_Z,
@@ -784,7 +804,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight):
 
 
 def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
-                              z0, d):
+                              z0, d, prefix = PREFIX_NAME):
     """ Calculates the 3D wind speed factors for each zone.
 
 		Parameters
@@ -801,6 +821,8 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                 Value of the study area roughness height
             d: float
                 Value of the study area displacement length
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -814,7 +836,8 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
     outputBaseName = "VEGETATION_WEIGHTING_FACTORS"
     
     # Name of the output table
-    vegetationWeightFactorTable = DataUtil.prefix(outputBaseName)
+    vegetationWeightFactorTable = DataUtil.prefix(outputBaseName,
+                                                  prefix = prefix)
                                             
     # Temporary tables (and prefix for temporary tables)
     zValueTable = DataUtil.postfix("Z_VALUES")
@@ -921,8 +944,8 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
         # Remove intermediate tables
         cursor.execute("""
             DROP TABLE IF EXISTS {0}, {1}
-                      """.format(",".join(dicOfTempoTables.values())),
-                                 tempoAllVeg)
+                      """.format(",".join(dicOfTempoTables.values()),
+                                 ",".join([zValueTable, tempoAllVeg])))
      
     return vegetationWeightFactorTable
 
@@ -933,7 +956,8 @@ def manageSuperimposition(cursor,
                           upstreamWeightingTables = UPSTREAM_WEIGHTING_TABLES,
                           upstreamWeightingInterRules = UPSTREAM_WEIGHTING_INTER_RULES,
                           upstreamWeightingIntraRules = UPSTREAM_WEIGHTING_INTRA_RULES,
-                          downstreamWeightingTable = DOWNSTREAM_WEIGTHING_TABLE):
+                          downstreamWeightingTable = DOWNSTREAM_WEIGTHING_TABLE,
+                          prefix = PREFIX_NAME):
     """ Keep only one value per 3D point, dealing with superimposition from
     different Röckle zones. It is performed in three steps:
         - if a point is covered by several zones, keep the value only from
@@ -944,52 +968,55 @@ def manageSuperimposition(cursor,
         - apply a weighting due to some upstream zones (such as wake zones)
         - apply a weighting due to some downstream zones (such as vegetation)
 
-		Parameters
-		_ _ _ _ _ _ _ _ _ _ 
-
-        cursor: conn.cursor
-            A cursor object, used to perform spatial SQL queries
-        dicAllWeightFactorsTables: Dictionary of vegetation Rockle zone tables
-            Dictionary having as key the type of vegetation Rockle zone and as value
-            the name of the table containing points corresponding to the zone
-        upstreamPriorityTables: pd.DataFrame, default UPSTREAM_PRIORITY_TABLES
-            Defines which zones should be used in the priority algorithm and
-            set priorities (column "priority") when the zone comes from a same 
-            upstream obstacle of same height. Also contains a column "ref_height" to
-            set by which wind speed height the weigthing factor should be
-            multiplied. The following values are possible:
-                -> 1: "upstream building height", 
-                -> 2: "Reference wind speed measurement height Z_REF",
-                -> 3: "building height")
-        upstreamWeightingTables: list, default UPSTREAM_WEIGHTING_TABLES
-            Defines which upstream zones will be used to weight the wind speed factors
-        upstreamWeightingInterRules: String, default UPSTREAM_WEIGHTING_INTER_RULES
-            Defines how to deal with a point having several values from a
-            same upstream weighting zone
-                -> "upstream":  use values from the most upstream and upper 
-                                obstacles
-        upstreamWeightingIntraRules: String, default UPSTREAM_WEIGHTING_INTRA_RULES
-            Defines how to deal with a point having several values from
-            several upstream weighting zones
-                -> "upstream":  use values from the most upstream and upper 
-                                obstacles
-        downstreamWeightingTable: String, default DOWNSTREAM_WEIGTHING_TABLES
-            Name of the zone having the non-duplicated points used to weight 
-            the wind speed factors at the end
-        
-		Returns
-		_ _ _ _ _ _ _ _ _ _ 
-
-        initializedWindFactorTable: String
-            Name of the table containing the weighting factor for each 3D point
-            (one value per point, means superimposition have been used)"""
+    		Parameters
+    		_ _ _ _ _ _ _ _ _ _ 
+    
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            dicAllWeightFactorsTables: Dictionary of vegetation Rockle zone tables
+                Dictionary having as key the type of vegetation Rockle zone and as value
+                the name of the table containing points corresponding to the zone
+            upstreamPriorityTables: pd.DataFrame, default UPSTREAM_PRIORITY_TABLES
+                Defines which zones should be used in the priority algorithm and
+                set priorities (column "priority") when the zone comes from a same 
+                upstream obstacle of same height. Also contains a column "ref_height" to
+                set by which wind speed height the weigthing factor should be
+                multiplied. The following values are possible:
+                    -> 1: "upstream building height", 
+                    -> 2: "Reference wind speed measurement height Z_REF",
+                    -> 3: "building height")
+            upstreamWeightingTables: list, default UPSTREAM_WEIGHTING_TABLES
+                Defines which upstream zones will be used to weight the wind speed factors
+            upstreamWeightingInterRules: String, default UPSTREAM_WEIGHTING_INTER_RULES
+                Defines how to deal with a point having several values from a
+                same upstream weighting zone
+                    -> "upstream":  use values from the most upstream and upper 
+                                    obstacles
+            upstreamWeightingIntraRules: String, default UPSTREAM_WEIGHTING_INTRA_RULES
+                Defines how to deal with a point having several values from
+                several upstream weighting zones
+                    -> "upstream":  use values from the most upstream and upper 
+                                    obstacles
+            downstreamWeightingTable: String, default DOWNSTREAM_WEIGTHING_TABLES
+                Name of the zone having the non-duplicated points used to weight 
+                the wind speed factors at the end
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
+            
+    		Returns
+    		_ _ _ _ _ _ _ _ _ _ 
+    
+            initializedWindFactorTable: String
+                Name of the table containing the weighting factor for each 3D point
+                (one value per point, means superimposition have been used)"""
     print("Deals with superimposition (keeps only 1 value per 3D point)")
     
     # Output base name
     outputBaseName = "INITIALIZED_WIND_FACTOR_FIELD"
     
     # Name of the output table
-    initializedWindFactorTable = DataUtil.prefix(outputBaseName)
+    initializedWindFactorTable = DataUtil.prefix(outputBaseName, 
+                                                 prefix = prefix)
         
     # Temporary tables (and prefix for temporary tables)
     tempoPrioritiesWeighted = DataUtil.postfix("TEMPO_PRIORITY_WEIGHTED")
@@ -1038,7 +1065,7 @@ def manageSuperimposition(cursor,
                       tempoPrioritiesWeighted        , REF_HEIGHT_UPSTREAM_WEIGHTING))
                              
     
-    # Join the upstream weigthted points to the non upstream weighted ones
+    # Join the upstream priority weigthted points to the upstream priority non-weighted ones
     cursor.execute("""
           CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
           CREATE INDEX IF NOT EXISTS id_{2}_{1} ON {1} USING BTREE({2});
@@ -1109,7 +1136,10 @@ def manageSuperimposition(cursor,
         cursor.execute("""
             DROP TABLE IF EXISTS {0}
                       """.format(",".join([upstreamWeightingTempoTable,
-                                           upstreamPrioritiesTempoTable])))
+                                           upstreamPrioritiesTempoTable,
+                                           tempoUpstreamAndDownstream,
+                                           tempoPrioritiesWeighted,
+                                           tempoPrioritiesWeightedAll])))
     
     return initializedWindFactorTable
 
@@ -1117,7 +1147,7 @@ def manageSuperimposition(cursor,
 def identifyUpstreamer( cursor,
                         dicAllWeightFactorsTables, 
                         tablesToConsider,
-                        prefix):
+                        prefix = PREFIX_NAME):
     """ If a point is covered by several zones, keep the value only from
         a single zone based on the following priorities:
             1. the most upstream zone (if equal, use the next priority)
@@ -1143,7 +1173,7 @@ def identifyUpstreamer( cursor,
                 -> 1: "upstream building height", 
                 -> 2: "Reference wind speed measurement height Z_REF",
                 -> 3: "building height"
-        prefix: String
+        prefix: String, default PREFIX_NAME
             Prefix to add to the output table name
         
 		Returns
@@ -1260,7 +1290,8 @@ def getVerticalProfile( cursor,
                         pointHeightList,
                         z0,
                         V_ref=V_REF,
-                        z_ref=Z_REF):
+                        z_ref=Z_REF,
+                        prefix = PREFIX_NAME):
     """ Get the horizontal wind speed of a set of point heights. The
     wind speed profile used to set wind speed value is the power-law
     equation proposed by Kuttler (2000) and used in QUIC-URB (Pardyjak et Brown, 2003).
@@ -1278,26 +1309,28 @@ def getVerticalProfile( cursor,
         User’s Guide ». Los Alamos National Laboratory, Los Alamos, NM, 2003.
 
 
-		Parameters
-		_ _ _ _ _ _ _ _ _ _ 
-
-        cursor: conn.cursor
-            A cursor object, used to perform spatial SQL queries
-        pointHeightList: list
-            Height (in meter) of the points for which we want the wind speed
-        z0: float
-            Value of the study area roughness height
-        V_ref: float, default V_REF
-            Wind speed (m/s) measured at measurement height z_ref
-        z_ref: float, DEFAULT Z_REF
-            Height of the wind speed sensor used to set the reference wind speed V_ref
+      		Parameters
+      		_ _ _ _ _ _ _ _ _ _ 
+        
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            pointHeightList: list
+                Height (in meter) of the points for which we want the wind speed
+            z0: float
+                Value of the study area roughness height
+            V_ref: float, default V_REF
+                Wind speed (m/s) measured at measurement height z_ref
+            z_ref: float, DEFAULT Z_REF
+                Height of the wind speed sensor used to set the reference wind speed V_ref
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
         
-		Returns
-		_ _ _ _ _ _ _ _ _ _ 
-
-        verticalWindProfile: pd.Series
-            Values of the wind speed for each vertical level"""
+    		Returns
+    		_ _ _ _ _ _ _ _ _ _ 
+    
+            verticalWindProfile: pd.Series
+                Values of the wind speed for each vertical level"""
     verticalWindProfile = pd.Series([V_ref*(z/z_ref)**(0.12*z0+0.18)
                                                  for z in pointHeightList],
                                     index = pointHeightList)
@@ -1311,44 +1344,44 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
     """ Set the initial 3D wind speed according to the wind speed factor in
     the Röckle zones and to the initial vertical wind speed profile.
     
-		Parameters
-		_ _ _ _ _ _ _ _ _ _ 
-
-        cursor: conn.cursor
-            A cursor object, used to perform spatial SQL queries
-        initializedWindFactorTable: String
-            Name of the table containing the weighting factor for each 3D point
-            (one value per point, means superimposition have been used)
-        gridPoint: String
-            Name of the grid point table
-        df_gridBuil: pd.DataFrame
-            3D multiindex corresponding to grid points intersecting buildings
-        z0: float
-            Value of the study area roughness height
-        sketchHeight: float
-            Height of the sketch (m)
-        meshSize: float, default MESH_SIZE
-            Resolution (in meter) of the grid
-        dz: float, default DZ
-            Resolution (in meter) of the grid in the vertical direction
-        z_ref: float, DEFAULT Z_REF
-            Height of the wind speed sensor used to set the reference wind speed V_ref
-        V_ref: float, default V_REF
-            Wind speed (m/s) measured at measurement height z_ref
-        tempoDirectory: String, default TEMPO_DIRECTORY
-            Path of the directory where will be stored the grid points
-            having Röckle initial wind speed values (in order to exchange
-                                                     data between H2 to Python)
+    		Parameters
+    		_ _ _ _ _ _ _ _ _ _ 
+    
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            initializedWindFactorTable: String
+                Name of the table containing the weighting factor for each 3D point
+                (one value per point, means superimposition have been used)
+            gridPoint: String
+                Name of the grid point table
+            df_gridBuil: pd.DataFrame
+                3D multiindex corresponding to grid points intersecting buildings
+            z0: float
+                Value of the study area roughness height
+            sketchHeight: float
+                Height of the sketch (m)
+            meshSize: float, default MESH_SIZE
+                Resolution (in meter) of the grid
+            dz: float, default DZ
+                Resolution (in meter) of the grid in the vertical direction
+            z_ref: float, DEFAULT Z_REF
+                Height of the wind speed sensor used to set the reference wind speed V_ref
+            V_ref: float, default V_REF
+                Wind speed (m/s) measured at measurement height z_ref
+            tempoDirectory: String, default TEMPO_DIRECTORY
+                Path of the directory where will be stored the grid points
+                having Röckle initial wind speed values (in order to exchange
+                                                         data between H2 to Python)
             
         
-		Returns
-		_ _ _ _ _ _ _ _ _ _ 
-
-        initial3dWindSpeed: pd.DataFrame
-            3D wind speed value used as "first guess" in the wind solver
-        nPoints: dictionary
-            Dimension of the 3D grid object with X, Y and Z as key and the
-            number of grid point in the corresponding axis as value"""
+    		Returns
+    		_ _ _ _ _ _ _ _ _ _ 
+    
+            initial3dWindSpeed: pd.DataFrame
+                3D wind speed value used as "first guess" in the wind solver
+            nPoints: dictionary
+                Dimension of the 3D grid object with X, Y and Z as key and the
+                number of grid point in the corresponding axis as value"""
     
     print("Set the initial 3D wind speed field")
     
@@ -1381,7 +1414,7 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
            """.format( tempoVerticalProfileTable     , ID_POINT_Z,
                        V                             ,"), (".join(valuesForEachRowProfile)))
 
-    # Get the wind speed at each building height value and insert them in a table
+    # Get the wind speed at each building height value...
     cursor.execute(""" SELECT DISTINCT({0}) AS {0}
                        FROM {1}
                        WHERE {0} IS NOT NULL;                   
@@ -1394,8 +1427,8 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                                 V_ref=V_ref,
                                 z_ref=z_ref)
             
-    # Insert the building height wind speed values into a table
-    valuesForEachRowBuilding = [str(i)+","+str(j) for i, j in buildingHeightList.iteritems()]
+    # ... and insert it into a table
+    valuesForEachRowBuilding = [str(i)+","+str(j) for i, j in buildingHeightWindSpeed.iteritems()]
     cursor.execute("""
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
@@ -1478,6 +1511,7 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
     for c in df_wind0_rockle.columns:
         df_wind0.loc[df_wind0_rockle[c].dropna().index,c] = df_wind0_rockle[c].dropna()
     
+    
     # Set to 0 wind speed within buildings...
     df_wind0.loc[df_gridBuil.index] = 0
         
@@ -1497,29 +1531,29 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
     """ Set the initial 3D wind speed according to the wind speed factor in
     the Röckle zones and to the initial vertical wind speed profile.
     
-		Parameters
-		_ _ _ _ _ _ _ _ _ _ 
-
-        cursor: conn.cursor
-            A cursor object, used to perform spatial SQL queries
-        gridPoint: String
-            Name of the grid point table
-        stackedBlocksWithBaseHeight: String
-            Name of the table containing stacked blocks with block base
-            height
-        dz: float, default DZ
-            Resolution (in meter) of the grid in the vertical direction
-        tempoDirectory: String, default = TEMPO_DIRECTORY
-            Path of the directory where will be stored the grid points
-            intersecting with buildings (in order to exchange
-                                         data between H2 to Python)
+    		Parameters
+    		_ _ _ _ _ _ _ _ _ _ 
+    
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            gridPoint: String
+                Name of the grid point table
+            stackedBlocksWithBaseHeight: String
+                Name of the table containing stacked blocks with block base
+                height
+            dz: float, default DZ
+                Resolution (in meter) of the grid in the vertical direction
+            tempoDirectory: String, default = TEMPO_DIRECTORY
+                Path of the directory where will be stored the grid points
+                intersecting with buildings (in order to exchange
+                                             data between H2 to Python)
             
         
-		Returns
-		_ _ _ _ _ _ _ _ _ _ 
-
-        df_gridBuil: pd.DataFrame
-            3D multiindex corresponding to grid points intersecting buildings"""
+    		Returns
+    		_ _ _ _ _ _ _ _ _ _ 
+    
+            df_gridBuil: pd.DataFrame
+                3D multiindex corresponding to grid points intersecting buildings"""
 
     print("Identify grid points intersecting buildings")
     

@@ -9,7 +9,8 @@ import DataUtil as DataUtil
 import pandas as pd
 from GlobalVariables import *
 
-def displacementZones(cursor, upwindTable, zonePropertiesTable):
+def displacementZones(cursor, upwindTable, zonePropertiesTable,
+                      prefix = PREFIX_NAME):
     """ Creates the displacement zone and the displacement vortex zone
     for each of the building upwind facade based on Kaplan et Dinar (1996)
     for the equations of the ellipsoid 
@@ -40,6 +41,8 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable):
             zonePropertiesTable: String
                 Name of the table containing obstacle zone properties
                 (and also the ID of each stacked obstacle)
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -55,8 +58,10 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable):
     outputBaseDispVortexName = "DISPLACEMENT_VORTEX_ZONES"
     
     # Name of the output table
-    displacementZonesTable = DataUtil.prefix(outputBaseDispName)
-    displacementVortexZonesTable = DataUtil.prefix(outputBaseDispVortexName)
+    displacementZonesTable = DataUtil.prefix(outputBaseDispName,
+                                             prefix = prefix)
+    displacementVortexZonesTable = DataUtil.prefix(outputBaseDispVortexName, 
+                                                   prefix = prefix)
     
     # Separate the query into two almost similar queries having only
     # different case when conditions and ellipse size
@@ -116,7 +121,8 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable):
     
     return displacementZonesTable, displacementVortexZonesTable
 
-def cavityAndWakeZones(cursor, zonePropertiesTable):
+def cavityAndWakeZones(cursor, zonePropertiesTable,
+                       prefix = PREFIX_NAME):
     """ Creates the cavity and wake zones for each of the stacked building
     based on Kaplan et Dinar (1996) for the equations of the ellipsoid 
     (Equation 3). When the building has a non rectangular shape or is not
@@ -146,6 +152,8 @@ def cavityAndWakeZones(cursor, zonePropertiesTable):
                 A cursor object, used to perform spatial SQL queries
             zonePropertiesTable: String
                 Name of the table stacked obstacle geometries and zone properties
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -161,8 +169,8 @@ def cavityAndWakeZones(cursor, zonePropertiesTable):
     outputBaseNameWake = "WAKE_ZONES"
     
     # Name of the output tables
-    cavityZonesTable = DataUtil.prefix(outputBaseNameCavity)
-    wakeZonesTable = DataUtil.prefix(outputBaseNameWake)
+    cavityZonesTable = DataUtil.prefix(outputBaseNameCavity, prefix = prefix)
+    wakeZonesTable = DataUtil.prefix(outputBaseNameWake, prefix = prefix)
         
     
     # Queries for the cavity zones
@@ -221,7 +229,8 @@ def cavityAndWakeZones(cursor, zonePropertiesTable):
     
     return cavityZonesTable, wakeZonesTable
 
-def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable):
+def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable,
+                      prefix = PREFIX_NAME):
     """ Creates the street canyon zones for each of the stacked building
     based on Nelson et al. (2008) Figure 8b. The method is slightly different
     since we use the cavity zone instead of the Lr buffer.
@@ -246,6 +255,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
             upwindTable: String
                 Name of the table containing upwind segment geometries
                 (and also the ID of each stacked obstacle)
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -258,7 +269,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
     outputBaseName = "STREETCANYON_ZONE"
     
     # Name of the output tables
-    streetCanyonZoneTable = DataUtil.prefix(outputBaseName)
+    streetCanyonZoneTable = DataUtil.prefix(outputBaseName, prefix = prefix)
     
     # Create temporary table names (for tables that will be removed at the end of the IProcess)
     intersectTable = DataUtil.postfix("intersect_table")
@@ -363,7 +374,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
     
     return streetCanyonZoneTable
 
-def rooftopZones(cursor, upwindTable, zonePropertiesTable):
+def rooftopZones(cursor, upwindTable, zonePropertiesTable,
+                 prefix = PREFIX_NAME):
     """ Creates the rooftop zones for each of the upwind facade:
         - recirculation zone if the angle between the wind and the facade is included
         within the range [90-PERPENDICULAR_THRESHOLD_ANGLE, 90+PERPENDICULAR_THRESHOLD_ANGLE].
@@ -395,6 +407,8 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable):
                 (and also the ID of each stacked obstacle)
             zonePropertiesTable: String
                 Name of the table stacked obstacle geometries and zone properties
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -410,8 +424,10 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable):
     outputBaseNameroofCorner = "ROOFTOP_CORNER_ZONES"
     
     # Name of the output tables
-    roofPerpZonesTable = DataUtil.prefix(outputBaseNameroofPerp)
-    RoofCornerZonesTable = DataUtil.prefix(outputBaseNameroofCorner)
+    roofPerpZonesTable = DataUtil.prefix(outputBaseNameroofPerp, 
+                                         prefix = prefix)
+    RoofCornerZonesTable = DataUtil.prefix(outputBaseNameroofCorner, 
+                                           prefix = prefix)
         
     # Create temporary table names (for tables that will be removed at the end of the IProcess)
     temporaryRooftopPerp = DataUtil.postfix("temporary_rooftop_perp")
@@ -517,7 +533,8 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable):
     return roofPerpZonesTable, RoofCornerZonesTable
 
 
-def vegetationZones(cursor, vegetationTable, wakeZonesTable):
+def vegetationZones(cursor, vegetationTable, wakeZonesTable,
+                    prefix = PREFIX_NAME):
     """ Identify vegetation zones which are in "built up" areas and those
     being in "open areas". Vegetation is considered in a built up area
     when it intersects with build wake zone.
@@ -536,6 +553,8 @@ def vegetationZones(cursor, vegetationTable, wakeZonesTable):
                 Name of the table containing vegetation footprints
             wakeZonesTable: String
                 Name of the table containing the wake zones
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -553,8 +572,10 @@ def vegetationZones(cursor, vegetationTable, wakeZonesTable):
     outputBaseNameBuilt = "BUILTUP_VEGETATION_ZONES"
     
     # Name of the output tables
-    vegetationOpenZoneTable = DataUtil.prefix(outputBaseNameOpen)
-    vegetationBuiltZoneTable = DataUtil.prefix(outputBaseNameBuilt)
+    vegetationOpenZoneTable = DataUtil.prefix(outputBaseNameOpen, 
+                                              prefix = prefix)
+    vegetationBuiltZoneTable = DataUtil.prefix(outputBaseNameBuilt,
+                                               prefix = prefix)
         
     # Create temporary table names (for tables that will be removed at the end of the IProcess)
     temporary_built_vegetation = DataUtil.postfix("temporary_built_vegetation")

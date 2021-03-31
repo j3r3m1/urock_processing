@@ -10,6 +10,7 @@ Created on Mon Mar 29 14:57:25 2021
 import numpy as np
 
 def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB, indices, iterations):
+    print("Start to apply the wind solver")
     H = nz / 1.
     L = nx / 1.
     B = ny / 1.
@@ -81,23 +82,23 @@ def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB, indices, it
         #############
         for i, j, k in indices:
 
-            lambdaM1[i, j, k] = omega * (
-                    ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j + 1, k] - un[i, j, k]) / (dx) + (
-                            vn[i + 1, j, k] - vn[i, j, k]) / (dy) +
-                                                                (wn[i, j, k + 1] - wn[i, j, k]) / (dz)))) + (
-                             e[i, j, k] * lambdaM[i, j + 1, k] + f[i, j, k] * lambdaM1[i, j - 1, k] + Aj * (
-                             g[i, j, k] * lambdaM[i + 1, j, k] + h[i, j, k] * lambdaM1[i - 1, j, k]) + Bk * (
-                                     m[i, j, k] * lambdaM[i, j, k + 1] + n[i, j, k] * lambdaM1[i, j, k - 1]))) / (
-                            2. * (o[i, j, k] + Aj * p[i, j, k] + Bk * q[i, j, k]))) + (1 - omega) * lambdaM1[i, j, k]
-
             # lambdaM1[i, j, k] = omega * (
-            #         ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j, k] - un[i, j - 1, k]) / (dx) + (
-            #                 vn[i, j, k] - vn[i - 1, j, k]) / (dy) +
-            #                                                     (wn[i, j, k] - wn[i, j, k - 1]) / (dz)))) + (
+            #         ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j + 1, k] - un[i, j, k]) / (dx) + (
+            #                 vn[i + 1, j, k] - vn[i, j, k]) / (dy) +
+            #                                                     (wn[i, j, k + 1] - wn[i, j, k]) / (dz)))) + (
             #                  e[i, j, k] * lambdaM[i, j + 1, k] + f[i, j, k] * lambdaM1[i, j - 1, k] + Aj * (
             #                  g[i, j, k] * lambdaM[i + 1, j, k] + h[i, j, k] * lambdaM1[i - 1, j, k]) + Bk * (
             #                          m[i, j, k] * lambdaM[i, j, k + 1] + n[i, j, k] * lambdaM1[i, j, k - 1]))) / (
             #                 2. * (o[i, j, k] + Aj * p[i, j, k] + Bk * q[i, j, k]))) + (1 - omega) * lambdaM1[i, j, k]
+
+            lambdaM1[i, j, k] = omega * (
+                    ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j, k] - un[i, j - 1, k]) / (dx) + (
+                            vn[i, j, k] - vn[i - 1, j, k]) / (dy) +
+                                                                (wn[i, j, k] - wn[i, j, k - 1]) / (dz)))) + (
+                              e[i, j, k] * lambdaM[i, j + 1, k] + f[i, j, k] * lambdaM1[i, j - 1, k] + Aj * (
+                              g[i, j, k] * lambdaM[i + 1, j, k] + h[i, j, k] * lambdaM1[i - 1, j, k]) + Bk * (
+                                      m[i, j, k] * lambdaM[i, j, k + 1] + n[i, j, k] * lambdaM1[i, j, k - 1]))) / (
+                            2. * (o[i, j, k] + Aj * p[i, j, k] + Bk * q[i, j, k]))) + (1 - omega) * lambdaM1[i, j, k]
 
 
         print(np.sum(np.abs(lambdaM1 - lambdaM)) / np.sum(np.abs(lambdaM1)))
@@ -126,4 +127,4 @@ def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB, indices, it
 
         print("Iteration", index + 1, " out of ", iterations)
 
-    return u, v, w, x, y, z, h, lambdaM1
+    return u, v, w, un, vn, wn, x, y, z, h, lambdaM1

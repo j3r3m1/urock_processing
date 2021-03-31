@@ -10,7 +10,7 @@ import DataUtil as DataUtil
 import pandas as pd
 from GlobalVariables import *
 
-def obstacleProperties(cursor, obstaclesTable):
+def obstacleProperties(cursor, obstaclesTable, prefix = PREFIX_NAME):
     """ Calculates obstacle properties (effective width and length) 
     for a wind coming from North (thus you first need to rotate your
                                   obstacles to make them facing north if you 
@@ -31,6 +31,8 @@ def obstacleProperties(cursor, obstaclesTable):
                 A cursor object, used to perform spatial SQL queries
             obstaclesTable: String
                 Name of the table containing the obstacle geometries to characterize
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -43,7 +45,8 @@ def obstacleProperties(cursor, obstaclesTable):
     outputBaseName = "PROPERTIES"
     
     # Name of the output table
-    obstaclePropertiesTable = DataUtil.prefix(outputBaseName)
+    obstaclePropertiesTable = DataUtil.prefix(outputBaseName,
+                                              prefix = prefix)
     
     # Calculates the effective width (Weff) and effective length (Leff)
     # of each obstacle, respectively  based on their maximum cross-wind and
@@ -70,7 +73,7 @@ def obstacleProperties(cursor, obstaclesTable):
     
     return obstaclePropertiesTable
 
-def zoneProperties(cursor, obstaclePropertiesTable):
+def zoneProperties(cursor, obstaclePropertiesTable, prefix = PREFIX_NAME):
     """ Calculates properties of the "Röckle" (some are not) zones:
         - for displacement: length Lf and vortex length Lfv (Bagal et al. - 2004),
         - for cavity: length Lr (equation 3 in Kaplan et al. - 1996),
@@ -97,6 +100,8 @@ def zoneProperties(cursor, obstaclePropertiesTable):
             obstaclePropertiesTable: String
                 Name  of the table containing the obstacle properties Weff, Leff
                 and height
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -109,7 +114,8 @@ def zoneProperties(cursor, obstaclePropertiesTable):
     outputBaseName = "ZONE_LENGTH"
     
     # Name of the output table
-    zoneLengthTable = DataUtil.prefix(outputBaseName)
+    zoneLengthTable = DataUtil.prefix(outputBaseName, 
+                                      prefix = prefix)
     
     # Calculates the length (and sometimes height) of each zone:
     #   - for displacement: Lf and Lfv (Bagal et al. - 2004),
