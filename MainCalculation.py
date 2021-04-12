@@ -401,6 +401,7 @@ def main(z_ref = Z_REF,
         InitWindField.identifyBuildPoints(cursor = cursor,
                                           gridPoint = gridPoint,
                                           stackedBlocksWithBaseHeight = rotatedPropStackedBlocks,
+                                          meshSize = meshSize,
                                           dz = dz,
                                           tempoDirectory = tempoDirectory)
     
@@ -418,13 +419,17 @@ def main(z_ref = Z_REF,
                                           V_ref = v_ref, 
                                           tempoDirectory = tempoDirectory)
     
-    # Apply a mass-flow balance to have a more physical 3D wind speed field
+    # Get grid size
+    nx, ny, nz = nPoints.values()
+    
+    # Set the buildGrid3D object to zero when a cell intersect a building 
     buildGrid3D = pd.Series(1, index = df_wind0.index, dtype = np.int32)
     buildGrid3D.loc[df_gridBuil.index] = 0
-    nx, ny, nz = nPoints.values()
     
     # Convert to numpy matrix...
     buildGrid3D = np.array([buildGrid3D.xs(i, level = 0).unstack().values for i in range(0,nx-1)])
+    # Identify grid cells having lambda not need to be updated in the calculations 
+    # (values at open boundaries, near ground or inside buildings...)
     indices = np.transpose(np.where(buildGrid3D == 1))
     indices = indices[indices[:, 0] > 0]
     indices = indices[indices[:, 1] > 0]
@@ -438,10 +443,20 @@ def main(z_ref = Z_REF,
     vn = np.array([df_wind0[V].xs(i, level = 0).unstack().values for i in range(0,nx)])
     wn = np.array([df_wind0[W].xs(i, level = 0).unstack().values for i in range(0,nx)])
     
+    # Interpolation is made in order to have wind speed located on the face of
+    # each grid cell
+    un[0:nx-1,0:ny-1,0:nz-1]=   (un[0:nx-1,0:ny-1,0:nz-1]+un[0:nx-1,1:ny,0:nz-1]+\
+                                un[0:nx-1,0:ny-1,1:nz]+un[0:nx-1,1:ny,1:nz])/4
+    vn[0:nx-1,0:ny-1,0:nz-1]=   (vn[0:nx-1,0:ny-1,0:nz-1]+vn[1:nx,0:ny-1,0:nz-1]+\
+                                vn[0:nx-1,0:ny-1,1:nz]+vn[1:nx,0:ny-1,1:nz])/4
+    wn[0:nx-1,0:ny-1,0:nz-1]=   (wn[0:nx-1,0:ny-1,0:nz-1]+wn[1:nx,0:ny-1,0:nz-1]+\
+                                wn[0:nx-1,1:ny,0:nz-1]+wn[1:nx,1:ny,0:nz-1])/4
+    
     u = np.zeros((nx, ny, nz))
     v = np.zeros((nx, ny, nz))
     w = np.zeros((nx, ny, nz))
     
+    # Apply a mass-flow balance to have a more physical 3D wind speed field
     return WindSolver.solver(   dx = meshSize               , dy = meshSize         , dz = dz, 
                                 nx = nx                     , ny = ny               , nz = nz, 
                                 un = un                     , vn = vn               , wn = wn,

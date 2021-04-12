@@ -1529,9 +1529,11 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
 
 
 def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
-                        dz = DZ, tempoDirectory = TEMPO_DIRECTORY):
-    """ Set the initial 3D wind speed according to the wind speed factor in
-    the Röckle zones and to the initial vertical wind speed profile.
+                        meshSize = MESH_SIZE, dz = DZ, 
+                        tempoDirectory = TEMPO_DIRECTORY):
+    """ Identify grid cells intersecting buildings. Due to the fact that wind
+    speed must actually be at the boundary of the grid cells (and not at the centroid),
+    we need to first shift the grid from 0.5 times the grid mesh in X and Y directions.
     
     		Parameters
     		_ _ _ _ _ _ _ _ _ _ 
@@ -1543,6 +1545,8 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
             stackedBlocksWithBaseHeight: String
                 Name of the table containing stacked blocks with block base
                 height
+            meshSize: float, default MESH_SIZE
+                Resolution (in meter) of the grid 
             dz: float, default DZ
                 Resolution (in meter) of the grid in the vertical direction
             tempoDirectory: String, default = TEMPO_DIRECTORY
@@ -1563,23 +1567,30 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
     buildPointsFilename = "BUILDING_POINTS.csv"
     
     # Temporary tables (and prefix for temporary tables)
+    tempoShiftedGridTable = DataUtil.postfix("BUILDING_SHIFTED_GRID")
     tempoBuildPointsTable = DataUtil.postfix("BUILDING_POINTS")
     tempoLevelHeightPointTable = DataUtil.postfix("LEVEL_POINTS")
     
-    # Identify 2D coordinates of points intersecting buildings 
+    # Shift the grid from 0.5 times mesh grid size and then 
+    # identify 2D coordinates of points intersecting buildings 
     cursor.execute("""
-           CREATE INDEX IF NOT EXISTS id_{7}_{5} ON {5} USING RTREE({7});
+           DROP TABLE IF EXISTS {9};
+           CREATE TABLE {9}
+               AS SELECT ST_TRANSLATE({7}, {10}/2, {10}/2) AS {7}, {1}, {8}
+               FROM {5};
+           CREATE INDEX IF NOT EXISTS id_{7}_{9} ON {9} USING RTREE({7});
            CREATE INDEX IF NOT EXISTS id_{7}_{6} ON {6} USING RTREE({7});
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS SELECT a.{1}, a.{8}, b.{2}, b.{3}, b.{4}
-               FROM {5} AS a, {6} AS b
+               FROM {9} AS a, {6} AS b
                WHERE a.{7} && b.{7} AND ST_INTERSECTS(a.{7}, b.{7})
            """.format(  tempoBuildPointsTable           , ID_POINT_X,
                         ID_FIELD_STACKED_BLOCK          , HEIGHT_FIELD ,
                         BASE_HEIGHT_FIELD               , gridPoint,
                         stackedBlocksWithBaseHeight     , GEOM_FIELD,
-                        ID_POINT_Y))
+                        ID_POINT_Y                      , tempoShiftedGridTable,
+                        meshSize))
 
     # Get the maximum building height
     cursor.execute("""
@@ -1587,10 +1598,11 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
            """.format(HEIGHT_FIELD, stackedBlocksWithBaseHeight))
     buildMaxHeight = cursor.fetchall()[0][0]
     
-    # Set a list of the level height (and indice) below the max building height...
+    # Set a list of the level height (and indice) below the max building height
+    # (note that as for horizontal direction, the grid has been shifted from 0.5 times dz)
     levelHeightList = [str(j+1)+","+str(i*dz)
-                           for j, i in enumerate(np.arange(0, 
-                                                           (math.trunc(buildMaxHeight/dz)+1)*dz,
+                           for j, i in enumerate(np.arange(float(dz)/2, 
+                                                           math.trunc(buildMaxHeight/dz)*dz+float(dz)/2,
                                                            dz))]
     # ...and insert them into a table
     cursor.execute("""
@@ -1628,6 +1640,7 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
         cursor.execute("""
             DROP TABLE IF EXISTS {0}
                       """.format(",".join([tempoBuildPointsTable,
-                                           tempoLevelHeightPointTable])))
+                                           tempoLevelHeightPointTable,
+                                           tempoShiftedGridTable])))
     
     return df_gridBuil
