@@ -601,7 +601,7 @@ def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable,
 
 
 def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
-                                prefix = PREFIX_NAME):
+                                dz = DZ, prefix = PREFIX_NAME):
     """ Calculates the 3D wind speed factors for each building zone.
 
 		Parameters
@@ -612,6 +612,8 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
             dicOfBuildZoneGridPoint: Dictionary of Rockle zone tables
                 Dictionary having as key the type of Rockle zone and as value
                 the name of the table containing points corresponding to the zone
+            dz: float, default DZ
+                Resolution (in meter) of the grid in the vertical direction
             prefix: String, default PREFIX_NAME
                 Prefix to add to the output table name
             
@@ -651,9 +653,9 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
     maxHeight = cursor.fetchall()[0][0]
     
     # Creates the table of z levels impacted by obstacles
-    listOfZ = [str(i*DZ) for i in np.arange(float(DZ)/2,
-                                            (math.trunc(maxHeight/DZ)+1)*DZ,
-                                            DZ)]
+    listOfZ = [str(i*dz) for i in np.arange(float(dz)/2,
+                                            (math.trunc(maxHeight/dz)+1)*dz,
+                                            dz)]
     cursor.execute("""
                DROP TABLE IF EXISTS {0};
                CREATE TABLE {0}({2} SERIAL, {3} DOUBLE);
@@ -806,7 +808,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
 
 
 def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
-                              z0, d, prefix = PREFIX_NAME):
+                              z0, d, dz = DZ, prefix = PREFIX_NAME):
     """ Calculates the 3D wind speed factors for each zone.
 
 		Parameters
@@ -823,6 +825,8 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                 Value of the study area roughness height
             d: float
                 Value of the study area displacement length
+            dz: float, default DZ
+                Resolution (in meter) of the grid in the vertical direction
             prefix: String, default PREFIX_NAME
                 Prefix to add to the output table name
             
@@ -849,9 +853,9 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
     tempoAllVeg = DataUtil.postfix("TEMPO_ALL_VEG")
     
     # Creates the table of z levels impacted by obstacles
-    listOfZ = [str(i*DZ) for i in np.arange(0, 
-                                            (math.trunc(sketchHeight/DZ)+1)*DZ, 
-                                            DZ)]
+    listOfZ = [str(i*dz) for i in np.arange(0, 
+                                            (math.trunc(sketchHeight/dz)+1)*dz, 
+                                            dz)]
     cursor.execute("""
             DROP TABLE IF EXISTS {0};
             CREATE TABLE {0}({2} SERIAL, {3} DOUBLE);

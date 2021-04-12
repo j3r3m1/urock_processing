@@ -321,6 +321,7 @@ def main(z_ref = Z_REF,
         InitWindField.calculates3dBuildWindFactor(cursor = cursor,
                                                   dicOfBuildZoneGridPoint = dicOfBuildZoneGridPoint,
                                                   maxHeight = obstacleMaxHeight,
+                                                  dz = dz,
                                                   prefix = prefix)
     if DEBUG:
         for t in dicOfBuildZone3DWindFactor:
@@ -345,6 +346,7 @@ def main(z_ref = Z_REF,
                                                 sketchHeight = sketchHeight,
                                                 z0 = z0,
                                                 d = d,
+                                                dz = dz,
                                                 prefix = prefix)
     if DEBUG:
         cursor.execute("""DROP TABLE IF EXISTS point3D_AllVegZone;

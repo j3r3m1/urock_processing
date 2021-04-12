@@ -56,20 +56,32 @@ def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB, indices, it
     p = np.ones([nx, ny, nz])
     q = np.ones([nx, ny, nz])
 
-
-    e[buildIndexB[0], buildIndexB[1] - 1, buildIndexB[2]] = 0.
-    f[buildIndexB[0], buildIndexB[1] + 1, buildIndexB[2]] = 0.
-    g[buildIndexB[0] - 1, buildIndexB[1], buildIndexB[2]] = 0.
-    h[buildIndexB[0] + 1, buildIndexB[1], buildIndexB[2]] = 0.
-    # m[buildIndexB[0], buildIndexB[1], buildIndexB[2] - 1] = 0.
+    e[buildIndexB[0] - 1, buildIndexB[1], buildIndexB[2]] = 0.
+    f[buildIndexB[0] + 1, buildIndexB[1], buildIndexB[2]] = 0.
+    g[buildIndexB[0], buildIndexB[1] + 1, buildIndexB[2]] = 0.
+    h[buildIndexB[0], buildIndexB[1] - 1, buildIndexB[2]] = 0.
     n[buildIndexB[0], buildIndexB[1], buildIndexB[2] + 1] = 0.
-
-    o[buildIndexB[0], buildIndexB[1] - 1, buildIndexB[2]] = 0.5
-    o[buildIndexB[0], buildIndexB[1] + 1, buildIndexB[2]] = 0.5
-    p[buildIndexB[0] - 1, buildIndexB[1], buildIndexB[2]] = 0.5
-    p[buildIndexB[0] + 1, buildIndexB[1], buildIndexB[2]] = 0.5
-    # q[buildIndexB[0], buildIndexB[1], buildIndexB[2] - 2] = 0.5
+    o[buildIndexB[0] - 1, buildIndexB[1], buildIndexB[2]] = 0.5
+    o[buildIndexB[0] + 1, buildIndexB[1], buildIndexB[2]] = 0.5
+    p[buildIndexB[0], buildIndexB[1] - 1, buildIndexB[2]] = 0.5
+    p[buildIndexB[0], buildIndexB[1] + 1, buildIndexB[2]] = 0.5
     q[buildIndexB[0], buildIndexB[1], buildIndexB[2] + 1] = 0.5
+
+    # Initially commented
+    # m[buildIndexB[0], buildIndexB[1], buildIndexB[2] - 1] = 0.
+    # q[buildIndexB[0], buildIndexB[1], buildIndexB[2] - 2] = 0.5
+    
+    # Initially uncommented
+    # e[buildIndexB[0], buildIndexB[1] - 1, buildIndexB[2]] = 0.
+    # f[buildIndexB[0], buildIndexB[1] + 1, buildIndexB[2]] = 0.
+    # g[buildIndexB[0] - 1, buildIndexB[1], buildIndexB[2]] = 0.
+    # h[buildIndexB[0] + 1, buildIndexB[1], buildIndexB[2]] = 0.
+    # n[buildIndexB[0], buildIndexB[1], buildIndexB[2] + 1] = 0.
+    # o[buildIndexB[0], buildIndexB[1] - 1, buildIndexB[2]] = 0.5
+    # o[buildIndexB[0], buildIndexB[1] + 1, buildIndexB[2]] = 0.5
+    # p[buildIndexB[0] - 1, buildIndexB[1], buildIndexB[2]] = 0.5
+    # p[buildIndexB[0] + 1, buildIndexB[1], buildIndexB[2]] = 0.5
+    # q[buildIndexB[0], buildIndexB[1], buildIndexB[2] + 1] = 0.5
 
 
     Aj = dx ** 2 / dy ** 2
@@ -81,16 +93,14 @@ def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB, indices, it
 
         #############
         for i, j, k in indices:
-
             lambdaM1[i, j, k] = omega * (
-                    ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j + 1, k] - un[i, j, k]) / (dx) + (
-                            vn[i + 1, j, k] - vn[i, j, k]) / (dy) +
-                                                                (wn[i, j, k + 1] - wn[i, j, k]) / (dz)))) + (
-                              e[i, j, k] * lambdaM[i, j + 1, k] + f[i, j, k] * lambdaM1[i, j - 1, k] + Aj * (
-                              g[i, j, k] * lambdaM[i + 1, j, k] + h[i, j, k] * lambdaM1[i - 1, j, k]) + Bk * (
-                                      m[i, j, k] * lambdaM[i, j, k + 1] + n[i, j, k] * lambdaM1[i, j, k - 1]))) / (
-                            2. * (o[i, j, k] + Aj * p[i, j, k] + Bk * q[i, j, k]))) + (1 - omega) * lambdaM1[i, j, k]
-
+                ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i + 1, j, k] - un[i, j, k]) / (dx) + (
+                        vn[i, j + 1, k] - vn[i, j, k]) / (dy) +
+                                                            (wn[i, j, k + 1] - wn[i, j, k]) / (dz)))) + (
+                          e[i, j, k] * lambdaM[i + 1, j, k] + f[i, j, k] * lambdaM1[i - 1, j, k] + Aj * (
+                          g[i, j, k] * lambdaM[i, j + 1, k] + h[i, j, k] * lambdaM1[i, j - 1, k]) + Bk * (
+                                  m[i, j, k] * lambdaM[i, j, k + 1] + n[i, j, k] * lambdaM1[i, j, k - 1]))) / (
+                        2. * (o[i, j, k] + Aj * p[i, j, k] + Bk * q[i, j, k]))) + (1 - omega) * lambdaM1[i, j, k]
             # lambdaM1[i, j, k] = omega * (
             #         ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j, k] - un[i, j - 1, k]) / (dx) + (
             #                 vn[i, j, k] - vn[i - 1, j, k]) / (dy) +
