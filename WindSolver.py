@@ -19,8 +19,8 @@ def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB, indices, it
     y = np.linspace(0, B, ny)  # Range of y(0,H) and specifying grid points
     z = np.linspace(0, H, nz)
 
-    lambdaM = np.zeros([nx, ny, nz])  # Preallocating lambda
-    lambdaM1 = np.zeros([nx, ny, nz])  # Preallocating lambda + 1
+    lambdaM = np.ones([nx, ny, nz])  # Preallocating lambda
+    lambdaM1 = np.ones([nx, ny, nz])  # Preallocating lambda + 1
 
     lambdaM[0, :, :] = 0.
     lambdaM[:, 0, :] = 0.
@@ -82,23 +82,23 @@ def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB, indices, it
         #############
         for i, j, k in indices:
 
-            # lambdaM1[i, j, k] = omega * (
-            #         ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j + 1, k] - un[i, j, k]) / (dx) + (
-            #                 vn[i + 1, j, k] - vn[i, j, k]) / (dy) +
-            #                                                     (wn[i, j, k + 1] - wn[i, j, k]) / (dz)))) + (
-            #                  e[i, j, k] * lambdaM[i, j + 1, k] + f[i, j, k] * lambdaM1[i, j - 1, k] + Aj * (
-            #                  g[i, j, k] * lambdaM[i + 1, j, k] + h[i, j, k] * lambdaM1[i - 1, j, k]) + Bk * (
-            #                          m[i, j, k] * lambdaM[i, j, k + 1] + n[i, j, k] * lambdaM1[i, j, k - 1]))) / (
-            #                 2. * (o[i, j, k] + Aj * p[i, j, k] + Bk * q[i, j, k]))) + (1 - omega) * lambdaM1[i, j, k]
-
             lambdaM1[i, j, k] = omega * (
-                    ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j, k] - un[i, j - 1, k]) / (dx) + (
-                            vn[i, j, k] - vn[i - 1, j, k]) / (dy) +
-                                                                (wn[i, j, k] - wn[i, j, k - 1]) / (dz)))) + (
+                    ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j + 1, k] - un[i, j, k]) / (dx) + (
+                            vn[i + 1, j, k] - vn[i, j, k]) / (dy) +
+                                                                (wn[i, j, k + 1] - wn[i, j, k]) / (dz)))) + (
                               e[i, j, k] * lambdaM[i, j + 1, k] + f[i, j, k] * lambdaM1[i, j - 1, k] + Aj * (
                               g[i, j, k] * lambdaM[i + 1, j, k] + h[i, j, k] * lambdaM1[i - 1, j, k]) + Bk * (
                                       m[i, j, k] * lambdaM[i, j, k + 1] + n[i, j, k] * lambdaM1[i, j, k - 1]))) / (
                             2. * (o[i, j, k] + Aj * p[i, j, k] + Bk * q[i, j, k]))) + (1 - omega) * lambdaM1[i, j, k]
+
+            # lambdaM1[i, j, k] = omega * (
+            #         ((-1.) * (dx ** 2 * (-2. * alphaH ** 2) * (((un[i, j, k] - un[i, j - 1, k]) / (dx) + (
+            #                 vn[i, j, k] - vn[i - 1, j, k]) / (dy) +
+            #                                                     (wn[i, j, k] - wn[i, j, k - 1]) / (dz)))) + (
+            #                   e[i, j, k] * lambdaM[i, j + 1, k] + f[i, j, k] * lambdaM1[i, j - 1, k] + Aj * (
+            #                   g[i, j, k] * lambdaM[i + 1, j, k] + h[i, j, k] * lambdaM1[i - 1, j, k]) + Bk * (
+            #                           m[i, j, k] * lambdaM[i, j, k + 1] + n[i, j, k] * lambdaM1[i, j, k - 1]))) / (
+            #                 2. * (o[i, j, k] + Aj * p[i, j, k] + Bk * q[i, j, k]))) + (1 - omega) * lambdaM1[i, j, k]
 
 
         print(np.sum(np.abs(lambdaM1 - lambdaM)) / np.sum(np.abs(lambdaM1)))

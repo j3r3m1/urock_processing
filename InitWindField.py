@@ -651,7 +651,9 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
     maxHeight = cursor.fetchall()[0][0]
     
     # Creates the table of z levels impacted by obstacles
-    listOfZ = [str(i*DZ) for i in np.arange(float(DZ)/2, math.trunc(maxHeight/DZ)*DZ+float(DZ)/2, DZ)]
+    listOfZ = [str(i*DZ) for i in np.arange(float(DZ)/2,
+                                            (math.trunc(maxHeight/DZ)+1)*DZ,
+                                            DZ)]
     cursor.execute("""
                DROP TABLE IF EXISTS {0};
                CREATE TABLE {0}({2} SERIAL, {3} DOUBLE);
@@ -847,8 +849,8 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
     tempoAllVeg = DataUtil.postfix("TEMPO_ALL_VEG")
     
     # Creates the table of z levels impacted by obstacles
-    listOfZ = [str(i*DZ) for i in np.arange(float(DZ)/2, 
-                                            math.trunc(sketchHeight/DZ)*DZ+float(DZ)/2, 
+    listOfZ = [str(i*DZ) for i in np.arange(0, 
+                                            (math.trunc(sketchHeight/DZ)+1)*DZ, 
                                             DZ)]
     cursor.execute("""
             DROP TABLE IF EXISTS {0};
@@ -1394,8 +1396,8 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
     tempoZoneWindSpeedFactorTable = DataUtil.postfix("TEMPO_ZONE_WIND_SPEED_FACTOR")
     
     # Set a list of the level height and get their horizontal wind speed
-    levelHeightList = [i*dz for i in np.arange(float(dz)/2, 
-                                               math.trunc(sketchHeight/dz)*dz+float(dz)/2,
+    levelHeightList = [i*dz for i in np.arange(0, 
+                                               (math.trunc(sketchHeight/dz)+1)*dz,
                                                dz)]
     verticalWindSpeedProfile = \
         getVerticalProfile( cursor = cursor,
@@ -1587,8 +1589,8 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
     
     # Set a list of the level height (and indice) below the max building height...
     levelHeightList = [str(j+1)+","+str(i*dz)
-                           for j, i in enumerate(np.arange(float(dz)/2, 
-                                                           math.trunc(buildMaxHeight/dz)*dz+float(dz)/2,
+                           for j, i in enumerate(np.arange(0, 
+                                                           (math.trunc(buildMaxHeight/dz)+1)*dz,
                                                            dz))]
     # ...and insert them into a table
     cursor.execute("""
