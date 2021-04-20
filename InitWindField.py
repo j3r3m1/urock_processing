@@ -609,7 +609,7 @@ def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable,
     return dicOfOutputTables
 
 
-def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
+def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                                 dz = DZ, prefix = PREFIX_NAME):
     """ Calculates the 3D wind speed factors for each building zone.
 
@@ -632,7 +632,9 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
             dicOfOutputTables: dictionary of table name
                 Dictionary having as key the type of Rockle zone and as value
                 the name of the table containing points corresponding to the zone
-                and wind speed factor"""
+                and wind speed factor
+            maxHeight: float
+                Height of the highest Rôckle zone in the study area"""
     print("Calculates the 3D wind speed factor value for each point of each BUILDING zone")
     
     # Name of the output tables
@@ -661,9 +663,9 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
                                                               for t in maxHeightQuery])))
     maxHeight = cursor.fetchall()[0][0]
     
-    # Creates the table of z levels impacted by obstacles
+    # Creates the table of z levels impacted by obstacles (start at dz/2)
     listOfZ = [str(i) for i in np.arange(float(dz)/2,
-                                         (math.trunc(maxHeight/dz)+1)*dz,
+                                         float(dz)/2+math.trunc(maxHeight/dz)*dz,
                                          dz)]
     cursor.execute("""
                DROP TABLE IF EXISTS {0};
@@ -789,7 +791,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
                                         AND b.{0} > a.{1}""".format( Z,
                                                                      HEIGHT_FIELD,
                                                                      ROOFTOP_PERP_VAR_HEIGHT),
-            ROOFTOP_CORN_NAME       : """b.{0} < a.{1}+a.{2}
+            ROOFTOP_CORN_NAME       : """b.{0} < a.{1}+a.{2} 
                                         AND b.{0} > a.{1}""".format( Z,
                                                                      HEIGHT_FIELD,
                                                                      ROOFTOP_CORNER_VAR_HEIGHT)
@@ -815,7 +817,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
             DROP TABLE IF EXISTS {0}
                       """.format(zValueTable))
      
-    return dicOfOutputTables
+    return dicOfOutputTables, maxHeight
 
 
 def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
@@ -863,9 +865,9 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                                 for t in dicOfVegZoneGridPoint}
     tempoAllVeg = DataUtil.postfix("TEMPO_ALL_VEG")
     
-    # Creates the table of z levels impacted by obstacles
-    listOfZ = [str(i) for i in np.arange(0, 
-                                         (math.trunc(sketchHeight/dz)+1)*dz, 
+    # Creates the table of z levels of the sketch
+    listOfZ = [str(i) for i in np.arange(float(dz)/2, 
+                                         float(dz)/2+math.trunc(sketchHeight/dz)*dz, 
                                          dz)]
     cursor.execute("""
             DROP TABLE IF EXISTS {0};
@@ -1411,8 +1413,8 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
     tempoZoneWindSpeedFactorTable = DataUtil.postfix("TEMPO_ZONE_WIND_SPEED_FACTOR")
     
     # Set a list of the level height and get their horizontal wind speed
-    levelHeightList = [i for i in np.arange(0, 
-                                            (math.trunc(sketchHeight/dz)+1)*dz,
+    levelHeightList = [i for i in np.arange(float(dz)/2, 
+                                            float(dz)/2+math.trunc(sketchHeight/dz)*dz,
                                             dz)]
     verticalWindSpeedProfile = \
         getVerticalProfile( cursor = cursor,
@@ -1605,11 +1607,10 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
            """.format(HEIGHT_FIELD, stackedBlocksWithBaseHeight))
     buildMaxHeight = cursor.fetchall()[0][0]
     
-    # Set a list of the level height (and indice) below the max building height
-    # (note that as for horizontal direction, the grid has been shifted from 0.5 times dz)
+    # Set a list of the level height (and indice) which can intersect with buildings
     levelHeightList = [str(j+1)+","+str(i)
                            for j, i in enumerate(np.arange(float(dz)/2, 
-                                                           math.trunc(buildMaxHeight/dz)*dz+float(dz)/2,
+                                                           float(dz)/2+math.trunc(buildMaxHeight/dz)*dz,
                                                            dz))]
 
     # ...and insert them into a table

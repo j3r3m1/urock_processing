@@ -13,7 +13,7 @@ from GlobalVariables import *
 
 z_ref = 10
 v_ref = 2
-windDirection = 50
+windDirection = 14
 prefix = "StreetCanyon"
 meshSize = 2
 dz = 2
@@ -49,16 +49,17 @@ cells.loc[pd.MultiIndex.from_arrays(buildIndex, names=('x', 'y', 'z'))] = 1.
 ws = (u**2+v**2+w**2)**0.5
 
 # Levels to plot
-levelList = [2, 8, 14, 20, 22, 23]
+levelList = [3, 8, 14, 20, 22, 23]
 
 # Wind speed field in an (x,y) plan
 nrows = 2
 ncols = int(len(levelList)/nrows)
 fig, ax = plt.subplots(nrows = nrows, ncols = ncols, sharex = True, sharey=True)
 for k in range(0,nrows):
-    for i, j in enumerate(levelList[k*ncols:ncols+k*ncols]):
+    for i, lev in enumerate(levelList[k*ncols:ncols+k*ncols]):
+        n_lev = int((lev+dz/2)/dz)
         # ax[k][i].streamplot(x, y, u = u[:,:,int(j/dz)].transpose(), v = v[:,:,int(j/dz)].transpose(), density = 3)
-        Q = ax[k][i].quiver(x, y, u[:,:,int(j/dz)].transpose(), v[:,:,int(j/dz)].transpose(), 
+        Q = ax[k][i].quiver(x, y, u[:,:,n_lev].transpose(), v[:,:,n_lev].transpose(), 
                             units = 'xy', scale = dz, headwidth = 6, headlength = 3,
                             headaxislength = 2.5)
         ax[k][i].quiverkey(Q, 0.9, 0.9, 1, r'$1 \frac{m}{s}$', labelpos='E',
@@ -67,21 +68,21 @@ for k in range(0,nrows):
         # ax[k][i].set_ylim(int(25/dz),int(75/dz))
         
         # Get buildings for the z level considered
-        buildZ = cells.xs(int(j/dz), level = 2)
+        buildZ = cells.xs(n_lev, level = 2)
         
-        # Set building pixels in black
+        # Set building pixels in color
         ax[k][i].pcolor(buildZ.index.unique(0)*meshSize,
                         buildZ.index.unique(1)*meshSize,
                         buildZ.unstack().transpose().values,
                         shading = "nearest",
                         alpha = 0.8)
-        ax[k][i].set_title("{0} m".format(j))
+        ax[k][i].set_title("{0} m".format(n_lev*dz-float(dz)/2))
         
 # Wind speed field in an (y,z) plan
 i_plan = int(x.size/2)
 fig, ax = plt.subplots(sharex = True, sharey=True)
 # ax[k][i].streamplot(x, y, u = u[:,:,j].transpose(), v = v[:,:,j].transpose(), density = 1)
-Q = ax.quiver(y, z, v[i_plan,:,:].transpose(), w[i_plan,:,:].transpose(), 
+Q = ax.quiver(y, z-float(dz)/2, vn[i_plan,:,:].transpose(), wn[i_plan,:,:].transpose(), 
                     units = 'xy', scale = dz, headwidth = 6, headlength = 3,
                     headaxislength = 2.5)
 ax.quiverkey(Q, 0.9, 0.9, 1, r'$1 \frac{m}{s}$', labelpos='E',
@@ -89,9 +90,9 @@ ax.quiverkey(Q, 0.9, 0.9, 1, r'$1 \frac{m}{s}$', labelpos='E',
 
 buildZ = cells.xs(i_plan, level = 0)
 
-# Set building pixels in black
+# Set building pixels in color
 ax.pcolor(  buildZ.index.unique(0)*meshSize,
-            buildZ.index.unique(1)*dz,
+            buildZ.index.unique(1)*dz-float(dz)/2,
             buildZ.unstack().transpose().values,
             shading = "nearest",
             alpha = 0.8)
@@ -103,17 +104,19 @@ nrows = 2
 ncols = int(len(levelList)/nrows)
 fig, ax = plt.subplots(nrows = nrows, ncols = ncols, sharex = True, sharey=True)
 for k in range(0,nrows):
-    for i, j in enumerate(levelList[k*ncols:ncols+k*ncols]):
+    for i, lev in enumerate(levelList[k*ncols:ncols+k*ncols]):
+        n_lev = int((lev+dz/2)/dz)
         # Set building pixels in black
-        ax[k][i].pcolor(ws[:,:,int(j/dz)].transpose(), 
+        pcol = ax[k][i].pcolor(ws[:,:,n_lev].transpose(), 
                         cmap = "coolwarm")
         
         # Get buildings for the z level considered
-        buildZ = cells.xs(int(j/dz), level = 2)
+        buildZ = cells.xs(n_lev, level = 2)
         
         # Set building pixels in black
         ax[k][i].pcolor(buildZ.index.unique(0),
                         buildZ.index.unique(1),
                         buildZ.unstack().transpose().values,
                         shading = "nearest")
-        ax[k][i].set_title("{0} m".format(j))
+        ax[k][i].set_title("{0} m".format(n_lev*dz-float(dz)/2))
+        ax[k][i].colorbar(pcol)

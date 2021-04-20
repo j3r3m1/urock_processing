@@ -116,19 +116,13 @@ def main(z_ref = Z_REF,
     timeStartCalculation = time.time()
     
     # -----------------------------------------------------------------------------------
-    # 2. CREATES OBSTACLE GEOMETRIES AND CALCULATES THE MAXIMUM SKETCH HEIGHT------------
+    # 2. CREATES OBSTACLE GEOMETRIES ----------------------------------------------------
     # -----------------------------------------------------------------------------------
     # Create the stacked blocks
     blockTable, stackedBlockTable = \
         CreatesGeometries.Obstacles.createsBlocks(cursor = cursor, 
                                                   inputBuildings = tableBuildingTestName,
                                                   prefix = prefix)
-    
-    # Calculates the height of the top of the "sketch"
-    obstacleMaxHeight = CalculatesIndicators.maxObstacleHeight(cursor = cursor, 
-                                                               stackedBlockTable = stackedBlockTable,
-                                                               vegetationTable = tableVegetationTestName)
-    sketchHeight = obstacleMaxHeight + verticalExtend
     
     # Save the stacked blocks as geojson
     if DEBUG:
@@ -326,12 +320,14 @@ def main(z_ref = Z_REF,
     
         
     # Calculates the 3D wind speed factors for each building Röckle zone
-    dicOfBuildZone3DWindFactor = \
+    dicOfBuildZone3DWindFactor, maxHeight = \
         InitWindField.calculates3dBuildWindFactor(cursor = cursor,
                                                   dicOfBuildZoneGridPoint = dicOfBuildZoneGridPoint,
-                                                  maxHeight = obstacleMaxHeight,
                                                   dz = dz,
                                                   prefix = prefix)
+        
+    # Calculates the height of the top of the "sketch"
+    sketchHeight = maxHeight + verticalExtend
     if DEBUG:
         for t in dicOfBuildZone3DWindFactor:
             cursor.execute("""DROP TABLE IF EXISTS point3D_Buildzone_{0};
