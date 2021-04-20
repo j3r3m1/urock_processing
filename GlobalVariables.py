@@ -25,9 +25,15 @@ OUTPUT_DIRECTORY = os.path.join("./Ressources","Outputs")
 INPUT_BUILDING_FILENAME = os.path.join("BigArea", "buildingSelection.shp")
 INPUT_VEGETATION_FILENAME = os.path.join("BigArea", "vegetation.shp")
 
+# Informations to set the DB used for geographical calculations
+INSTANCE_NAME = "myDbH2"
+INSTANCE_ID ="sa"
+INSTANCE_PASS = "sa"
+NEW_DB = True
+
 # If debug is True, keep intermediate tables (within each process) and save
 # intermediate tables (such as Röckle zones) as GIS file
-DEBUG = False
+DEBUG = True
 
 # Note that the number of points of an ellipse is only used to identify whether
 # the upper or lower part of an ellipse should be used (fro displacement zones),
@@ -93,7 +99,6 @@ ROOFTOP_PERP_VAR_HEIGHT = "Hr"
 ROOFTOP_CORNER_VAR_HEIGHT = "Hccp"
 
 PREFIX_NAME = "BUILDINGS"
-SUFFIX_NAME = datetime.now().strftime("%Y%m%d%H%M%S")
 Y_WALL = "Y_WALL"
 DISTANCE_BUILD_TO_POINT_FIELD = "DY"
 LENGTH_ZONE_FIELD = "D_0"

@@ -13,14 +13,15 @@ from GlobalVariables import *
 
 z_ref = 10
 v_ref = 2
-windDirection = 270
-prefix = "BigArea"
+windDirection = 50
+prefix = "StreetCanyon"
 meshSize = 2
 dz = 2
-alongWindZoneExtend = 40
+alongWindZoneExtend = 70
 crossWindZoneExtend = 10
 verticalExtend = 10
 inputBuildingFilename = os.path.join(prefix, "buildingSelection.shp")
+# inputVegetationFilename = os.path.join(prefix, "vegetation.shp")
 inputVegetationFilename = ""
 tempoDirectory = "/home/decide/Téléchargements"
 
@@ -48,7 +49,7 @@ cells.loc[pd.MultiIndex.from_arrays(buildIndex, names=('x', 'y', 'z'))] = 1.
 ws = (u**2+v**2+w**2)**0.5
 
 # Levels to plot
-levelList = [2, 4, 6]
+levelList = [2, 8, 14, 20, 22, 23]
 
 # Wind speed field in an (x,y) plan
 nrows = 2

@@ -46,7 +46,7 @@ def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB,
 
 
     alpha1 = 1.
-    alpha2 = 10.
+    alpha2 = 1.
     eta = alpha1 / alpha2
 
     e = np.ones([nx, ny, nz])
@@ -59,11 +59,11 @@ def solver(dx, dy, dz, nx, ny, nz, un, vn, wn, u, v, w, buildIndexB,
     p = np.ones([nx, ny, nz])
     q = np.ones([nx, ny, nz])
 
-    e[buildIndexB[0] + 1, buildIndexB[1], buildIndexB[2]] = 0.
-    f[buildIndexB[0] - 1, buildIndexB[1], buildIndexB[2]] = 0.
-    g[buildIndexB[0], buildIndexB[1] + 1, buildIndexB[2]] = 0.
-    h[buildIndexB[0], buildIndexB[1] - 1, buildIndexB[2]] = 0.
-    n[buildIndexB[0], buildIndexB[1], buildIndexB[2] - 1] = 0.
+    e[buildIndexB[0] - 1, buildIndexB[1], buildIndexB[2]] = 0.
+    f[buildIndexB[0] + 1, buildIndexB[1], buildIndexB[2]] = 0.
+    g[buildIndexB[0], buildIndexB[1] - 1, buildIndexB[2]] = 0.
+    h[buildIndexB[0], buildIndexB[1] + 1, buildIndexB[2]] = 0.
+    n[buildIndexB[0], buildIndexB[1], buildIndexB[2] + 1] = 0.
     o[buildIndexB[0] - 1, buildIndexB[1], buildIndexB[2]] = 0.5
     o[buildIndexB[0] + 1, buildIndexB[1], buildIndexB[2]] = 0.5
     p[buildIndexB[0], buildIndexB[1] - 1, buildIndexB[2]] = 0.5

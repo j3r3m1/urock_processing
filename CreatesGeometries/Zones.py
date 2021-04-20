@@ -84,6 +84,7 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable,
             AS SELECT   {1},
                         {2},
                         {3},
+                        {4},
                         {8}
             FROM ST_EXPLODE('(SELECT ST_SPLIT(ST_SNAP(ST_ROTATE(ST_MAKEELLIPSE(ST_CENTROID(a.{2}),
                                                                                 ST_LENGTH(a.{2}),

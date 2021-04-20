@@ -79,14 +79,14 @@ def degToRad(angleDeg, origin = 0, direction = "CLOCKWISE"):
     
     return (angleDeg+d*origin)*np.pi/180
 
-def postfix(tableName, suffix = SUFFIX_NAME, separator = "_"):
+def postfix(tableName, suffix = None, separator = "_"):
     """ Add a suffix to an input table name
     
     Parameters
 	_ _ _ _ _ _ _ _ _ _ 
 		tableName : String
 			Name of the input table
-        suffix : String, default current datetime as string
+        suffix : String, default None (then current datetime is used as string)
             Suffix to add to the table name
         separator : String, default "_"
             Character to separate tableName from suffix
@@ -95,7 +95,9 @@ def postfix(tableName, suffix = SUFFIX_NAME, separator = "_"):
     Returns
 	_ _ _ _ _ _ _ _ _ _ 	
 		The input table name with the suffix"""
-        
+    if suffix is None:
+        suffix = datetime.now().strftime("%Y%m%d%H%M%S")
+    
     return tableName+separator+suffix
 
 def prefix(tableName, prefix = PREFIX_NAME, separator = "_"):

@@ -216,6 +216,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
         DISPLACEMENT_NAME       : """b.{0},
                                     b.{1},
                                     a.{2},
+                                    b.{6},
                                     ST_YMIN(ST_INTERSECTION(a.{3}, 
                                                             ST_TOMULTILINE(b.{3}))
                                             ) AS {5},
@@ -225,10 +226,12 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 ID_POINT_X,
                                                 GEOM_FIELD,
                                                 LENGTH_ZONE_FIELD+DISPLACEMENT_NAME[0],
-                                                Y_WALL),
+                                                Y_WALL,
+                                                UPWIND_FACADE_ANGLE_FIELD),
         DISPLACEMENT_VORTEX_NAME: """b.{0},
                                     b.{1},
                                     a.{2},
+                                    b.{6},
                                     ST_YMIN(ST_INTERSECTION(a.{3}, 
                                                             ST_TOMULTILINE(b.{3}))
                                             ) AS {5},
@@ -238,7 +241,8 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 ID_POINT_X,
                                                 GEOM_FIELD,
                                                 LENGTH_ZONE_FIELD+DISPLACEMENT_VORTEX_NAME[0],
-                                                Y_WALL),
+                                                Y_WALL,
+                                                UPWIND_FACADE_ANGLE_FIELD),
         CAVITY_NAME             : """b.{0},
                                     b.{1},
                                     a.{2},
@@ -321,13 +325,18 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     (b.Y_POINT-a.{6})/a.{2} AS {5},
                                     b.{3},
                                     a.{4},
+                                    SIN(2*(a.{7}-PI()/2))/2 AS {8},
+                                    POWER(SIN(a.{7}-PI()/2),2) AS {9},
                                     CAST(a.{6} AS INTEGER) AS {6}""".format(ID_POINT,
                                                     UPPER_VERTICAL_THRESHOLD,
                                                     LENGTH_ZONE_FIELD+DISPLACEMENT_NAME[0],
                                                     idZone[DISPLACEMENT_NAME],
                                                     HEIGHT_FIELD,
                                                     POINT_RELATIVE_POSITION_FIELD+DISPLACEMENT_NAME[0],
-                                                    Y_WALL),
+                                                    Y_WALL,
+                                                    UPWIND_FACADE_ANGLE_FIELD,
+                                                    U,
+                                                    V),
         DISPLACEMENT_VORTEX_NAME: """b.{0},
                                     0.5*a.{4}*SQRT(1-POWER((b.Y_POINT-a.{6})/
                                                                      a.{2}, 2)) AS {1},
@@ -669,7 +678,8 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
     calcQuery = \
         {   DISPLACEMENT_NAME       : """
                  b.{0},
-                 {1}*POWER(b.{2}/a.{3},{4}) AS {5},
+                 {1}*POWER(b.{2}/a.{3},{4})*a.{7} AS {7},
+                 {1}*POWER(b.{2}/a.{3},{4})*a.{5} AS {5},
                  a.{6},
                  a.{3}
                  """.format( ID_POINT_Z,
@@ -678,7 +688,8 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint, maxHeight,
                              HEIGHT_FIELD,
                              P_DZ,
                              V,
-                             ID_POINT),
+                             ID_POINT,
+                             U),
             DISPLACEMENT_VORTEX_NAME       : """
                  b.{0},
                  -(0.6*COS(PI()*b.{1}/(0.5*a.{2}))+0.05)*0.6*SIN(PI()*a.{3}) AS {4},
@@ -894,8 +905,8 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                         VEGETATION_CROWN_BASE_HEIGHT,
                         VEGETATION_ATTENUATION_FACTOR)}
             
-    whereQuery = {VEGETATION_OPEN_NAME: "",
-                  VEGETATION_BUILT_NAME: """ WHERE a.{0}<b.{1}
+    whereQuery = {VEGETATION_OPEN_NAME: "WHERE a.{0}>0".format(Z),
+                  VEGETATION_BUILT_NAME: """ WHERE a.{0}<b.{1} AND a.{0}>0
                                           """.format( Z,
                                                       TOP_CANOPY_HEIGHT_POINT)}
     
@@ -1409,7 +1420,7 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                             z0 = z0,
                             V_ref=V_ref,
                             z_ref=z_ref)
-    verticalWindSpeedProfile.index = [i for i in range(1, verticalWindSpeedProfile.size+1)]
+    verticalWindSpeedProfile.index = [i for i in range(0, verticalWindSpeedProfile.size)]
     
     # Insert the initial vertical wind profile values into a table
     valuesForEachRowProfile = [str(i)+","+str(j) for i, j in verticalWindSpeedProfile.iteritems()]
@@ -1441,7 +1452,8 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
            INSERT INTO {0} VALUES ({3});
            """.format( tempoBuildingHeightWindTable     , HEIGHT_FIELD,
                        V                                ,"), (".join(valuesForEachRowBuilding)))
-                       
+     
+    print(tempoZoneWindSpeedFactorTable)                  
     # Calculates the initial wind speed field according to each point rule
     # and join to the table x and y coordinates
     cursor.execute("""

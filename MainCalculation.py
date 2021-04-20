@@ -46,8 +46,11 @@ def main(z_ref = Z_REF,
     if vegetationBool:
         inputDataRel["vegetation"] = os.path.join(INPUT_DIRECTORY, inputVegetationFilename)
 
-    # Rotated geometries
+    # Stacked blocks
     outputDataRel["stacked_blocks"] = os.path.join(OUTPUT_DIRECTORY, "stackedBlocks.geojson")
+
+    # Rotated geometries
+    outputDataRel["rotated_stacked_blocks"] = os.path.join(OUTPUT_DIRECTORY, "rotated_stacked_blocks.geojson")
     outputDataRel["rotated_vegetation"] = os.path.join(OUTPUT_DIRECTORY, "vegetationRotated.geojson")
     outputDataRel["facades"] = os.path.join(OUTPUT_DIRECTORY, "facades.geojson")
     
@@ -86,8 +89,7 @@ def main(z_ref = Z_REF,
     H2gisConnection.downloadH2gis(dbDirectory = tempoDirectory)
     #Initialize a H2GIS database connection
     cursor = H2gisConnection.startH2gisInstance(dbDirectory = tempoDirectory,
-                                                dbInstanceDir = tempoDirectory,
-                                                instanceName = "myDbH2")
+                                                dbInstanceDir = tempoDirectory)
     
     #Load buildings and vegetation into H2GIS
     importQuery = """DROP TABLE IF EXISTS {0}; CALL SHPREAD('{1}','{0}');
@@ -128,6 +130,11 @@ def main(z_ref = Z_REF,
                                                                vegetationTable = tableVegetationTestName)
     sketchHeight = obstacleMaxHeight + verticalExtend
     
+    # Save the stacked blocks as geojson
+    if DEBUG:
+        DataUtil.saveTable(cursor = cursor                      , tableName = stackedBlockTable,
+                  filedir = outputDataAbs["stacked_blocks"]     , delete = True)
+    
     # -----------------------------------------------------------------------------------
     # 3. ROTATES OBSTACLES TO THE RIGHT DIRECTION AND CALCULATES GEOMETRY PROPERTIES ----
     # -----------------------------------------------------------------------------------
@@ -154,8 +161,8 @@ def main(z_ref = Z_REF,
         
     # Save the rotating tables as geojson
     if DEBUG:
-        DataUtil.saveTable(cursor = cursor                      , tableName = rotatedPropStackedBlocks,
-                  filedir = outputDataAbs["stacked_blocks"]     , delete = True)
+        DataUtil.saveTable(cursor = cursor                          , tableName = rotatedPropStackedBlocks,
+                  filedir = outputDataAbs["rotated_stacked_blocks"] , delete = True)
         DataUtil.saveTable(cursor = cursor                         , tableName = rotatedVegetation,
                   filedir = outputDataAbs["rotated_vegetation"]    , delete = True)
     
@@ -422,9 +429,12 @@ def main(z_ref = Z_REF,
                                           V_ref = v_ref, 
                                           tempoDirectory = tempoDirectory)
     
-    # Get grid size
+    # Set the ground as "building" (understand solid wall) - after getting grid size
     nx, ny, nz = nPoints.values()
-    
+    df_gridBuil = df_gridBuil.reindex(df_gridBuil.index.append(pd.MultiIndex.from_product([range(1,nx-1),
+                                                                                          range(1,ny-1),
+                                                                                          [0]])))
+
     # Set the buildGrid3D object to zero when a cell intersect a building 
     buildGrid3D = pd.Series(1, index = df_wind0.index, dtype = np.int32)
     buildGrid3D.loc[df_gridBuil.index] = 0
