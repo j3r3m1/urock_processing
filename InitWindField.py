@@ -19,16 +19,18 @@ def createGrid(cursor, dicOfInputTables,
                meshSize = MESH_SIZE,
                prefix = PREFIX_NAME):
     """ Creates a grid of points which will be used to initiate the wind
-    speed field.
-
+    speed field. The grid limits are defined by the enveloppe of a set of 
+    geometries ('dicOfInputTables') extended to a certain distance
+    along wind ('alongWindZoneExtend') and cross wind ('crossWindZoneExtend') 
+ 
 		Parameters
 		_ _ _ _ _ _ _ _ _ _ 
 
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
             dicOfInputTables: dictionary of String
-                Dictionary of String with type of obstacle as key and input 
-                table name as value (tables containing the rotated geometries)
+                Dictionary of String with table names as values. The grid limits
+                will be based on the enveloppe of this set of geometries
             alongWindZoneExtend: float, default ALONG_WIND_ZONE_EXTEND
                 Distance (in meter) of the extend of the zone around the
                 rotated obstacles in the along-wind direction
@@ -66,7 +68,7 @@ def createGrid(cursor, dicOfInputTables,
                         ID_COL AS {7},
                         ID_ROW AS {8},
                         ST_Y({1}) AS Y_POINT,
-            FROM ST_MAKEGRIDPOINTS((SELECT ST_EXPAND(ST_ACCUM({1}),
+            FROM ST_MAKEGRIDPOINTS((SELECT ST_EXPAND(ST_EXTENT({1}),
                                                       {2},
                                                       {3}) FROM ({5})), 
                                     {4}, 
@@ -1549,9 +1551,7 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
 def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
                         meshSize = MESH_SIZE, dz = DZ, 
                         tempoDirectory = TEMPO_DIRECTORY):
-    """ Identify grid cells intersecting buildings. Due to the fact that wind
-    speed must actually be at the boundary of the grid cells (and not at the centroid),
-    we need to first shift the grid from 0.5 times the grid mesh in X and Y directions.
+    """ Identify grid cells intersecting buildings.
     
     		Parameters
     		_ _ _ _ _ _ _ _ _ _ 

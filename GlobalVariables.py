@@ -43,9 +43,9 @@ DEBUG = True
 NPOINTS_ELLIPSE = 100
 MESH_SIZE = 3
 DZ = 1
-ALONG_WIND_ZONE_EXTEND = 75
+ALONG_WIND_ZONE_EXTEND = 5
 CROSS_WIND_ZONE_EXTEND = 20
-VERTICAL_EXTEND = 20
+VERTICAL_EXTEND = 5
 
 # The "perpendicular vortex scheme" for rooftop and displacement zones is activated
 # if the wind angle if more or less 'PERPENDICULAR_THRESHOLD_ANGLE' ° higher

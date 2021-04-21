@@ -269,14 +269,6 @@ def main(z_ref = Z_REF,
     # -----------------------------------------------------------------------------------
     # 5. INITIALIZE THE 3D WIND FIELD IN THE ROCKLE ZONES -------------------------------
     # -----------------------------------------------------------------------------------
-    # Creates the grid of points
-    gridPoint = InitWindField.createGrid(cursor = cursor, 
-                                         dicOfInputTables = dicRotatedTables,
-                                         alongWindZoneExtend = alongWindZoneExtend, 
-                                         crossWindZoneExtend = crossWindZoneExtend, 
-                                         meshSize = meshSize,
-                                         prefix = prefix)
-    
     # Define a dictionary of all building Rockle zones and same for veg
     dicOfBuildRockleZoneTable = {DISPLACEMENT_NAME       : displacementZonesTable,
                                 DISPLACEMENT_VORTEX_NAME: displacementVortexZonesTable,
@@ -287,8 +279,16 @@ def main(z_ref = Z_REF,
                                 ROOFTOP_CORN_NAME       : rooftopCornerZoneTable}
     dicOfVegRockleZoneTable = {VEGETATION_BUILT_NAME   : vegetationBuiltZoneTable,
                                VEGETATION_OPEN_NAME    : vegetationOpenZoneTable}
+
+    # Creates the grid of points
+    gridPoint = InitWindField.createGrid(cursor = cursor, 
+                                         dicOfInputTables = dict(dicOfBuildRockleZoneTable,**dicOfVegRockleZoneTable),
+                                         alongWindZoneExtend = alongWindZoneExtend, 
+                                         crossWindZoneExtend = crossWindZoneExtend, 
+                                         meshSize = meshSize,
+                                         prefix = prefix)
     
-    # Affects each point to a Rockle zone and calculates needed variables for 3D wind speed factors
+    # Affects each point to a build Rockle zone and calculates needed variables for 3D wind speed factors
     dicOfBuildZoneGridPoint = \
         InitWindField.affectsPointToBuildZone(  cursor = cursor, 
                                                 gridTable = gridPoint,
@@ -456,9 +456,9 @@ def main(z_ref = Z_REF,
     
     # Interpolation is made in order to have wind speed located on the face of
     # each grid cell
-    un[1:nx, 1:ny, 1:nz] =   (un[1:nx,1:ny,1:nz] + un[0:nx-1, 1:ny, 1:nz])/2
-    vn[1:nx, 1:ny, 1:nz] =   (vn[1:nx,1:ny,1:nz] + vn[1:nx, 0:ny-1, 1:nz])/2
-    wn[1:nx, 1:ny, 1:nz] =   (wn[1:nx,1:ny,1:nz] + wn[1:nx, 1:ny, 0:nz-1])/2
+    un[1:nx, :, :] =   (un[0:nx-1, :, :] + un[1:nx, :, :])/2
+    vn[:, 1:ny, :] =   (vn[:, 0:ny-1, :] + vn[:,1:ny,:])/2
+    wn[:, :, 1:nz] =   (wn[:, :, 0:nz-1] + wn[:, :, 1:nz])/2
     # Reset input and output wind speed to zero for building cells
     indicesBuild = np.transpose(np.where(buildGrid3D == 0))
     for i,j,k in indicesBuild:
