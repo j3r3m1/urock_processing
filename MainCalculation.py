@@ -435,6 +435,10 @@ def main(z_ref = Z_REF,
     buildGrid3D = pd.Series(1, index = df_wind0.index, dtype = np.int32)
     buildGrid3D.loc[df_gridBuil.index] = 0
     
+    # To go descending order along y in the solver
+    if DESCENDING_Y:
+        buildGrid3D.sort_index(level = 1, ascending=False, inplace=True)
+    
     # Convert to numpy matrix...
     buildGrid3D = np.array([buildGrid3D.xs(i, level = 0).unstack().values for i in range(0,nx)])
     # Identify grid cells having lambda not need to be updated in the calculations 

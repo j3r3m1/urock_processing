@@ -17,6 +17,9 @@ Z_REF = 10
 V_REF = 2.0
 WIND_DIRECTION = 270
 
+# If the solver should go descending order along y (does not work yet...)
+DESCENDING_Y = False
+
 # Temporary directory where are saved database and specific files exchanged between
 # the H2Database and Python
 TEMPO_DIRECTORY = tempfile.gettempdir()
