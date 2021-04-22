@@ -123,7 +123,6 @@ def startH2gisInstance(dbDirectory, dbInstanceDir, instanceName = INSTANCE_NAME,
     
     # If the DB already exists and if 'newDB' is set to True, delete all 'public' tables 
     if isDbExist & newDB:
-        print("ok")
         cur.execute("""SELECT TABLE_NAME 
                         FROM INFORMATION_SCHEMA.TABLES 
                         WHERE TABLE_SCHEMA = 'PUBLIC'""")

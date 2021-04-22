@@ -1456,8 +1456,7 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
            INSERT INTO {0} VALUES ({3});
            """.format( tempoBuildingHeightWindTable     , HEIGHT_FIELD,
                        V                                ,"), (".join(valuesForEachRowBuilding)))
-     
-    print(tempoZoneWindSpeedFactorTable)                  
+               
     # Calculates the initial wind speed field according to each point rule
     # and join to the table x and y coordinates
     cursor.execute("""

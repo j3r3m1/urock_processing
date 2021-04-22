@@ -11,6 +11,9 @@ import matplotlib.colors as colors
 
 from GlobalVariables import * 
 
+onlyInitialization = False
+maxIterations = 100
+thresholdIterations = 5e-3
 z_ref = 10
 v_ref = 2
 windDirection = 10
@@ -25,7 +28,7 @@ inputBuildingFilename = os.path.join(prefix, "buildingSelection.shp")
 inputVegetationFilename = ""
 tempoDirectory = "/home/decide/Téléchargements"
 
-u, v, w, un, vn, wn, x, y, z, e, lambdaM1, buildIndex = \
+u, v, w, u0, v0, w0, x, y, z, buildingCoordinates = \
     MainCalculation.main(   z_ref = z_ref,
                             v_ref = v_ref,
                             windDirection = windDirection,
@@ -37,13 +40,16 @@ u, v, w, un, vn, wn, x, y, z, e, lambdaM1, buildIndex = \
                             verticalExtend = verticalExtend,
                             inputBuildingFilename = inputBuildingFilename,
                             inputVegetationFilename = inputVegetationFilename,
-                            tempoDirectory = tempoDirectory)
+                            tempoDirectory = tempoDirectory,
+                            onlyInitialization = onlyInitialization,
+                            maxIterations = maxIterations,
+                            thresholdIterations = thresholdIterations)
 
 # -----------------------------------------------------------------------------------
 # GRAPHIC CHARACTERISTICS -----------------------------------------------------------
 # -----------------------------------------------------------------------------------
 # Stream or arrow
-isStream = True
+isStream = False
 
 # Stream charac
 streamDensity = 3
@@ -67,9 +73,9 @@ isInitialField = False
 # -----------------------------------------------------------------------------------
 #
 if isInitialField:
-    u_plot = un
-    v_plot = vn
-    w_plot = wn
+    u_plot = u0
+    v_plot = v0
+    w_plot = w0
 else:
     u_plot = u
     v_plot = v
@@ -78,7 +84,7 @@ else:
 iterables = [np.arange(0,x.size), np.arange(0,y.size), np.arange(0,z.size)]
 cells = pd.Series(dtype = "float64",
                   index = pd.MultiIndex.from_product(iterables, names=('x', 'y', 'z')))
-cells.loc[pd.MultiIndex.from_arrays(buildIndex, names=('x', 'y', 'z'))] = 1.
+cells.loc[pd.MultiIndex.from_arrays(buildingCoordinates, names=('x', 'y', 'z'))] = 1.
 
 # Calculates wind speed for each cell
 ws_plot = (u_plot**2+v_plot**2+w_plot**2)**0.5

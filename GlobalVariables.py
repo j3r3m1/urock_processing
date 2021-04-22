@@ -37,6 +37,9 @@ NEW_DB = True
 # If debug is True, keep intermediate tables (within each process) and save
 # intermediate tables (such as Röckle zones) as GIS file
 DEBUG = True
+ONLY_INITIALIZATION = False
+MAX_ITERATIONS = 100
+THRESHOLD_ITERATIONS = 5e-3
 
 # Note that the number of points of an ellipse is only used to identify whether
 # the upper or lower part of an ellipse should be used (fro displacement zones),

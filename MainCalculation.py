@@ -29,7 +29,10 @@ def main(z_ref = Z_REF,
          verticalExtend = VERTICAL_EXTEND,
          tempoDirectory = TEMPO_DIRECTORY,
          inputBuildingFilename = INPUT_BUILDING_FILENAME,
-         inputVegetationFilename = INPUT_VEGETATION_FILENAME):
+         inputVegetationFilename = INPUT_VEGETATION_FILENAME,
+         onlyInitialization = ONLY_INITIALIZATION,
+         maxIterations = MAX_ITERATIONS,
+         thresholdIterations = THRESHOLD_ITERATIONS):
 
     # Need to avoid vegetation related calculations if there is not vegetation file...
     vegetationBool = True
@@ -400,9 +403,9 @@ def main(z_ref = Z_REF,
                            delete = True)        
     
     
-    # ----------------------------------------------------------------
-    # 6. 3D WIND SPEED CALCULATION -----------------------------------
-    # ----------------------------------------------------------------
+    # -------------------------------------------------------------------
+    # 6. 3D WIND SPEED INITIALIZATION -----------------------------------
+    # -------------------------------------------------------------------
     # Identify 3D grid points intersected by buildings
     df_gridBuil = \
         InitWindField.identifyBuildPoints(cursor = cursor,
@@ -425,6 +428,9 @@ def main(z_ref = Z_REF,
                                           V_ref = v_ref, 
                                           tempoDirectory = tempoDirectory)
     
+    # -------------------------------------------------------------------
+    # 7. "RASTERIZE" THE DATA - PREPARE MATRICES FOR WIND CALCULATION ---
+    # -------------------------------------------------------------------        
     # Set the ground as "building" (understand solid wall) - after getting grid size
     nx, ny, nz = nPoints.values()
     df_gridBuil = df_gridBuil.reindex(df_gridBuil.index.append(pd.MultiIndex.from_product([range(1,nx-1),
@@ -439,50 +445,67 @@ def main(z_ref = Z_REF,
     if DESCENDING_Y:
         buildGrid3D.sort_index(level = 1, ascending=False, inplace=True)
     
-    # Convert to numpy matrix...
+    # Convert building coordinates and wind speeds to numpy matrix...
+    # (note that v axis direction is changed since we first use Röckle schemes
+    # considering wind speed coming from North thus axis facing South)
     buildGrid3D = np.array([buildGrid3D.xs(i, level = 0).unstack().values for i in range(0,nx)])
-    # Identify grid cells having lambda not need to be updated in the calculations 
-    # (values at open boundaries, near ground or inside buildings...)
-    indices = np.transpose(np.where(buildGrid3D == 1))
-    indices = indices[indices[:, 0] > 0]
-    indices = indices[indices[:, 1] > 0]
-    indices = indices[indices[:, 2] > 0]
-    indices = indices[indices[:, 0] < nx - 1]
-    indices = indices[indices[:, 1] < ny - 1]
-    indices = indices[indices[:, 2] < nz - 1]
-    indices = indices.astype(np.int32)
-    buildIndexB = np.stack(np.where(buildGrid3D==0)).astype(np.int32)
-    # Note that v axis direction is changed since we first use Röckle schemes
-    # considering wind speed coming from North thus axis facing South
-    un = np.array([df_wind0[U].xs(i, level = 0).unstack().values for i in range(0,nx)])
-    vn = -np.array([df_wind0[V].xs(i, level = 0).unstack().values for i in range(0,nx)])
-    wn = np.array([df_wind0[W].xs(i, level = 0).unstack().values for i in range(0,nx)])
+    u0 = np.array([df_wind0[U].xs(i, level = 0).unstack().values for i in range(0,nx)])
+    v0 = -np.array([df_wind0[V].xs(i, level = 0).unstack().values for i in range(0,nx)])
+    w0 = np.array([df_wind0[W].xs(i, level = 0).unstack().values for i in range(0,nx)])
+    
+    # Identify all cells needing to be updated by the wind solver and store
+    # their coordinates in a 1D array
+    # (exclude buildings and sketch boundaries)
+    cells4Solver = np.transpose(np.where(buildGrid3D == 1))
+    cells4Solver = cells4Solver[cells4Solver[:, 0] > 0]
+    cells4Solver = cells4Solver[cells4Solver[:, 1] > 0]
+    cells4Solver = cells4Solver[cells4Solver[:, 2] > 0]
+    cells4Solver = cells4Solver[cells4Solver[:, 0] < nx - 1]
+    cells4Solver = cells4Solver[cells4Solver[:, 1] < ny - 1]
+    cells4Solver = cells4Solver[cells4Solver[:, 2] < nz - 1]
+    cells4Solver = cells4Solver.astype(np.int32)
+    
+    # Identify building 3D coordinates
+    buildingCoordinates = np.stack(np.where(buildGrid3D==0)).astype(np.int32)
     
     # Interpolation is made in order to have wind speed located on the face of
     # each grid cell
-    un[1:nx, :, :] =   (un[0:nx-1, :, :] + un[1:nx, :, :])/2
-    vn[:, 1:ny, :] =   (vn[:, 0:ny-1, :] + vn[:,1:ny,:])/2
-    wn[:, :, 1:nz] =   (wn[:, :, 0:nz-1] + wn[:, :, 1:nz])/2
-    # Reset input and output wind speed to zero for building cells
-    indicesBuild = np.transpose(np.where(buildGrid3D == 0))
-    for i,j,k in indicesBuild:
-        un[i,j,k] = 0
-        un[i+1,j,k]=0
-        vn[i,j,k] = 0
-        vn[i,j+1,k]=0
-        wn[i,j,k] = 0
-        wn[i,j,k+1]=0
+    u0[1:nx, :, :] =   (u0[0:nx-1, :, :] + u0[1:nx, :, :])/2
+    v0[:, 1:ny, :] =   (v0[:, 0:ny-1, :] + v0[:,1:ny,:])/2
+    w0[:, :, 1:nz] =   (w0[:, :, 0:nz-1] + w0[:, :, 1:nz])/2
     
-    u = np.zeros((nx, ny, nz))
-    v = np.zeros((nx, ny, nz))
-    w = np.zeros((nx, ny, nz))
+    # Reset input and output wind speed to zero for building cells
+    u0[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
+    u0[buildingCoordinates[0]+1,buildingCoordinates[1],buildingCoordinates[2]]=0
+    v0[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
+    v0[buildingCoordinates[0],buildingCoordinates[1]+1,buildingCoordinates[2]]=0
+    w0[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
+    w0[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]+1]=0
+    
+    # Create local grid space coordinates (x, y, z)
+    Lz = (nz-1) * dz
+    Lx = (nx-1) * meshSize
+    Ly = (ny-1) * meshSize
+    x = np.linspace(0, Lx, nx)  
+    y = np.linspace(0, Ly, ny)
+    z = np.linspace(0, Lz, nz)
     
     print("Time spent for wind speed initialization: {0} s".format(time.time()-timeStartCalculation))
     
-    # Apply a mass-flow balance to have a more physical 3D wind speed field
-    return WindSolver.solver(   dx = meshSize               , dy = meshSize         , dz = dz, 
-                                nx = nx                     , ny = ny               , nz = nz, 
-                                un = un                     , vn = vn               , wn = wn,
-                                u = u                       , v = v                 , w = w, 
-                                buildIndexB = buildIndexB   , indices = indices     , indicesBuild = indicesBuild,
-                                iterations = 100)
+    # -------------------------------------------------------------------
+    # 8. WIND SOLVER APPLICATION ----------------------------------------
+    # ------------------------------------------------------------------- 
+    if not onlyInitialization:
+        # Apply a mass-flow balance to have a more physical 3D wind speed field
+        u, v, w = \
+            WindSolver.solver(  x = x                       , y = y                 , z = z,
+                                dx = meshSize               , dy = meshSize         , dz = dz,
+                                u0 = u0                     , v0 = v0               , w0 = w0,
+                                buildingCoordinates = buildingCoordinates   , cells4Solver = cells4Solver,
+                                maxIterations = maxIterations, thresholdIterations = thresholdIterations)
+    else:
+        u = u0
+        v = v0
+        w = w0
+    
+    return u, v, w, u0, v0, w0, x, y, z, buildingCoordinates
