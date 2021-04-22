@@ -44,11 +44,11 @@ DEBUG = True
 # Need to create this variable in H2GIS 
 # https://github.com/locationtech/jts/blob/9d4097312d68cb8f9ae591bec69ce3b403e41e98/modules/core/src/main/java/org/locationtech/jts/util/GeometricShapeFactory.java#L101
 NPOINTS_ELLIPSE = 100
-MESH_SIZE = 3
-DZ = 1
-ALONG_WIND_ZONE_EXTEND = 5
-CROSS_WIND_ZONE_EXTEND = 20
-VERTICAL_EXTEND = 5
+MESH_SIZE = 2
+DZ = 2
+ALONG_WIND_ZONE_EXTEND = 30
+CROSS_WIND_ZONE_EXTEND = 25
+VERTICAL_EXTEND = 20
 
 # The "perpendicular vortex scheme" for rooftop and displacement zones is activated
 # if the wind angle if more or less 'PERPENDICULAR_THRESHOLD_ANGLE' ° higher

@@ -13,13 +13,13 @@ from GlobalVariables import *
 
 z_ref = 10
 v_ref = 2
-windDirection = 350
-prefix = "StreetCanyon"
+windDirection = 10
+prefix = "SimpleBuilding"
 meshSize = 2
 dz = 2
-alongWindZoneExtend = 5
-crossWindZoneExtend = 10
-verticalExtend = 5
+alongWindZoneExtend = 30
+crossWindZoneExtend = 25
+verticalExtend = 20
 inputBuildingFilename = os.path.join(prefix, "buildingSelection.shp")
 # inputVegetationFilename = os.path.join(prefix, "vegetation.shp")
 inputVegetationFilename = ""
@@ -42,25 +42,31 @@ u, v, w, un, vn, wn, x, y, z, e, lambdaM1, buildIndex = \
 # -----------------------------------------------------------------------------------
 # GRAPHIC CHARACTERISTICS -----------------------------------------------------------
 # -----------------------------------------------------------------------------------
+# Stream or arrow
+isStream = True
+
+# Stream charac
+streamDensity = 3
+
 # Arrow charac
 headwidth = 3
 headlength = 1.5
 headaxislength = 1.5
 
-# Z level to plot
+# Z level to plot (in meters)
 levelList = [1]
 
 # Number of row in the subplots
 nrows = 1
 
 # Initial or solved wind field
-initialField = False
+isInitialField = False
 
 # -----------------------------------------------------------------------------------
 # POST-PROCESSING -------------------------------------------------------------------
 # -----------------------------------------------------------------------------------
 #
-if initialField:
+if isInitialField:
     u_plot = un
     v_plot = vn
     w_plot = wn
@@ -95,14 +101,19 @@ for i in range(0,nrows):
         else:
             ax_ij = ax
         n_lev = int((lev+dz/2)/dz)
-        # ax_ij.streamplot(x, y, u = u[:,:,int(j/dz)].transpose(), v = v[:,:,int(j/dz)].transpose(), density = 3)
-        Q = ax_ij.quiver(x, y, u_plot[:,:,n_lev].transpose(), v_plot[:,:,n_lev].transpose(), 
-                            units = 'xy', scale = dz, headwidth = 6, headlength = 3,
-                            headaxislength = 2.5)
-        ax_ij.quiverkey(Q, 0.9, 0.9, 1, r'$1 \frac{m}{s}$', labelpos='E',
-                    coordinates='figure')
-        ax_ij.set_xlim(-14,78)
-        ax_ij.set_ylim(132,188)
+        if isStream:
+            ax_ij.streamplot(x, y, u = u_plot[:,:,n_lev].transpose(), 
+                             v = v_plot[:,:,n_lev].transpose(),
+                             density = streamDensity)
+        else:
+            Q = ax_ij.quiver(x, y, u_plot[:,:,n_lev].transpose(), 
+                             v_plot[:,:,n_lev].transpose(), 
+                             units = 'xy', scale = dz, headwidth = 6,
+                             headlength = 3, headaxislength = 2.5)
+            ax_ij.quiverkey(Q, 0.9, 0.9, 1, r'$1 \frac{m}{s}$', labelpos='E',
+                            coordinates='figure')
+        # ax_ij.set_xlim(-14,78)
+        # ax_ij.set_ylim(132,188)
         
         # Get buildings for the z level considered
         buildZ = cells.xs(n_lev, level = 2)
@@ -121,7 +132,7 @@ for i in range(0,nrows):
 ncols = int(len(levelList)/nrows)
 fig, ax = plt.subplots(nrows = nrows, ncols = ncols, sharex = True, sharey=True)
 for i in range(0,nrows):
-    for j, lev in enumerate(levelList[i*ncols:ncols+k*ncols]):
+    for j, lev in enumerate(levelList[i*ncols:ncols+i*ncols]):
         if nrows>1:
             ax_ij = ax[i]
             if ncols>1:
@@ -151,12 +162,18 @@ for i in range(0,nrows):
 # -----------------------------------------------------------------------------------   
 i_plan = int(x.size/2)
 fig, ax = plt.subplots(sharex = True, sharey=True)
-# ax.streamplot(x, z-float(dz)/2, v[i_plan,:,:].transpose(), w[i_plan,:,:].transpose(), density = 1)
-Q = ax.quiver(y, z-float(dz)/2, v_plot[i_plan,:,:].transpose(), w_plot[i_plan,:,:].transpose(), 
-                    units = 'xy', scale = dz, headwidth = 3, headlength = 1.5,
-                    headaxislength = 1.5)
-ax.quiverkey(Q, 0.9, 0.9, 1, r'$1 \frac{m}{s}$', labelpos='E',
-            coordinates='figure')
+if isStream:
+    ax.streamplot(y, z-float(dz)/2, v_plot[i_plan,:,:].transpose(),
+                  w_plot[i_plan,:,:].transpose(),
+                  density = streamDensity)
+else:
+    Q = ax.quiver(y, z-float(dz)/2, v_plot[i_plan,:,:].transpose(),
+                  w_plot[i_plan,:,:].transpose(), 
+                  units = 'xy', scale = dz, headwidth = headwidth, 
+                  headlength = headlength,
+                  headaxislength = headaxislength)
+    ax.quiverkey(Q, 0.9, 0.9, 1, r'$1 \frac{m}{s}$', labelpos='E',
+                 coordinates='figure')
 
 buildZ = cells.xs(i_plan, level = 0)
 
@@ -166,6 +183,5 @@ ax.pcolor(  buildZ.index.unique(0)*meshSize,
             buildZ.unstack().transpose().values,
             shading = "nearest",
             alpha = 0.8)
-ax.set_xlim(100,190)
-ax.set_ylim(0,30)
-
+# ax.set_xlim(100,190)
+# ax.set_ylim(0,30)

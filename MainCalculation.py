@@ -485,4 +485,4 @@ def main(z_ref = Z_REF,
                                 un = un                     , vn = vn               , wn = wn,
                                 u = u                       , v = v                 , w = w, 
                                 buildIndexB = buildIndexB   , indices = indices     , indicesBuild = indicesBuild,
-                                iterations = 15)
+                                iterations = 100)
