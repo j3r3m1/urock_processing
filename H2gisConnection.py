@@ -9,7 +9,7 @@ Created on Thu Jan 21 11:49:12 2021
 #!/usr/bin/python
 from __future__ import print_function
 import os
-import urllib
+import urllib3
 import DataUtil
 import jaydebeapi
 from GlobalVariables import *
@@ -57,7 +57,15 @@ def downloadH2gis(dbDirectory):
     else:
         print("Downloading H2GIS version %s at %s..." % (H2GIS_URL, H2GIS_VERSION))
         # Download the archive file and save it into the 'dbDirectory'
-        pathAndFileArch, headNotUse = urllib.request.urlretrieve(H2GIS_URL, localH2ZipDir)
+        http = urllib3.PoolManager()
+        r = http.request('GET', url = H2GIS_URL, preload_content=False)  
+        with open(localH2ZipDir, 'wb') as out:
+            while True:
+                data = r.read(2**16)
+                if not data:
+                    break
+                out.write(data)
+        r.release_conn()
         print("H2GIS version %s downloaded !!" % (H2GIS_VERSION))
     
     # Test whether the .jar already exists
