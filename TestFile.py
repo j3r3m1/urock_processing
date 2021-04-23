@@ -26,7 +26,7 @@ verticalExtend = 20
 inputBuildingFilename = os.path.join(prefix, "buildingSelection.shp")
 # inputVegetationFilename = os.path.join(prefix, "vegetation.shp")
 inputVegetationFilename = ""
-tempoDirectory = "/home/decide/Téléchargements"
+tempoDirectory = TEMPO_DIRECTORY
 
 u, v, w, u0, v0, w0, x, y, z, buildingCoordinates = \
     MainCalculation.main(   z_ref = z_ref,
