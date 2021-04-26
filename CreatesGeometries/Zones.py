@@ -287,14 +287,16 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         a.{9},
                         a.{5},
                         a.{8},
-                        ST_COLLECTIONEXTRACT(ST_INTERSECTION(a.{2}, b.{2}), 2) AS {2}
+                        ST_COLLECTIONEXTRACT(ST_INTERSECTION(a.{2}, b.{2}), 2) AS {2},
+                        a.{10}
             FROM {3} AS a, {4} AS b
             WHERE a.{2} && b.{2} AND ST_INTERSECTS(a.{2}, b.{2})
            """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD                       , upwindTable,
                        cavityZonesTable                 , HEIGHT_FIELD,
                        ID_UPSTREAM_STACKED_BLOCK        , ID_DOWNSTREAM_STACKED_BLOCK,
-                       UPWIND_FACADE_ANGLE_FIELD        , BASE_HEIGHT_FIELD)
+                       UPWIND_FACADE_ANGLE_FIELD        , BASE_HEIGHT_FIELD,
+                       UPWIND_FACADE_FIELD)
     cursor.execute(intersectionQuery)
     
     # Identify street canyon extend
@@ -316,7 +318,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                     								ST_ENDPOINT(ST_TRANSLATE(   a.{4},
                                                                             0, 
                                                                             ST_YMAX(b.{4})-ST_YMIN(b.{4})+b.{5})),
-                    								ST_TOMULTIPOINT(ST_REVERSE(a.{4})))) AS THE_GEOM
+                    								ST_TOMULTIPOINT(ST_REVERSE(a.{4})))) AS THE_GEOM,
+                        a.{13}
             FROM {0} AS a LEFT JOIN {2} AS b ON a.{1} = b.{10}
             WHERE NOT ST_ISEMPTY(a.{4})
            """.format( intersectTable                   , ID_UPSTREAM_STACKED_BLOCK,
@@ -325,7 +328,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        HEIGHT_FIELD                     , DOWNSTREAM_HEIGHT_FIELD,
                        UPSTREAM_HEIGHT_FIELD            , ID_DOWNSTREAM_STACKED_BLOCK,
                        ID_FIELD_STACKED_BLOCK           , UPWIND_FACADE_ANGLE_FIELD,
-                       BASE_HEIGHT_FIELD)
+                       BASE_HEIGHT_FIELD                , UPWIND_FACADE_FIELD)
     cursor.execute(canyonExtendQuery)
     
     # Creates street canyon zones
@@ -339,7 +342,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                          {4} INTEGER,
                          {5} INTEGER,
                          {11} DOUBLE,
-                         {12} INTEGER)
+                         {12} INTEGER,
+                         {14} INTEGER)
             AS SELECT   NULL AS {13},
                         {1},
                         {8},
@@ -347,7 +351,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         {4},
                         {5},
                         {11},
-                        {12}
+                        {12},
+                        {14}
             FROM ST_EXPLODE('(SELECT    a.{1},
                                         a.{8},
                                         ST_SPLIT(a.{3},
@@ -355,7 +360,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                                         a.{4},
                                         a.{5},
                                         a.{11},
-                                        a.{12}
+                                        a.{12},
+                                        a.{14}
                             FROM        {0} AS a LEFT JOIN {7} AS b ON a.{1}=b.{9})')
             WHERE EXPLOD_ID = 1
                      
@@ -365,7 +371,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        SNAPPING_TOLERANCE               , zonePropertiesTable,
                        ID_DOWNSTREAM_STACKED_BLOCK      , ID_FIELD_STACKED_BLOCK,
                        MESH_SIZE                        , UPWIND_FACADE_ANGLE_FIELD,
-                       BASE_HEIGHT_FIELD                , ID_FIELD_CANYON)
+                       BASE_HEIGHT_FIELD                , ID_FIELD_CANYON,
+                       UPWIND_FACADE_FIELD)
     cursor.execute(streetCanyonQuery)
     
     if not DEBUG:

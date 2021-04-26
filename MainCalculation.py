@@ -269,9 +269,9 @@ def main(z_ref = Z_REF,
                   filedir = outputDataAbs["vegetation_open"]    , delete = True)
     
     
-    # -----------------------------------------------------------------------------------
-    # 5. INITIALIZE THE 3D WIND FIELD IN THE ROCKLE ZONES -------------------------------
-    # -----------------------------------------------------------------------------------
+    # ----------------------------------------------------------------------
+    # 5. SET THE 2D GRID IN THE ROCKLE ZONES -------------------------------
+    # ----------------------------------------------------------------------
     # Define a dictionary of all building Rockle zones and same for veg
     dicOfBuildRockleZoneTable = {DISPLACEMENT_NAME       : displacementZonesTable,
                                 DISPLACEMENT_VORTEX_NAME: displacementVortexZonesTable,
@@ -291,12 +291,25 @@ def main(z_ref = Z_REF,
                                          meshSize = meshSize,
                                          prefix = prefix)
     
-    # Affects each point to a build Rockle zone and calculates needed variables for 3D wind speed factors
-    dicOfBuildZoneGridPoint = \
+    # Affects each 2D point to a build Rockle zone and calculates needed variables for 3D wind speed factors
+    dicOfInitBuildZoneGridPoint = \
         InitWindField.affectsPointToBuildZone(  cursor = cursor, 
                                                 gridTable = gridPoint,
                                                 dicOfBuildRockleZoneTable = dicOfBuildRockleZoneTable,
                                                 prefix = prefix)
+        
+    # Same for vegetation Röckle zones
+    dicOfVegZoneGridPoint = \
+        InitWindField.affectsPointToVegZone(cursor = cursor, 
+                                            gridTable = gridPoint,
+                                            dicOfVegRockleZoneTable = dicOfVegRockleZoneTable,
+                                            prefix = prefix)
+    
+    # Remove some of the Röckle points where building Röckle zones overlap
+    dicOfBuildZoneGridPoint = \
+        InitWindField.removeBuildZonePoints(cursor = cursor, 
+                                            dicOfInitBuildZoneGridPoint = dicOfInitBuildZoneGridPoint,
+                                            prefix = prefix)
     if DEBUG:
         for t in dicOfBuildZoneGridPoint:
             cursor.execute("""DROP TABLE IF EXISTS point_Buildzone_{0};
@@ -312,25 +325,16 @@ def main(z_ref = Z_REF,
                                tableName = "point_Buildzone_"+t,
                                filedir = outputDataAbs["point_BuildZone"]+t+".geojson",
                                delete = True)
-        
-    # Same for vegetation Röckle zones
-    dicOfVegZoneGridPoint = \
-        InitWindField.affectsPointToVegZone(cursor = cursor, 
-                                            gridTable = gridPoint,
-                                            dicOfVegRockleZoneTable = dicOfVegRockleZoneTable,
-                                            prefix = prefix)
     
-    
-        
+    # -----------------------------------------------------------------------------------
+    # 6. INITIALIZE THE 3D WIND FIELD IN THE ROCKLE ZONES -------------------------------
+    # -----------------------------------------------------------------------------------   
     # Calculates the 3D wind speed factors for each building Röckle zone
     dicOfBuildZone3DWindFactor, maxHeight = \
         InitWindField.calculates3dBuildWindFactor(cursor = cursor,
                                                   dicOfBuildZoneGridPoint = dicOfBuildZoneGridPoint,
                                                   dz = dz,
                                                   prefix = prefix)
-        
-    # Calculates the height of the top of the "sketch"
-    sketchHeight = maxHeight + verticalExtend
     if DEBUG:
         for t in dicOfBuildZone3DWindFactor:
             cursor.execute("""DROP TABLE IF EXISTS point3D_Buildzone_{0};
@@ -348,6 +352,8 @@ def main(z_ref = Z_REF,
                                delete = True)
         
     # Calculates the 3D wind speed factors of the vegetation (considering all zone types)
+    # after calculation of the top of the "sketch"
+    sketchHeight = maxHeight + verticalExtend
     vegetationWeightFactorTable = \
         InitWindField.calculates3dVegWindFactor(cursor = cursor,
                                                 dicOfVegZoneGridPoint = dicOfVegZoneGridPoint,
@@ -373,7 +379,7 @@ def main(z_ref = Z_REF,
     
     
     # ----------------------------------------------------------------
-    # 5. DEALS WITH SUPERIMPOSED ZONES -------------------------------
+    # 7. DEALS WITH SUPERIMPOSED ZONES -------------------------------
     # ----------------------------------------------------------------
     # Calculates the final weighting factor for each point, dealing with duplicates (superimposition)
     dicAllWeightFactorsTables = dicOfBuildZone3DWindFactor.copy()
@@ -404,7 +410,7 @@ def main(z_ref = Z_REF,
     
     
     # -------------------------------------------------------------------
-    # 6. 3D WIND SPEED INITIALIZATION -----------------------------------
+    # 8. 3D WIND SPEED INITIALIZATION -----------------------------------
     # -------------------------------------------------------------------
     # Identify 3D grid points intersected by buildings
     df_gridBuil = \
@@ -429,7 +435,7 @@ def main(z_ref = Z_REF,
                                           tempoDirectory = tempoDirectory)
     
     # -------------------------------------------------------------------
-    # 7. "RASTERIZE" THE DATA - PREPARE MATRICES FOR WIND CALCULATION ---
+    # 9. "RASTERIZE" THE DATA - PREPARE MATRICES FOR WIND CALCULATION ---
     # -------------------------------------------------------------------        
     # Set the ground as "building" (understand solid wall) - after getting grid size
     nx, ny, nz = nPoints.values()
@@ -493,7 +499,7 @@ def main(z_ref = Z_REF,
     print("Time spent for wind speed initialization: {0} s".format(time.time()-timeStartCalculation))
     
     # -------------------------------------------------------------------
-    # 8. WIND SOLVER APPLICATION ----------------------------------------
+    # 10. WIND SOLVER APPLICATION ----------------------------------------
     # ------------------------------------------------------------------- 
     if not onlyInitialization:
         # Apply a mass-flow balance to have a more physical 3D wind speed field
