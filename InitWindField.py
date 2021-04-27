@@ -301,7 +301,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 UPSTREAM_HEIGHT_FIELD,
                                                 ID_POINT_X,
                                                 DOWNSTREAM_HEIGHT_FIELD,
-                                                UPPER_VERTICAL_THRESHOLD,
+                                                MAX_CANYON_HEIGHT_FIELD,
                                                 UPWIND_FACADE_ANGLE_FIELD,
                                                 GEOM_FIELD,
                                                 LENGTH_ZONE_FIELD+STREET_CANYON_NAME[0],
@@ -400,11 +400,13 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     (1-(a.{2}-(a.{10}-b.Y_POINT))/(0.5*a.{2})) AS {5},
                                     a.{6},
                                     a.{7},
-                                    a.{8},
+                                    a.{7}*SQRT(1-POWER((a.{10}-b.Y_POINT)/
+                                                                 a.{2}, 2)) AS {8},
                                     a.{9},
                                     a.{11},
                                     CAST(a.{10} AS INTEGER) AS {10},
-                                    a.{12}
+                                    a.{12},
+                                    a.{13}
                                     """.format( ID_POINT,
                                                 UPWIND_FACADE_ANGLE_FIELD,
                                                 LENGTH_ZONE_FIELD+STREET_CANYON_NAME[0],
@@ -417,7 +419,8 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 BASE_HEIGHT_FIELD,
                                                 Y_WALL,
                                                 ID_POINT_X,
-                                                UPWIND_FACADE_FIELD),
+                                                UPWIND_FACADE_FIELD,
+                                                MAX_CANYON_HEIGHT_FIELD),
         ROOFTOP_PERP_NAME       : """b.{0},
                                     a.{3}*SQRT(1-POWER(((a.{6}-b.Y_POINT)-a.{4}/2)/
                                                                      a.{4}, 2)) AS {5},
@@ -699,13 +702,14 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
            CREATE TABLE {0}
                AS SELECT MIN(b.{1}) AS {1}, MIN(b.{2}) AS {2}, MIN(b.{3}) AS {3}
                FROM {4} AS a RIGHT JOIN {5} AS b ON a.{1} = b.{1}
-               WHERE    a.{6} > b.{6} AND b.{9} <= a.{9}
+               WHERE    a.{6} > b.{6} AND b.{10} <= a.{9}
                GROUP BY b.{3}
            """.format( dicPointsToRemoveCavity[STREET_CANYON_NAME]  , ID_POINT,
                        ID_FIELD_CANYON                              , ID_POINT_X,
                        dicOfInitBuildZoneGridPoint[CAVITY_NAME]     , dicOfInitBuildZoneGridPoint[STREET_CANYON_NAME],
                        Y_WALL                                       , DISTANCE_BUILD_TO_POINT_FIELD,
-                       MESH_SIZE                                    , UPPER_VERTICAL_THRESHOLD))    
+                       MESH_SIZE                                    , UPPER_VERTICAL_THRESHOLD,
+                       UPSTREAM_HEIGHT_FIELD))    
     
     # Remove points in cavity, wake and street canyon zones
     cavityJoinFields = {CAVITY_NAME: [ID_FIELD_STACKED_BLOCK, ID_POINT_X],
@@ -744,7 +748,7 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
            """.format( dicPointsToRemoveStreetCanyon[t], ID_POINT,
                        UPWIND_FACADE_FIELD                              , ID_POINT_X,
                        dicOfBuildZoneGridPoint[STREET_CANYON_NAME]      , dicOfInitBuildZoneGridPoint[t],
-                       HEIGHT_FIELD                                     , UPPER_VERTICAL_THRESHOLD)
+                       HEIGHT_FIELD                                     , MAX_CANYON_HEIGHT_FIELD)
            for t in dicPointsToRemoveStreetCanyon.keys()]))
     
     # Remove points in rooftop zones
@@ -964,8 +968,10 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                                                              UPPER_VERTICAL_THRESHOLD),
             WAKE_NAME               : "b.{0} < a.{1}".format(Z,
                                                              UPPER_VERTICAL_THRESHOLD),
-            STREET_CANYON_NAME      : "b.{0} < a.{1}".format(Z,
-                                                             UPPER_VERTICAL_THRESHOLD),
+            STREET_CANYON_NAME      : """b.{0} < a.{1} 
+                                        AND b.{0} < a.{2}""".format( Z,
+                                                                     UPPER_VERTICAL_THRESHOLD,
+                                                                     MAX_CANYON_HEIGHT_FIELD),
             ROOFTOP_PERP_NAME       : """b.{0} < a.{1}+a.{2}
                                         AND b.{0} > a.{1}""".format( Z,
                                                                      HEIGHT_FIELD,

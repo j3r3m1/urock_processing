@@ -16,7 +16,7 @@ maxIterations = 100
 thresholdIterations = 5e-3
 z_ref = 10
 v_ref = 4
-windDirection = 10
+windDirection = 1
 prefix = "StreetCanyon"
 meshSize = 2
 dz = 2
@@ -49,10 +49,10 @@ u, v, w, u0, v0, w0, x, y, z, buildingCoordinates = \
 # GRAPHIC CHARACTERISTICS -----------------------------------------------------------
 # -----------------------------------------------------------------------------------
 # Stream or arrow
-isStream = False
+isStream = True
 
 # Stream charac
-streamDensity = 3
+streamDensity = 5
 
 # Arrow charac
 headwidth = 3
