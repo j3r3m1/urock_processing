@@ -254,11 +254,15 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     ST_YMAX(ST_INTERSECTION(a.{3}, 
                                                             b.{3})
                                             ) AS {5},
-                                    ST_LENGTH(ST_MAKELINE(ST_TOMULTIPOINT(ST_INTERSECTION(a.{3}, 
+                                    CASE WHEN ST_DIMENSION(ST_INTERSECTION(a.{3}, 
+                                                                           b.{3}))=0
+                                        THEN 0
+                                        ELSE ST_LENGTH(ST_MAKELINE(ST_TOMULTIPOINT(ST_INTERSECTION(a.{3}, 
                                                                                           b.{3})
-                                                                          )
-                                                          )
-                                              ) AS {4}
+                                                                                   )
+                                                                   )
+                                                       )
+                                        END AS {4}
                                     """.format( idZone[CAVITY_NAME],
                                                 HEIGHT_FIELD,
                                                 ID_POINT_X,
@@ -271,11 +275,15 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     ST_YMAX(ST_INTERSECTION(a.{3}, 
                                                             b.{3})
                                             ) AS {5},
-                                    ST_LENGTH(ST_MAKELINE(ST_TOMULTIPOINT(ST_INTERSECTION(a.{3}, 
+                                    CASE WHEN ST_DIMENSION(ST_INTERSECTION(a.{3}, 
+                                                                           b.{3}))=0
+                                        THEN 0
+                                        ELSE ST_LENGTH(ST_MAKELINE(ST_TOMULTIPOINT(ST_INTERSECTION(a.{3}, 
                                                                                           b.{3})
-                                                                          )
-                                                          )
-                                              ) AS {4}
+                                                                                   )
+                                                                   )
+                                                       )
+                                        END AS {4}
                                     """.format( idZone[WAKE_NAME],
                                                 HEIGHT_FIELD,
                                                 ID_POINT_X,
