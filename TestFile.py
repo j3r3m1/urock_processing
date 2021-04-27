@@ -17,7 +17,7 @@ thresholdIterations = 5e-3
 z_ref = 10
 v_ref = 4
 windDirection = 1
-prefix = "StreetCanyon"
+prefix = "SimpleBuilding"
 meshSize = 2
 dz = 2
 alongWindZoneExtend = 30
@@ -49,7 +49,7 @@ u, v, w, u0, v0, w0, x, y, z, buildingCoordinates = \
 # GRAPHIC CHARACTERISTICS -----------------------------------------------------------
 # -----------------------------------------------------------------------------------
 # Stream or arrow
-isStream = True
+isStream = False
 
 # Stream charac
 streamDensity = 5
@@ -163,9 +163,9 @@ for i in range(0,nrows):
         ax_ij.set_title("{0} m".format(n_lev*dz-float(dz)/2))
         plt.colorbar(pcol, ax = ax_ij)
 
-# -----------------------------------------------------------------------------------    
+# ----------------------------------------------------------------------------- 
 # 3. Wind field in an (Y,Z) plan ----------------------------------------------
-# -----------------------------------------------------------------------------------   
+# ----------------------------------------------------------------------------- 
 i_plan = int(x.size/2)
 fig, ax = plt.subplots(sharex = True, sharey=True)
 if isStream:

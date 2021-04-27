@@ -128,12 +128,14 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
         f[buildingCoordinates[0] + 1, buildingCoordinates[1], buildingCoordinates[2]] = 0.
         g[buildingCoordinates[0], buildingCoordinates[1] - 1, buildingCoordinates[2]] = 0.
         h[buildingCoordinates[0], buildingCoordinates[1] + 1, buildingCoordinates[2]] = 0.
+    m[buildingCoordinates[0], buildingCoordinates[1], buildingCoordinates[2] - 1] = 0.
     n[buildingCoordinates[0], buildingCoordinates[1], buildingCoordinates[2] + 1] = 0.
     o[buildingCoordinates[0] - 1, buildingCoordinates[1], buildingCoordinates[2]] = 0.5
     o[buildingCoordinates[0] + 1, buildingCoordinates[1], buildingCoordinates[2]] = 0.5
     p[buildingCoordinates[0], buildingCoordinates[1] - 1, buildingCoordinates[2]] = 0.5
     p[buildingCoordinates[0], buildingCoordinates[1] + 1, buildingCoordinates[2]] = 0.5
     q[buildingCoordinates[0], buildingCoordinates[1], buildingCoordinates[2] + 1] = 0.5
+    q[buildingCoordinates[0], buildingCoordinates[1], buildingCoordinates[2] - 1] = 0.5
 
     for N in range(maxIterations):
         print("Iteration {0} (max {1})".format( N + 1, 
