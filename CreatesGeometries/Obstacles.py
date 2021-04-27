@@ -155,7 +155,7 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
     
     # Create stacked blocks according to building blocks and height
     listOfSqlQueries = ["""SELECT NULL, {2}, ST_NORMALIZE({0}) AS {0} , {4}
-                            FROM ST_EXPLODE('(SELECT ST_SIMPLIFY(ST_UNION(ST_ACCUM(a.{0})),
+                            FROM ST_EXPLODE('(SELECT ST_SIMPLIFY(ST_UNION(ST_ACCUM(ST_BUFFER(a.{0},{6}))),
                                                                 {5}) AS {0},
                                                     a.{2} AS {2}
                                             FROM {3} AS a RIGHT JOIN (SELECT {2} 
@@ -165,7 +165,8 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
                                             GROUP BY a.{2})')
                             """.format(GEOM_FIELD       , HEIGHT_FIELD, 
                                         ID_FIELD_BLOCK  , correlTable, 
-                                        height_i        , GEOMETRY_SIMPLIFICATION_DISTANCE) for height_i in listOfHeight]
+                                        height_i        , GEOMETRY_SIMPLIFICATION_DISTANCE,
+                                        snappingTolerance) for height_i in listOfHeight]
     cursor.execute("""
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}({1} SERIAL, {2} INT, {3} GEOMETRY, {4} INT)

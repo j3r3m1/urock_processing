@@ -16,8 +16,8 @@ maxIterations = 100
 thresholdIterations = 5e-3
 z_ref = 10
 v_ref = 4
-windDirection = 0
-prefix = "SimpleBuilding"
+windDirection = 45
+prefix = "ComplexBlock"
 meshSize = 2
 dz = 2
 alongWindZoneExtend = 30
@@ -52,7 +52,7 @@ u, v, w, u0, v0, w0, x, y, z, buildingCoordinates = \
 isStream = False
 
 # Stream charac
-streamDensity = 5
+streamDensity = 3
 
 # Arrow charac
 headwidth = 3
@@ -60,10 +60,10 @@ headlength = 1.5
 headaxislength = 1.5
 
 # Z level to plot (in meters)
-levelList = [1]
+levelList = [1, 11, 14, 16, 21]
 
 # Number of row in the subplots
-nrows = 1
+nrows = 2
 
 # Initial or solved wind field
 isInitialField = False
