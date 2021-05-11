@@ -60,7 +60,7 @@ Several figures are plotted if 'plotBoolean' is set to True:
 3. the wind FIELD in a sectional view (YZ plan) for the median X plan
 
 The computed wind may be the one at the end of the initialization step ('isInitialField' = True) or the one after numerical solving ('isInitialField' = False).
-The wind FIELDS may be a 2D vector for each mesh ('isStream' = False) or stream lines ('isStream' = True).
+The wind FIELDS may be a 2D vector for each mesh ('isStream' = False) or stream lines ('isStream' = True). If streams, you can set the density of streams using the 'streamDensity' variable.
 The size and shape of the arrow head may be defined using the 'headwidth', 'headlength' and 'headaxislength' variables.
 
 # References
