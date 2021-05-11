@@ -38,6 +38,7 @@ NEW_DB = True
 # intermediate tables (such as Röckle zones) as GIS file
 DEBUG = True
 ONLY_INITIALIZATION = False
+SAVE_ROCKLE_ZONES = True
 MAX_ITERATIONS = 100
 THRESHOLD_ITERATIONS = 5e-3
 

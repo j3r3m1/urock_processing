@@ -32,7 +32,14 @@ def main(z_ref = Z_REF,
          inputVegetationFilename = INPUT_VEGETATION_FILENAME,
          onlyInitialization = ONLY_INITIALIZATION,
          maxIterations = MAX_ITERATIONS,
-         thresholdIterations = THRESHOLD_ITERATIONS):
+         thresholdIterations = THRESHOLD_ITERATIONS,
+         idFieldBuild = ID_FIELD_BUILD,
+         buildingHeightField = HEIGHT_FIELD,
+         vegetationBaseHeight = VEGETATION_CROWN_BASE_HEIGHT,
+         vegetationTopHeight = VEGETATION_CROWN_TOP_HEIGHT,
+         idVegetation = ID_VEGETATION,
+         vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR,
+         saveRockleZones = SAVE_ROCKLE_ZONES):
 
     # Need to avoid vegetation related calculations if there is not vegetation file...
     vegetationBool = True
@@ -94,14 +101,38 @@ def main(z_ref = Z_REF,
     cursor = H2gisConnection.startH2gisInstance(dbDirectory = tempoDirectory,
                                                 dbInstanceDir = tempoDirectory)
     
-    #Load buildings and vegetation into H2GIS
-    importQuery = """DROP TABLE IF EXISTS {0}; CALL SHPREAD('{1}','{0}');
+    # Get the input building file extension and the appropriate h2gis read function name
+    buildingExtension = inputBuildingFilename.split(".")[-1]
+    buildingReadFunction = DataUtil.readFunction(buildingExtension)
+    
+    #Load buildings into H2GIS DB and rename fields to generic names
+    importQuery = """DROP TABLE IF EXISTS {0};
+                    CALL {2}('{1}','{0}');
+                    ALTER TABLE {0} RENAME COLUMN {3} TO {4};
+                    ALTER TABLE {0} RENAME COLUMN {5} TO {6};
                     """.format( tableBuildingTestName,
-                                inputDataAbs["buildings"])
+                                inputDataAbs["buildings"],
+                                buildingReadFunction,
+                                idFieldBuild, ID_FIELD_BUILD,
+                                buildingHeightField, HEIGHT_FIELD)
     if vegetationBool:
-        importQuery += """DROP TABLE IF EXISTS {0}; CALL SHPREAD('{1}','{0}')
+        # Get the input vegetation file extension and the appropriate h2gis read function name
+        vegetationExtension = inputVegetationFilename.split(".")[-1]
+        vegetationReadFunction = DataUtil.readFunction(vegetationExtension)
+        # Load vegetation data and rename fields to generic names
+        importQuery += """DROP TABLE IF EXISTS {0}; 
+                        CALL {2}('{1}','{0}');
+                        ALTER TABLE {0} RENAME COLUMN {3} TO {4};
+                        ALTER TABLE {0} RENAME COLUMN {5} TO {6};
+                        ALTER TABLE {0} RENAME COLUMN {7} TO {8};
+                        ALTER TABLE {0} RENAME COLUMN {9} TO {10};
                         """.format( tableVegetationTestName,
-                                    inputDataAbs["vegetation"])
+                                    inputDataAbs["vegetation"],
+                                    vegetationReadFunction,
+                                    vegetationBaseHeight, VEGETATION_CROWN_BASE_HEIGHT,
+                                    vegetationTopHeight, VEGETATION_CROWN_TOP_HEIGHT,
+                                    idVegetation, ID_VEGETATION,
+                                    vegetationAttenuationFactor, VEGETATION_ATTENUATION_FACTOR)
     else:
         importQuery += """ DROP TABLE IF EXISTS {0};
                            CREATE TABLE {0}(PK INTEGER, {1} GEOMETRY,
@@ -128,7 +159,7 @@ def main(z_ref = Z_REF,
                                                   prefix = prefix)
     
     # Save the stacked blocks as geojson
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         DataUtil.saveTable(cursor = cursor                      , tableName = stackedBlockTable,
                   filedir = outputDataAbs["stacked_blocks"]     , delete = True)
     
@@ -157,7 +188,7 @@ def main(z_ref = Z_REF,
                                                                prefix = prefix)
         
     # Save the rotating tables as geojson
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         DataUtil.saveTable(cursor = cursor                          , tableName = rotatedPropStackedBlocks,
                   filedir = outputDataAbs["rotated_stacked_blocks"] , delete = True)
         DataUtil.saveTable(cursor = cursor                         , tableName = rotatedVegetation,
@@ -174,7 +205,7 @@ def main(z_ref = Z_REF,
                                                            upwindTable = upwindInitedTable,
                                                            prefix = prefix)
     # Save the upwind facades as geojson
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         DataUtil.saveTable(cursor = cursor                      , tableName = upwindTable,
                            filedir = outputDataAbs["facades"]   , delete = True)
     
@@ -210,7 +241,7 @@ def main(z_ref = Z_REF,
     
     
     # Save the resulting displacement zones as geojson
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         DataUtil.saveTable(cursor = cursor                      , tableName = displacementZonesTable,
                   filedir = outputDataAbs["displacement"]       , delete = True)
         DataUtil.saveTable(cursor = cursor                          , tableName = displacementVortexZonesTable,
@@ -223,7 +254,7 @@ def main(z_ref = Z_REF,
                                                    prefix = prefix)
     
     # Save the resulting displacement zones as geojson
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         DataUtil.saveTable(cursor = cursor             , tableName = cavityZonesTable,
                   filedir = outputDataAbs["cavity"]    , delete = True)
         DataUtil.saveTable(cursor = cursor           , tableName = wakeZonesTable,
@@ -239,7 +270,7 @@ def main(z_ref = Z_REF,
                                                   prefix = prefix)
     
     # Save the resulting street canyon zones as geojson
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         DataUtil.saveTable(cursor = cursor                    , tableName = streetCanyonTable,
                   filedir = outputDataAbs["street_canyon"]    , delete = True)
     
@@ -250,7 +281,7 @@ def main(z_ref = Z_REF,
                                              zonePropertiesTable = zonePropertiesTable,
                                              prefix = prefix)
     # Save the resulting rooftop zones as geojson
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         DataUtil.saveTable(cursor = cursor                              , tableName = rooftopPerpendicularZoneTable,
                   filedir = outputDataAbs["rooftop_perpendicular"]      , delete = True)
         DataUtil.saveTable(cursor = cursor                      , tableName = rooftopCornerZoneTable,
@@ -262,7 +293,7 @@ def main(z_ref = Z_REF,
                                                 vegetationTable = rotatedVegetation,
                                                 wakeZonesTable = wakeZonesTable,
                                                 prefix = prefix)
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         DataUtil.saveTable(cursor = cursor                      , tableName = vegetationBuiltZoneTable,
                   filedir = outputDataAbs["vegetation_built"]   , delete = True)
         DataUtil.saveTable(cursor = cursor                      , tableName = vegetationOpenZoneTable,
@@ -310,7 +341,7 @@ def main(z_ref = Z_REF,
         InitWindField.removeBuildZonePoints(cursor = cursor, 
                                             dicOfInitBuildZoneGridPoint = dicOfInitBuildZoneGridPoint,
                                             prefix = prefix)
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         for t in dicOfBuildZoneGridPoint:
             cursor.execute("""DROP TABLE IF EXISTS point_Buildzone_{0};
                            CREATE INDEX IF NOT EXISTS id_{1}_{3} ON {3} USING BTREE({1});
@@ -335,7 +366,7 @@ def main(z_ref = Z_REF,
                                                   dicOfBuildZoneGridPoint = dicOfBuildZoneGridPoint,
                                                   dz = dz,
                                                   prefix = prefix)
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         for t in dicOfBuildZone3DWindFactor:
             cursor.execute("""DROP TABLE IF EXISTS point3D_Buildzone_{0};
                            CREATE INDEX IF NOT EXISTS id_{1}_{3} ON {3} USING BTREE({1});
@@ -362,7 +393,7 @@ def main(z_ref = Z_REF,
                                                 d = d,
                                                 dz = dz,
                                                 prefix = prefix)
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         cursor.execute("""DROP TABLE IF EXISTS point3D_AllVegZone;
                        CREATE INDEX IF NOT EXISTS id_{0}_{2} ON {2} USING BTREE({0});
                        CREATE INDEX IF NOT EXISTS id_{0}_{3} ON {3} USING BTREE({0});
@@ -393,7 +424,7 @@ def main(z_ref = Z_REF,
                                             upstreamWeightingIntraRules = UPSTREAM_WEIGHTING_INTRA_RULES,
                                             downstreamWeightingTable = DOWNSTREAM_WEIGTHING_TABLE,
                                             prefix = prefix)
-    if DEBUG:
+    if DEBUG or saveRockleZones:
         cursor.execute("""DROP TABLE IF EXISTS point3D_All;
                        CREATE INDEX IF NOT EXISTS id_{0}_{2} ON {2} USING BTREE({0});
                        CREATE INDEX IF NOT EXISTS id_{0}_{3} ON {3} USING BTREE({0});

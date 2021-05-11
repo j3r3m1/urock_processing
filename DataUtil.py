@@ -176,3 +176,20 @@ def saveTable(cursor, tableName, filedir, delete):
                                                       tableName))
     
     return None
+
+def readFunction(extension):
+    """ Return the name of the right H2GIS function to use depending of the file extension
+    
+    Parameters
+	_ _ _ _ _ _ _ _ _ _ 
+        extension: String
+            Extension of the vector file (shp or geojson)
+    
+    Returns
+	_ _ _ _ _ _ _ _ _ _ 	
+		h2gisFunctionName: String
+            Return the name of the H2GIS function to use"""
+    if extension.lower() == "shp":
+        return "SHPREAD"
+    elif extension.lower() == "geojson":
+        return "GEOJSONREAD"
