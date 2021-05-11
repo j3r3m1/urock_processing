@@ -12,11 +12,11 @@ Note that the terrain slope is not taken into account.
 The TestFile.py file is used to set the simulation informations of a new case and to run it.
 
 First, you need to set the following informations:
-- geographical input data
-- meteorological input data
-- meshing properties
-- other simulation parameters
-- plotting options
+- Geographical input data
+- Meteorological input data
+- Meshing properties
+- Other simulation parameters
+- Plotting options
 
 ## Geographical input data
 The geographical inputs are vector files (shapefile and geojson are supported).
