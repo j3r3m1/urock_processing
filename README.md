@@ -63,10 +63,11 @@ A temporary directory is used for file exchange between H2Database and Python an
 Several figures are plotted if _'plotBoolean'_ is set to True:
 1. the horizontal wind FIELD for a list of level (_'levelList'_) defined by the user,
 2. the horizontal wind SPEED for the same list of level,
-3. the wind FIELD in a sectional view (YZ plan) for the median X plan
+3. the wind FIELD in a sectional view (_YZ_ plan) for the median X plan
 
 The computed wind may be the one at the end of the initialization step (_'isInitialField' = True_) or the one after numerical solving (_'isInitialField' = False_).
 The wind FIELDS may be a 2D vector for each mesh (_'isStream' = False_) or stream lines (_'isStream' = True_). If streams, you can set the density of streams using the _'streamDensity'_ variable.
+You may plot a limited range for axis _X_, _Y_ and _Z_. If so you have to set respectively in _'xRange'_, _'yRange'_ and _'zRange'_ a list containing min and max values  (if the list is empty, all the domain is plotted).
 The size and shape of the arrow head may be defined using the _'headwidth'_, _'headlength'_ and _'headaxislength'_ variables.
 
 | ![streamHorizontal](https://user-images.githubusercontent.com/13120405/117823598-eea67d80-b26d-11eb-9f86-61f37b7f0b9f.png) | ![streamSectional](https://user-images.githubusercontent.com/13120405/117829852-6aef8f80-b273-11eb-84c3-cb4539970aa9.png) |
