@@ -52,7 +52,7 @@ plotBoolean = True
 isInitialField = False
 levelList = [2, 21]
 
-isStream = False
+isStream = True
 streamDensity = 3
 
 headwidth = 3
