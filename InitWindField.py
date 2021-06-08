@@ -1077,7 +1077,7 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
             """ CASE WHEN   a.{0}>b.{3}
                     THEN    LOG((a.{0}-{1})/{2})/LOG(a.{0}/{2})
                     ELSE    CASE WHEN   a.{0}>b.{4} OR a.{0}< b.{5}
-                            THEN        LOG((b.{3}-{1})/{2})/LOG(a.{0}/{2})*EXP(a.{0}/b.{3}-1)
+                            THEN        LOG((b.{3}-{1})/{2})/LOG(a.{0}/{2})
                             ELSE        LOG((b.{3}-{1})/{2})/LOG(a.{0}/{2})*EXP(b.{6}*(a.{0}/b.{3}-1))
                     END
                 END
@@ -1090,7 +1090,7 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                         VEGETATION_ATTENUATION_FACTOR),
         VEGETATION_BUILT_NAME:
             """ CASE WHEN   a.{0}>b.{3} OR a.{0}< b.{4}
-                    THEN    LOG(b.{2}/{1})/LOG(a.{0}/{1})*EXP(a.{0}/b.{2}-1)
+                    THEN    LOG(b.{2}/{1})/LOG(a.{0}/{1})
                     ELSE    LOG((b.{2})/{1})/LOG(a.{0}/{1})*EXP(b.{5}*(a.{0}/b.{2}-1))
                 END
             """.format( Z,
