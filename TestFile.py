@@ -22,7 +22,7 @@ buildingFileName = "buildingSelection.shp"
 idFieldBuild = ID_FIELD_BUILD
 buildingHeightField = HEIGHT_FIELD
 
-vegetationFileName = None
+vegetationFileName = ""
 vegetationBaseHeight = VEGETATION_CROWN_BASE_HEIGHT
 vegetationTopHeight = VEGETATION_CROWN_TOP_HEIGHT
 idVegetation = ID_VEGETATION
@@ -30,7 +30,7 @@ vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR
 
 # Meteorological input data
 v_ref = 2
-windDirection = 35
+windDirection = 13
 z_ref = 10
 
 # Meshing properties
@@ -52,7 +52,7 @@ plotBoolean = True
 isInitialField = False
 levelList = [2, 21]
 
-isStream = True
+isStream = False
 streamDensity = 3
 
 headwidth = 3
@@ -69,7 +69,7 @@ zRange = [0, 40]
 # -----------------------------------------------------------------------------------
 inputBuildingFilename = os.path.join(caseToRun, buildingFileName)
 if vegetationFileName:
-    inputVegetationFilename = os.path.join(prefix, vegetationFileName)
+    inputVegetationFilename = os.path.join(caseToRun, vegetationFileName)
 else:
     inputVegetationFilename = ""
 

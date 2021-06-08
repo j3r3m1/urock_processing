@@ -56,7 +56,8 @@ def main(z_ref = Z_REF,
     if vegetationBool:
         inputDataRel["vegetation"] = os.path.join(INPUT_DIRECTORY, inputVegetationFilename)
 
-    # Stacked blocks
+    # Blocks and stacked blocks
+    outputDataRel["blocks"] = os.path.join(OUTPUT_DIRECTORY, "blocks.geojson")
     outputDataRel["stacked_blocks"] = os.path.join(OUTPUT_DIRECTORY, "stackedBlocks.geojson")
 
     # Rotated geometries
@@ -158,10 +159,12 @@ def main(z_ref = Z_REF,
                                                   inputBuildings = tableBuildingTestName,
                                                   prefix = prefix)
     
-    # Save the stacked blocks as geojson
+    # Save the blocks and stacked blocks as geojson
     if DEBUG or saveRockleZones:
-        DataUtil.saveTable(cursor = cursor                      , tableName = stackedBlockTable,
-                  filedir = outputDataAbs["stacked_blocks"]     , delete = True)
+        DataUtil.saveTable(cursor = cursor                          , tableName = stackedBlockTable,
+                           filedir = outputDataAbs["stacked_blocks"], delete = True)
+        DataUtil.saveTable(cursor = cursor                      , tableName = blockTable,
+                           filedir = outputDataAbs["blocks"]    , delete = True)
     
     # -----------------------------------------------------------------------------------
     # 3. ROTATES OBSTACLES TO THE RIGHT DIRECTION AND CALCULATES GEOMETRY PROPERTIES ----

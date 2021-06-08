@@ -123,7 +123,7 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
        DROP TABLE IF EXISTS {0}; 
        CREATE TABLE {0} 
             AS SELECT EXPLOD_ID AS {1}, ST_SIMPLIFY(ST_NORMALIZE({2}), {5}) AS {2} 
-            FROM ST_EXPLODE ('(SELECT ST_UNION(ST_ACCUM(ST_BUFFER({2},{3})))
+            FROM ST_EXPLODE ('(SELECT ST_UNION(ST_ACCUM(ST_BUFFER({2},{3},''join=mitre'')))
                              AS {2} FROM {4})');
             """.format(blockTable           , ID_FIELD_BLOCK,
                         GEOM_FIELD          , snappingTolerance,
@@ -135,7 +135,8 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
        CREATE INDEX IF NOT EXISTS id_{2}_{6} ON {6} USING RTREE({2});
        DROP TABLE IF EXISTS {0};
         CREATE TABLE {0} 
-                AS SELECT   a.{1}, a.{2}, CAST(a.{3} AS INT) AS {3}, b.{4}
+                AS SELECT   a.{1}, a.{2}, CAST(a.{3} AS INT) AS {3}, b.{4},
+                            b.{2} AS GEOM_BLOCK
                 FROM    {5} AS a, {6} AS b
                 WHERE   a.{2} && b.{2} AND ST_INTERSECTS(a.{2}, b.{2});
                    """.format(correlTable, ID_FIELD_BUILD, GEOM_FIELD, 
@@ -154,15 +155,20 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
     listOfHeight = pd.DataFrame(cursor.fetchall()).dropna()[0].astype(int).values
     
     # Create stacked blocks according to building blocks and height
-    listOfSqlQueries = ["""SELECT NULL, {2}, ST_NORMALIZE({0}) AS {0} , {4}
-                            FROM ST_EXPLODE('(SELECT ST_SIMPLIFY(ST_UNION(ST_ACCUM(ST_BUFFER(a.{0},{6}))),
-                                                                {5}) AS {0},
-                                                    a.{2} AS {2}
-                                            FROM {3} AS a RIGHT JOIN (SELECT {2} 
-                                                                      FROM {3}
-                                                                      WHERE {1}={4}) AS b
-                                            ON a.{2}=b.{2} WHERE a.{1}>={4}
-                                            GROUP BY a.{2})')
+    listOfSqlQueries = [
+        """ SELECT NULL, {2}, ST_NORMALIZE({0}) AS {0} , {4}
+            FROM ST_EXPLODE('(SELECT ST_SNAP(ST_SIMPLIFY(ST_UNION(ST_ACCUM(ST_BUFFER(a.{0},
+                                                                                    {6},
+                                                                                    ''join=mitre''))),
+                                                        {5}),
+                                             a.GEOM_BLOCK,
+                                             {6}) AS {0},
+                                    a.{2} AS {2}
+                            FROM {3} AS a RIGHT JOIN (SELECT {2} 
+                                                      FROM {3}
+                                                      WHERE {1}={4}) AS b
+                            ON a.{2}=b.{2} WHERE a.{1}>={4}
+                            GROUP BY a.{2})')
                             """.format(GEOM_FIELD       , HEIGHT_FIELD, 
                                         ID_FIELD_BLOCK  , correlTable, 
                                         height_i        , GEOMETRY_SIMPLIFICATION_DISTANCE,
