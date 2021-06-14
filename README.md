@@ -13,6 +13,8 @@ A 3D urban wind speed calculation is performed using a 2 steps methodology propo
 
 Note that the terrain slope is not taken into account.
 
+# Computer requirements
+Most of the vector data manipulations are performed using [H2GIS](http://www.h2gis.org/) which is automatically downloaded when executing URock. However, H2GIS is based on Java, thus you need to have a version of Java (>=8) installed on your computer. If you do not have, please download it [here](https://java.com/en/download/windows_manual.jsp) for Windows users or [here](https://java.com/en/download/) for Linux users.
 
 # How to use ?
 The _TestFile.py_ file is used to set the simulation informations of a new case and to run it.
