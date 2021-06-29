@@ -18,6 +18,30 @@ import time
 
 import os
 
+# If there is no JAVA variable environment set or neither already one 
+# saved in the URock repository, ask the user to enter one for
+# local use
+if os.path.exists(JAVA_PATH_FILE):
+    javaFilePath = open(JAVA_PATH_FILE, "r")
+    javaPath = javaFilePath.read()
+    javaFilePath.close()
+    javaPathOk = input("""Your current JAVA path is: \n{0}\n
+                       Please type 'change' if you want to change the path.
+                       Otherwise, type enter
+                       """.format(javaPath))
+    if javaPathOk.lower()=="change":
+        javaPath = input("Please enter your JAVA path: ")
+        os.remove(JAVA_PATH_FILE)
+        javaFilePath = open(JAVA_PATH_FILE, "w")
+        javaFilePath.write(javaPath)
+        javaFilePath.close()
+elif not os.environ.get("JAVA_HOME"):
+    javaPath = input("Please enter your JAVA path: ")
+    javaFilePath = open(JAVA_PATH_FILE, "w")
+    javaFilePath.write(javaPath)
+    javaFilePath.close()
+os.environ.setdefault("JAVA_HOME", javaPath)
+
 def main(z_ref = Z_REF,
          v_ref = V_REF,
          windDirection = WIND_DIRECTION,
