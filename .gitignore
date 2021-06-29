@@ -1,3 +1,9 @@
+# Output files from tests
+Ressources/Outputs
+
+# File where is saved the JAVA environment
+JavaPath.csv
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -128,10 +134,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Output files from tests
-Ressources/Outputs/
-
-# File where is saved the JAVA environment
-JavaPath.csv
 
 
