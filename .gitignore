@@ -129,8 +129,9 @@ dmypy.json
 .pyre/
 
 # Output files from tests
-Ressources/outputs/
+Ressources/Outputs/
 
 # File where is saved the JAVA environment
+JavaPath.csv
 
 
