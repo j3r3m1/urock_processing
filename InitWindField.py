@@ -1267,8 +1267,8 @@ def manageSuperimposition(cursor,
           DROP TABLE IF EXISTS {10};
           CREATE TABLE {10}
               AS SELECT   a.{2}, a.{3}, a.{4}, COALESCE(a.{6}*b.{6}, a.{6}) AS {6},
-                          COALESCE(a.{7}*b.{7}, a.{7}) AS {7},
-                          COALESCE(a.{8}*b.{8}, a.{8}) AS {8},
+                          COALESCE(a.{7}*b.{7}, 0) AS {7},
+                          COALESCE(a.{8}*b.{8}, 0) AS {8},
                           COALESCE(b.{9}, {11}) AS {9}
               FROM     {0} AS a LEFT JOIN {1} AS b
                        ON a.{2} = b.{2} AND a.{3} = b.{3}
