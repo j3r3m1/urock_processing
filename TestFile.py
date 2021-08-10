@@ -41,8 +41,8 @@ meshSize = 2
 dz = 2
 
 # Other simulation parameters
-onlyInitialization = True
-saveRockleZones = True
+onlyInitialization = False
+saveRockleZones = False
 maxIterations = 100
 thresholdIterations = 5e-3
 tempoDirectory = TEMPO_DIRECTORY
