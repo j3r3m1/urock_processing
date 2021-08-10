@@ -42,7 +42,7 @@ JAVA_PATH_FILE = os.path.join("./","JavaPath.csv")
 DEBUG = True
 ONLY_INITIALIZATION = False
 SAVE_ROCKLE_ZONES = True
-MAX_ITERATIONS = 100
+MAX_ITERATIONS = 10000
 THRESHOLD_ITERATIONS = 5e-3
 
 # Note that the number of points of an ellipse is only used to identify whether

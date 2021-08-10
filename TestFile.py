@@ -17,7 +17,7 @@ from GlobalVariables import *
 # SET INPUT PARAMETERS --------------------------------------------------------------
 # -----------------------------------------------------------------------------------
 # Geographical input data
-caseToRun = "SimpleBuilding"
+caseToRun = "StreetCanyon"
 buildingFileName = "buildingSelection.shp"
 idFieldBuild = ID_FIELD_BUILD
 buildingHeightField = HEIGHT_FIELD

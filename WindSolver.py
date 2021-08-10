@@ -10,6 +10,7 @@ Created on Mon Mar 29 14:57:25 2021
 import numpy as np
 import time
 from GlobalVariables import *
+from numba import jit
 
 def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
            maxIterations = MAX_ITERATIONS, thresholdIterations = THRESHOLD_ITERATIONS):
@@ -142,27 +143,9 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
                                                 maxIterations))
         lambdaN = np.copy(lambdaN1)
 
-        # Go descending order along y
-        if DESCENDING_Y:
-            for i, j, k in cells4Solver:
-                lambdaN1[i, j, k] = omega * (
-                    ((-1.) * (dx ** 2 * (-2. * alpha1 ** 2) * (((u0[i + 1, j, k] - u0[i, j, k]) / (dx) + (
-                            v0[i, j-1, k] - v0[i, j, k]) / (dy) +
-                                                                (w0[i, j, k + 1] - w0[i, j, k]) / (dz)))) + (
-                              e[i, j, k] * lambdaN[i + 1, j, k] + f[i, j, k] * lambdaN1[i - 1, j, k] + A * (
-                              g[i, j, k] * lambdaN[i, j + 1, k] + h[i, j, k] * lambdaN1[i, j - 1, k]) + B * (
-                                      m[i, j, k] * lambdaN[i, j, k + 1] + n[i, j, k] * lambdaN1[i, j, k - 1]))) / (
-                            2. * (o[i, j, k] + A * p[i, j, k] + B * q[i, j, k]))) + (1 - omega) * lambdaN1[i, j, k]
-        else:
-            for i, j, k in cells4Solver:
-                lambdaN1[i, j, k] = omega * (
-                    ((-1.) * (dx ** 2 * (-2. * alpha1 ** 2) * (((u0[i + 1, j, k] - u0[i, j, k]) / (dx) + (
-                            v0[i, j + 1, k] - v0[i, j, k]) / (dy) +
-                                                                (w0[i, j, k + 1] - w0[i, j, k]) / (dz)))) + (
-                              e[i, j, k] * lambdaN[i + 1, j, k] + f[i, j, k] * lambdaN1[i - 1, j, k] + A * (
-                              g[i, j, k] * lambdaN[i, j + 1, k] + h[i, j, k] * lambdaN1[i, j - 1, k]) + B * (
-                                      m[i, j, k] * lambdaN[i, j, k + 1] + n[i, j, k] * lambdaN1[i, j, k - 1]))) / (
-                            2. * (o[i, j, k] + A * p[i, j, k] + B * q[i, j, k]))) + (1 - omega) * lambdaN1[i, j, k]            
+        lambdaN1 = calcLambda(cells4Solver, lambdaN, lambdaN1, omega, alpha1,
+                              u0, v0, w0, dx, dy, dz, e, f, g, h, m, n, o, p, q,
+                              DESCENDING_Y, A, B)
         
         # Calculate how much lambda evolves between 2 consecutive iterations                                      
         eps = np.sum(np.abs(lambdaN1 - lambdaN)) / np.sum(np.abs(lambdaN1))
@@ -207,3 +190,29 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
     print("Time spent by the wind speed solver: {0} s".format(time.time()-timeStartCalculation))
     
     return u, v, w
+
+@jit(nopython=True)
+def calcLambda(cells4Solver, lambdaN, lambdaN1, omega, alpha1, u0, v0, w0, dx, dy, dz, e, f, g, h, m, n, o, p, q, DESCENDING_Y, A, B):
+    # Go descending order along y
+    if DESCENDING_Y:
+        for i, j, k in cells4Solver:
+            lambdaN1[i, j, k] = omega * (
+                ((-1.) * (dx ** 2 * (-2. * alpha1 ** 2) * (((u0[i + 1, j, k] - u0[i, j, k]) / (dx) + (
+                        v0[i, j-1, k] - v0[i, j, k]) / (dy) +
+                                                            (w0[i, j, k + 1] - w0[i, j, k]) / (dz)))) + (
+                          e[i, j, k] * lambdaN[i + 1, j, k] + f[i, j, k] * lambdaN1[i - 1, j, k] + A * (
+                          g[i, j, k] * lambdaN[i, j + 1, k] + h[i, j, k] * lambdaN1[i, j - 1, k]) + B * (
+                                  m[i, j, k] * lambdaN[i, j, k + 1] + n[i, j, k] * lambdaN1[i, j, k - 1]))) / (
+                        2. * (o[i, j, k] + A * p[i, j, k] + B * q[i, j, k]))) + (1 - omega) * lambdaN1[i, j, k]
+    else:
+        for i, j, k in cells4Solver:
+            lambdaN1[i, j, k] = omega * (
+                ((-1.) * (dx ** 2 * (-2. * alpha1 ** 2) * (((u0[i + 1, j, k] - u0[i, j, k]) / (dx) + (
+                        v0[i, j + 1, k] - v0[i, j, k]) / (dy) +
+                                                            (w0[i, j, k + 1] - w0[i, j, k]) / (dz)))) + (
+                          e[i, j, k] * lambdaN[i + 1, j, k] + f[i, j, k] * lambdaN1[i - 1, j, k] + A * (
+                          g[i, j, k] * lambdaN[i, j + 1, k] + h[i, j, k] * lambdaN1[i, j - 1, k]) + B * (
+                                  m[i, j, k] * lambdaN[i, j, k + 1] + n[i, j, k] * lambdaN1[i, j, k - 1]))) / (
+                        2. * (o[i, j, k] + A * p[i, j, k] + B * q[i, j, k]))) + (1 - omega) * lambdaN1[i, j, k]  
+                                      
+    return lambdaN1
