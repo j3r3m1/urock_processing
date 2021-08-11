@@ -42,8 +42,8 @@ JAVA_PATH_FILE = os.path.join("./","JavaPath.csv")
 DEBUG = True
 ONLY_INITIALIZATION = False
 SAVE_ROCKLE_ZONES = True
-MAX_ITERATIONS = 100
-THRESHOLD_ITERATIONS = 5e-3
+MAX_ITERATIONS = 10000      # Based on Pardyjak et Brown  (2003)
+THRESHOLD_ITERATIONS = 1e-6 # Based on Pardyjak et Brown  (2003)
 
 # Note that the number of points of an ellipse is only used to identify whether
 # the upper or lower part of an ellipse should be used (fro displacement zones),

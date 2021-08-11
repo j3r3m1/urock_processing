@@ -17,7 +17,7 @@ from GlobalVariables import *
 # SET INPUT PARAMETERS --------------------------------------------------------------
 # -----------------------------------------------------------------------------------
 # Geographical input data
-caseToRun = "SimpleBuilding"
+caseToRun = "BigArea"
 buildingFileName = "buildingSelection.shp"
 idFieldBuild = ID_FIELD_BUILD
 buildingHeightField = HEIGHT_FIELD
@@ -41,10 +41,10 @@ meshSize = 2
 dz = 2
 
 # Other simulation parameters
-onlyInitialization = True
-saveRockleZones = True
-maxIterations = 100
-thresholdIterations = 5e-3
+onlyInitialization = False
+saveRockleZones = False
+maxIterations = MAX_ITERATIONS
+thresholdIterations = THRESHOLD_ITERATIONS
 tempoDirectory = TEMPO_DIRECTORY
 
 # Plotting options
