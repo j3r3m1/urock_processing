@@ -5,7 +5,7 @@ Created on Mon Jan 25 15:27:25 2021
 
 @author: Jérémy Bernard, University of Gothenburg
 """
-from URock import DataUtil
+import DataUtil as DataUtil
 import pandas as pd
 from GlobalVariables import *
 

@@ -1279,7 +1279,6 @@ def manageSuperimposition(cursor,
                       U                              , V,
                       W                              , REF_HEIGHT_FIELD, 
                       tempoPrioritiesWeighted        , REF_HEIGHT_UPSTREAM_WEIGHTING))
-                             
     
     # Join the upstream priority weigthted points to the upstream priority non-weighted ones
     cursor.execute("""
@@ -1324,7 +1323,6 @@ def manageSuperimposition(cursor,
                       U                              , V,
                       W                              , REF_HEIGHT_FIELD, 
                       tempoUpstreamAndDownstream     , REF_HEIGHT_DOWNSTREAM_WEIGHTING))
-                             
     
     # Join the downstream weigthted points to the non downstream weighted ones
     cursor.execute("""
@@ -1464,7 +1462,8 @@ def identifyUpstreamer( cursor,
     
     # Identify which point should be conserved in the upstream weighting table
     cursor.execute("""
-           CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING BTREE({1});
+           CREATE INDEX IF NOT EXISTS id_{4}_{0} ON {0} USING BTREE({4});
+           CREATE INDEX IF NOT EXISTS id_{5}_{0} ON {0} USING BTREE({5});
            CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
            CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
            DROP TABLE IF EXISTS {6};
