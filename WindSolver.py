@@ -154,7 +154,7 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
         if eps < thresholdIterations:
             break
         else:
-            print("   eps = {0} >= {1}".format(np.round(eps,4),
+            print("   eps = {0} >= {1}".format(np.round(eps,6),
                                                thresholdIterations))
     
     # Calculates the final wind speed
