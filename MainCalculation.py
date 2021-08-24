@@ -9,6 +9,7 @@ Created on Thu Jan 21 11:39:39 2021
 from GlobalVariables import * 
 
 import H2gisConnection
+import loadData
 import CreatesGeometries
 import CalculatesIndicators
 import InitWindField
@@ -52,8 +53,7 @@ def main(z_ref = Z_REF,
          crossWindZoneExtend = CROSS_WIND_ZONE_EXTEND,
          verticalExtend = VERTICAL_EXTEND,
          tempoDirectory = TEMPO_DIRECTORY,
-         inputBuildingFilename = INPUT_BUILDING_FILENAME,
-         inputVegetationFilename = INPUT_VEGETATION_FILENAME,
+         inputGeometries = INPUT_GEOMETRIES_FILENAME,
          onlyInitialization = ONLY_INITIALIZATION,
          maxIterations = MAX_ITERATIONS,
          thresholdIterations = THRESHOLD_ITERATIONS,
@@ -65,20 +65,10 @@ def main(z_ref = Z_REF,
          vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR,
          saveRockleZones = SAVE_ROCKLE_ZONES):
 
-    # Need to avoid vegetation related calculations if there is not vegetation file...
-    vegetationBool = True
-    if inputVegetationFilename=="":
-        vegetationBool = False
-    
-    ################################ INIT VARIABLES ############################
+
+    ################################ INIT OUTPUT VARIABLES ############################
     # Define dictionaries of input and output relative directories
-    inputDataRel = {}
     outputDataRel = {}
-    
-    # Input geometries (buildings and vegetation)
-    inputDataRel["buildings"] = os.path.join(INPUT_DIRECTORY, inputBuildingFilename)
-    if vegetationBool:
-        inputDataRel["vegetation"] = os.path.join(INPUT_DIRECTORY, inputVegetationFilename)
 
     # Blocks and stacked blocks
     outputDataRel["blocks"] = os.path.join(OUTPUT_DIRECTORY, "blocks.geojson")
@@ -107,12 +97,7 @@ def main(z_ref = Z_REF,
     outputDataRel["point3D_VegZone"] = os.path.join(OUTPUT_DIRECTORY, "point3D_VegZone")
     outputDataRel["point3D_All"] = os.path.join(OUTPUT_DIRECTORY, "point3D_All")
     
-    # Input table names
-    tableBuildingTestName = "BUILDINGS"
-    tableVegetationTestName = "VEGETATION"
-    
     # Convert relative to absolute paths
-    inputDataAbs = {i : os.path.abspath(inputDataRel[i]) for i in inputDataRel}
     outputDataAbs = {i : os.path.abspath(outputDataRel[i]) for i in outputDataRel}
     
     ############################################################################
@@ -126,51 +111,16 @@ def main(z_ref = Z_REF,
     cursor = H2gisConnection.startH2gisInstance(dbDirectory = tempoDirectory,
                                                 dbInstanceDir = tempoDirectory)
     
-    # Get the input building file extension and the appropriate h2gis read function name
-    buildingExtension = inputBuildingFilename.split(".")[-1]
-    buildingReadFunction = DataUtil.readFunction(buildingExtension)
-    
-    #Load buildings into H2GIS DB and rename fields to generic names
-    importQuery = """DROP TABLE IF EXISTS {0};
-                    CALL {2}('{1}','{0}');
-                    ALTER TABLE {0} RENAME COLUMN {3} TO {4};
-                    ALTER TABLE {0} RENAME COLUMN {5} TO {6};
-                    """.format( tableBuildingTestName,
-                                inputDataAbs["buildings"],
-                                buildingReadFunction,
-                                idFieldBuild, ID_FIELD_BUILD,
-                                buildingHeightField, HEIGHT_FIELD)
-    if vegetationBool:
-        # Get the input vegetation file extension and the appropriate h2gis read function name
-        vegetationExtension = inputVegetationFilename.split(".")[-1]
-        vegetationReadFunction = DataUtil.readFunction(vegetationExtension)
-        # Load vegetation data and rename fields to generic names
-        importQuery += """DROP TABLE IF EXISTS {0}; 
-                        CALL {2}('{1}','{0}');
-                        ALTER TABLE {0} RENAME COLUMN {3} TO {4};
-                        ALTER TABLE {0} RENAME COLUMN {5} TO {6};
-                        ALTER TABLE {0} RENAME COLUMN {7} TO {8};
-                        ALTER TABLE {0} RENAME COLUMN {9} TO {10};
-                        """.format( tableVegetationTestName,
-                                    inputDataAbs["vegetation"],
-                                    vegetationReadFunction,
-                                    vegetationBaseHeight, VEGETATION_CROWN_BASE_HEIGHT,
-                                    vegetationTopHeight, VEGETATION_CROWN_TOP_HEIGHT,
-                                    idVegetation, ID_VEGETATION,
-                                    vegetationAttenuationFactor, VEGETATION_ATTENUATION_FACTOR)
-    else:
-        importQuery += """ DROP TABLE IF EXISTS {0};
-                           CREATE TABLE {0}(PK INTEGER, {1} GEOMETRY,
-                                            {2} DOUBLE, {3} DOUBLE,
-                                            {4} INTEGER, {5} DOUBLE)
-                        """.format( tableVegetationTestName,
-                                    GEOM_FIELD,
-                                    VEGETATION_CROWN_BASE_HEIGHT,
-                                    VEGETATION_CROWN_TOP_HEIGHT,
-                                    ID_VEGETATION,
-                                    VEGETATION_ATTENUATION_FACTOR)
-    cursor.execute(importQuery)
-    
+    # Load data
+    loadData.loadData(inputGeometries = inputGeometries, 
+                      prefix = prefix,
+                      idFieldBuild = idFieldBuild,
+                      buildingHeightField = buildingHeightField,
+                      vegetationBaseHeight = vegetationBaseHeight,
+                      vegetationTopHeight = vegetationTopHeight,
+                      idVegetation = idVegetation,
+                      vegetationAttenuationFactor = vegetationAttenuationFactor,
+                      cursor = cursor)
     
     timeStartCalculation = time.time()
     
@@ -180,7 +130,7 @@ def main(z_ref = Z_REF,
     # Create the stacked blocks
     blockTable, stackedBlockTable = \
         CreatesGeometries.Obstacles.createsBlocks(cursor = cursor, 
-                                                  inputBuildings = tableBuildingTestName,
+                                                  inputBuildings = BUILDING_TABLE_NAME,
                                                   prefix = prefix)
     
     # Save the blocks and stacked blocks as geojson
@@ -194,8 +144,8 @@ def main(z_ref = Z_REF,
     # 3. ROTATES OBSTACLES TO THE RIGHT DIRECTION AND CALCULATES GEOMETRY PROPERTIES ----
     # -----------------------------------------------------------------------------------
     # Define a set of obstacles in a dictionary before the rotation
-    dicOfObstacles = {tableBuildingTestName     : stackedBlockTable,
-                      tableVegetationTestName   : tableVegetationTestName}
+    dicOfObstacles = {BUILDING_TABLE_NAME       : stackedBlockTable,
+                      VEGETATION_TABLE_NAME     : VEGETATION_TABLE_NAME}
     
     # Rotate obstacles
     dicRotatedTables, rotationCenterCoordinates = \
@@ -206,8 +156,8 @@ def main(z_ref = Z_REF,
                                                  prefix = prefix)
     
     # Get the rotated block and vegetation table names
-    rotatedStackedBlocks = dicRotatedTables[tableBuildingTestName]
-    rotatedVegetation = dicRotatedTables[tableVegetationTestName]
+    rotatedStackedBlocks = dicRotatedTables[BUILDING_TABLE_NAME]
+    rotatedVegetation = dicRotatedTables[VEGETATION_TABLE_NAME]
     
     # Calculates base block height and base of block cavity zone
     rotatedPropStackedBlocks = \

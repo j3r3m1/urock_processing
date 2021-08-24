@@ -25,8 +25,14 @@ DESCENDING_Y = False
 TEMPO_DIRECTORY = tempfile.gettempdir()
 INPUT_DIRECTORY = os.path.join("./Ressources","Inputs")
 OUTPUT_DIRECTORY = os.path.join("./Ressources","Outputs")
-INPUT_BUILDING_FILENAME = os.path.join("BigArea", "buildingSelection.shp")
-INPUT_VEGETATION_FILENAME = os.path.join("BigArea", "vegetation.shp")
+INPUT_GEOMETRIES_FILENAME = {  "buildingFileName" : "buildingSelection.shp",
+                               "vegetationFileName" : "vegetation.shp",
+                               "cadTriangles" : "",
+                               "cadTreesIntersection" : ""}
+BUILDING_TABLE_NAME = "BUILDINGS"
+VEGETATION_TABLE_NAME = "VEGETATION"
+CAD_TRIANGLE_NAME = "CAD_TRIANGLES"
+CAD_VEG_INTERSECTION = "CAD_VEG_INTERSECTION"
 
 # Informations to set the DB used for geographical calculations
 INSTANCE_NAME = "myDbH2"
@@ -67,7 +73,7 @@ CORNER_THRESHOLD_ANGLE_MIN = 30
 CORNER_THRESHOLD_ANGLE_MAX = 70
 CORNER_THRESHOLD_ANGLE = [CORNER_THRESHOLD_ANGLE_MIN, CORNER_THRESHOLD_ANGLE_MAX]
 ELLIPSOID_MIN_LENGTH = float(MESH_SIZE)/4
-GEOMETRY_MERGE_TOLERANCE = 0.25
+GEOMETRY_MERGE_TOLERANCE = 0.05
 SNAPPING_TOLERANCE = 0.3
 GEOMETRY_SIMPLIFICATION_DISTANCE = 0.25
 
@@ -111,7 +117,7 @@ ROOFTOP_WIND_FACTOR = "C1"
 ROOFTOP_PERP_VAR_HEIGHT = "Hr"
 ROOFTOP_CORNER_VAR_HEIGHT = "Hccp"
 
-PREFIX_NAME = "BUILDINGS"
+PREFIX_NAME = "BigArea"
 Y_WALL = "Y_WALL"
 DISTANCE_BUILD_TO_POINT_FIELD = "DY"
 LENGTH_ZONE_FIELD = "D_0"
@@ -144,6 +150,8 @@ C_DZ = 0.4
 P_DZ = 0.16
 # Coefficient for rooftop perpendicular
 P_RTP = 0.16
+# Default vegetation attenuation factor
+DEFAULT_VEG_ATTEN_FACT = 2.8
 
 # Defines priorities (column "priority") when the zone comes from a same 
 # obstacle of same height. Also contains a column "ref_height" to

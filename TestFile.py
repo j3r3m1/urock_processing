@@ -17,12 +17,14 @@ from GlobalVariables import *
 # SET INPUT PARAMETERS --------------------------------------------------------------
 # -----------------------------------------------------------------------------------
 # Geographical input data
-caseToRun = "BigArea"
-buildingFileName = "buildingSelection.shp"
+caseToRun = "AIJ_CaseE"
+inputGeometries = {"buildingFileName" : "buildingSelection.shp",
+                   "vegetationFileName" : "",
+                   "cadTriangles" : "AllTriangles.shp",
+                   "cadTreesIntersection" : "treesIntersection.shp"}
 idFieldBuild = ID_FIELD_BUILD
 buildingHeightField = HEIGHT_FIELD
 
-vegetationFileName = ""
 vegetationBaseHeight = VEGETATION_CROWN_BASE_HEIGHT
 vegetationTopHeight = VEGETATION_CROWN_TOP_HEIGHT
 idVegetation = ID_VEGETATION
@@ -67,13 +69,6 @@ zRange = [0, 40]
 # -----------------------------------------------------------------------------------
 # MAIN CALCULATIONS -----------------------------------------------------------------
 # -----------------------------------------------------------------------------------
-inputBuildingFilename = os.path.join(caseToRun, buildingFileName)
-if vegetationFileName:
-    inputVegetationFilename = os.path.join(caseToRun, vegetationFileName)
-else:
-    inputVegetationFilename = ""
-
-
 u, v, w, u0, v0, w0, x, y, z, buildingCoordinates = \
     MainCalculation.main(   z_ref = z_ref,
                             v_ref = v_ref,
@@ -84,8 +79,7 @@ u, v, w, u0, v0, w0, x, y, z, buildingCoordinates = \
                             alongWindZoneExtend = alongWindZoneExtend,
                             crossWindZoneExtend = crossWindZoneExtend,
                             verticalExtend = verticalExtend,
-                            inputBuildingFilename = inputBuildingFilename,
-                            inputVegetationFilename = inputVegetationFilename,
+                            inputGeometries = inputGeometries,
                             tempoDirectory = tempoDirectory,
                             onlyInitialization = onlyInitialization,
                             maxIterations = maxIterations,

@@ -355,7 +355,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         {14}
             FROM ST_EXPLODE('(SELECT    a.{1},
                                         a.{8},
-                                        ST_SPLIT(a.{3},
+                                        ST_SPLIT(ST_PRECISIONREDUCER(a.{3},3),
                                                 ST_GeometryN(ST_TOMULTILINE(b.{3}),1)) AS {3},
                                         a.{4},
                                         a.{5},
