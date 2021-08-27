@@ -211,8 +211,8 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
     if TreesZone:
         # Identify triangles being trees and convert them to 2D polygons
         cursor.execute("""
-           CREATE SPATIAL INDEX IF NOT EXISTS id_{1}_{4} ON {4} ({1});
-           CREATE SPATIAL INDEX IF NOT EXISTS id_{1}_{5} ON {5} ({1});
+           {6};
+           {7};
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0} 
                 AS SELECT   a.ID, ST_FORCE2D(a.{1}) AS {1}, 
@@ -222,12 +222,18 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
                 WHERE   a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1})
                 """.format( trees2d                             , GEOM_FIELD,
                             VEGETATION_CROWN_TOP_HEIGHT         , VEGETATION_CROWN_BASE_HEIGHT,
-                            trianglesWithId                     , TreesZone))
+                            trianglesWithId                     , TreesZone,
+                            DataUtil.createIndex(tableName=trianglesWithId, 
+                                                fieldName=GEOM_FIELD,
+                                                isSpatial=True),
+                            DataUtil.createIndex(tableName=TreesZone, 
+                                                fieldName=GEOM_FIELD,
+                                                isSpatial=True)))
         
         # Identify triangles being buildings and convert them to 2D polygons
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS id_ID_{3} ON {3}(ID);
-            CREATE INDEX IF NOT EXISTS id_ID_{4} ON {4}(ID);
+            {5};
+            {6};
             DROP TABLE IF EXISTS {0};
             CREATE TABLE {0} 
                 AS SELECT   a.ID, ST_FORCE2D(a.{1}) AS {1},
@@ -237,14 +243,19 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
                 WHERE   b.ID IS NULL
                 """.format( buildings2d         , GEOM_FIELD,
                             HEIGHT_FIELD        , trianglesWithId,
-                            trees2d))
+                            trees2d             , DataUtil.createIndex( tableName=trianglesWithId, 
+                                                                        fieldName="ID",
+                                                                        isSpatial=False),
+                            DataUtil.createIndex(tableName=trees2d, 
+                                                 fieldName="ID",
+                                                 isSpatial=False)))
 
         # Identify unique trees triangles keeping only the highest one whenever 
         # 2 triangles are superimposed
         cursor.execute("""
-            CREATE SPATIAL INDEX IF NOT EXISTS id_{1}_{3} ON {3}({1});
-            CREATE INDEX IF NOT EXISTS id_{2}_{3} ON {3}({2});
-            CREATE INDEX IF NOT EXISTS id_ID_{3} ON {3}(ID);
+            {9};
+            {10};
+            {11};
             DROP TABLE IF EXISTS {0};
             CREATE TABLE {0} 
                 AS SELECT   b.ID AS ID
@@ -264,7 +275,15 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
                         VEGETATION_CROWN_TOP_HEIGHT     , trees2d,
                         VEGETATION_TABLE_NAME           , ID_VEGETATION,
                         VEGETATION_CROWN_BASE_HEIGHT    , DEFAULT_VEG_ATTEN_FACT,
-                        VEGETATION_ATTENUATION_FACTOR))
+                        VEGETATION_ATTENUATION_FACTOR   , DataUtil.createIndex(tableName=trees2d, 
+                                                                               fieldName=GEOM_FIELD,
+                                                                               isSpatial=True),
+                        DataUtil.createIndex(tableName=trees2d, 
+                                             fieldName=VEGETATION_CROWN_TOP_HEIGHT,
+                                             isSpatial=False),
+                        DataUtil.createIndex(tableName=trees2d, 
+                                             fieldName="ID",
+                                             isSpatial=False)))
     
     else:
         # Convert building triangles to to 2.5D polygons
@@ -280,9 +299,9 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
     # Identify unique building triangles keeping only the highest one whenever 
     # 2 triangles are superimposed
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS id_ID_{3} ON {3}(ID);
-        CREATE SPATIAL INDEX IF NOT EXISTS id_{1}_{3} ON {3}({1});
-        CREATE INDEX IF NOT EXISTS id_{2}_{3} ON {3}({2});
+        {6};
+        {7};
+        {8};
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0} 
             AS SELECT   b.ID AS ID
@@ -291,7 +310,7 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
                     (ST_COVERS(a.{1}, b.{1}) AND a.{2} > b.{2} OR
                     ST_EQUALS(a.{1}, b.{1}) AND a.{2} = b.{2} AND a.ID < b.ID)
             GROUP BY b.ID;
-        CREATE INDEX IF NOT EXISTS id_ID_{0} ON {0}(ID);   
+        {9};   
         DROP TABLE IF EXISTS {4};
         CREATE TABLE {4}
             AS SELECT    a.ID AS {5}, a.{1}, a.{2} 
@@ -300,7 +319,19 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
         WHERE    b.ID IS NULL
             """.format( buildingsCovered        , GEOM_FIELD,
                         HEIGHT_FIELD            , buildings2d,
-                        BUILDING_TABLE_NAME     , ID_FIELD_BUILD))
+                        BUILDING_TABLE_NAME     , ID_FIELD_BUILD,
+                        DataUtil.createIndex(tableName=buildings2d, 
+                                             fieldName="ID",
+                                             isSpatial=False),
+                        DataUtil.createIndex(tableName=buildings2d, 
+                                             fieldName=GEOM_FIELD,
+                                             isSpatial=True),
+                        DataUtil.createIndex(tableName=buildings2d, 
+                                             fieldName=HEIGHT_FIELD,
+                                             isSpatial=False),
+                        DataUtil.createIndex(tableName=buildingsCovered, 
+                                             fieldName="ID",
+                                             isSpatial=False)))
 
     if not DEBUG:
         # Drop intermediate tables

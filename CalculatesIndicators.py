@@ -213,9 +213,10 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
     # Calculates the obstacle (stacked blocks and vegetation) 
     # geometric mean height (H_r)
     cursor.execute("""
-           CREATE INDEX IF NOT EXISTS id_{0}_{1} ON {1} USING BTREE({0});
-           """.format(  ID_FIELD_BLOCK, 
-                        stackedBlockTable))
+           {0};
+           """.format(DataUtil.createIndex(  tableName=stackedBlockTable, 
+                                             fieldName=ID_FIELD_BLOCK,
+                                             isSpatial=False)))
     cursor.execute("""
            SELECT   EXP(1.0/COUNT(OBSTACLE_HEIGHT_TAB.*)*
                         SUM(LOG(OBSTACLE_HEIGHT_TAB.HEIGHT))) AS H_r,

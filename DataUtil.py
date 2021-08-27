@@ -193,3 +193,30 @@ def readFunction(extension):
         return "SHPREAD"
     elif extension.lower() == "geojson":
         return "GEOJSONREAD"
+    
+def createIndex(tableName, fieldName, isSpatial):
+    """ Return the SQL query needed to create an index on a given field of a
+    given table. The index should be indicated as spatial if the field is
+    a geometry field.
+    
+    Parameters
+	_ _ _ _ _ _ _ _ _ _ 
+        tableName: String
+            Name of the table
+        fieldName: String
+            Name of the field the index will be created on
+        isSpatial: boolean
+            Whether or not the index is a spatial index (should be True if
+                                                         the field is a geometry field)
+    
+    Returns
+	_ _ _ _ _ _ _ _ _ _ 	
+		query: String
+            Return the SQL query needed to create the index"""
+    spatialKeyWord = ""
+    if isSpatial:
+        spatialKeyWord = " SPATIAL "
+    query = "CREATE {0} INDEX IF NOT EXISTS id_{1}_{2} ON {2}({1});".format(spatialKeyWord,
+                                                                           fieldName,
+                                                                           tableName)
+    return query

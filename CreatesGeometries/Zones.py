@@ -77,8 +77,8 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable,
                   displacementVortexZonesTable]},
         index = ["displacement", "vortex"])
     query = ["""
-        CREATE INDEX IF NOT EXISTS id_{8}_{6} ON {6} USING BTREE({8});
-        CREATE INDEX IF NOT EXISTS id_{8}_{7} ON {7} USING BTREE({8});
+        {12};
+        {13};
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
             AS SELECT   {1},
@@ -116,7 +116,13 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable,
                        UPWIND_FACADE_ANGLE_FIELD                , partOfQueryThatDiffer.loc[zone, "length"],
                        upwindTable                              , zonePropertiesTable,
                        ID_FIELD_STACKED_BLOCK                   , partOfQueryThatDiffer.loc[zone, "where"],
-                       SNAPPING_TOLERANCE                       , NPOINTS_ELLIPSE)
+                       SNAPPING_TOLERANCE                       , NPOINTS_ELLIPSE,
+                       DataUtil.createIndex(tableName=upwindTable, 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False),
+                       DataUtil.createIndex(tableName=zonePropertiesTable, 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False))
                  for zone in partOfQueryThatDiffer.index]
     cursor.execute(";".join(query))
     
@@ -278,8 +284,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
     
     # Identify upwind facades intersected by cavity zones
     intersectionQuery = """
-        CREATE INDEX IF NOT EXISTS id_{2}_{3} ON {3} USING RTREE({2});
-        CREATE INDEX IF NOT EXISTS id_{2}_{4} ON {4} USING RTREE({2});
+        {11};
+        {12};
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
             AS SELECT   b.{1} AS {6},
@@ -296,13 +302,18 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        cavityZonesTable                 , HEIGHT_FIELD,
                        ID_UPSTREAM_STACKED_BLOCK        , ID_DOWNSTREAM_STACKED_BLOCK,
                        UPWIND_FACADE_ANGLE_FIELD        , BASE_HEIGHT_FIELD,
-                       UPWIND_FACADE_FIELD)
+                       UPWIND_FACADE_FIELD              , DataUtil.createIndex( tableName=upwindTable, 
+                                                                                fieldName=GEOM_FIELD,
+                                                                                isSpatial=True),
+                       DataUtil.createIndex(tableName=cavityZonesTable, 
+                                            fieldName=GEOM_FIELD,
+                                            isSpatial=True))
     cursor.execute(intersectionQuery)
     
     # Identify street canyon extend
     canyonExtendQuery = """
-        CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING BTREE({1});
-        CREATE INDEX IF NOT EXISTS id_{10}_{2} ON {2} USING BTREE({10});
+        {14};
+        {15};
         DROP TABLE IF EXISTS {3};
         CREATE TABLE {3}
             AS SELECT   a.{1},
@@ -328,12 +339,18 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        HEIGHT_FIELD                     , DOWNSTREAM_HEIGHT_FIELD,
                        UPSTREAM_HEIGHT_FIELD            , ID_DOWNSTREAM_STACKED_BLOCK,
                        ID_FIELD_STACKED_BLOCK           , UPWIND_FACADE_ANGLE_FIELD,
-                       BASE_HEIGHT_FIELD                , UPWIND_FACADE_FIELD)
+                       BASE_HEIGHT_FIELD                , UPWIND_FACADE_FIELD,
+                       DataUtil.createIndex(tableName=intersectTable, 
+                                            fieldName=ID_UPSTREAM_STACKED_BLOCK,
+                                            isSpatial=False),
+                       DataUtil.createIndex(tableName=zonePropertiesTable, 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False))
     cursor.execute(canyonExtendQuery)
     
     # Creates street canyon zones
     streetCanyonQuery = """
-        CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING BTREE({1});
+        {15};
         DROP TABLE IF EXISTS {2};
         CREATE TABLE {2}({13} SERIAL,
                          {1} INTEGER,
@@ -372,7 +389,9 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        ID_DOWNSTREAM_STACKED_BLOCK      , ID_FIELD_STACKED_BLOCK,
                        MESH_SIZE                        , UPWIND_FACADE_ANGLE_FIELD,
                        BASE_HEIGHT_FIELD                , ID_FIELD_CANYON,
-                       UPWIND_FACADE_FIELD)
+                       UPWIND_FACADE_FIELD              , DataUtil.createIndex( tableName=canyonExtendTable, 
+                                                                                fieldName=ID_UPSTREAM_STACKED_BLOCK,
+                                                                                isSpatial=False))
     cursor.execute(streetCanyonQuery)
     
     if not DEBUG:
@@ -479,8 +498,8 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable,
             FROM {7}
             WHERE   {5} > RADIANS(90-{9}) AND {5} < RADIANS(90-{10})
                     OR {5} > RADIANS(90+{10}) AND {5} < RADIANS(90+{9});
-        CREATE INDEX IF NOT EXISTS id_{1}_{7} ON {7} USING BTREE({1});
-        CREATE INDEX IF NOT EXISTS id_{1}_{8} ON {8} USING BTREE({1});
+        {16};
+        {17};
         CREATE TABLE {12}
             AS SELECT   a.{1},
                         a.{2},
@@ -503,7 +522,13 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable,
                        zonePropertiesTable              , CORNER_THRESHOLD_ANGLE[1],
                        CORNER_THRESHOLD_ANGLE[0]        , ROOFTOP_PERP_LENGTH,
                        temporaryRooftopPerp             , PERPENDICULAR_THRESHOLD_ANGLE,
-                       ROOFTOP_CORNER_LENGTH            , ROOFTOP_CORNER_FACADE_LENGTH)
+                       ROOFTOP_CORNER_LENGTH            , ROOFTOP_CORNER_FACADE_LENGTH,
+                       DataUtil.createIndex(tableName=upwindTable, 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False),
+                       DataUtil.createIndex(tableName=zonePropertiesTable, 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False))
     cursor.execute(queryTempoRooftop)
     
     # Queries to limit the rooftop zones to the rooftop of the stacked block...
@@ -514,10 +539,10 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable,
                                                                  UPWIND_FACADE_ANGLE_FIELD,
                                                                  ROOFTOP_WIND_FACTOR)}
     queryCutRooftop = ["""
-        CREATE INDEX IF NOT EXISTS id_{3}_{5} ON {5} USING RTREE({3});
-        CREATE INDEX IF NOT EXISTS id_{3}_{6} ON {6} USING RTREE({3});
-        CREATE INDEX IF NOT EXISTS id_{1}_{5} ON {5} USING BTREE({1});
-        CREATE INDEX IF NOT EXISTS id_{1}_{6} ON {6} USING BTREE({1});
+        {8};
+        {9};
+        {10};
+        {11};
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
             AS SELECT   a.{1},
@@ -530,7 +555,19 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable,
            """.format( dicTableNames.loc[typeZone, "final"] , ID_FIELD_STACKED_BLOCK,
                        UPWIND_FACADE_FIELD                  , GEOM_FIELD,
                        HEIGHT_FIELD                         , dicTableNames.loc[typeZone, "temporary"],
-                       zonePropertiesTable                  , extraFieldToKeep[typeZone])
+                       zonePropertiesTable                  , extraFieldToKeep[typeZone],
+                       DataUtil.createIndex(tableName=dicTableNames.loc[typeZone, "temporary"], 
+                                            fieldName=GEOM_FIELD,
+                                            isSpatial=True),
+                       DataUtil.createIndex(tableName=zonePropertiesTable, 
+                                            fieldName=GEOM_FIELD,
+                                            isSpatial=True),
+                       DataUtil.createIndex(tableName=dicTableNames.loc[typeZone, "temporary"], 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False),
+                       DataUtil.createIndex(tableName=zonePropertiesTable, 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False))
                for typeZone in dicTableNames.index]
     cursor.execute(";".join(queryCutRooftop))
     
@@ -590,8 +627,8 @@ def vegetationZones(cursor, vegetationTable, wakeZonesTable,
     
     # Identify vegetation zones being in building wake zones
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
-        CREATE INDEX IF NOT EXISTS id_{1}_{2} ON {2} USING RTREE({1});
+        {10};
+        {11};
         DROP TABLE IF EXISTS {7};
         CREATE TABLE {7}
             AS SELECT   ST_INTERSECTION(a.{1}, b.{1}) AS {1},
@@ -601,7 +638,7 @@ def vegetationZones(cursor, vegetationTable, wakeZonesTable,
                         a.{6}
             FROM {0} AS a, {2} AS b
             WHERE a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1});
-        CREATE INDEX IF NOT EXISTS id_{6}_{7} ON {7} USING BTREE({6});
+        {12};
         DROP TABLE IF EXISTS {8};
         CREATE TABLE {8}({9} SERIAL     , {1} GEOMETRY   , {3} DOUBLE,
                          {4} DOUBLE     , {5} DOUBLE     , {6} INTEGER)
@@ -617,12 +654,21 @@ def vegetationZones(cursor, vegetationTable, wakeZonesTable,
                     wakeZonesTable                   , VEGETATION_CROWN_BASE_HEIGHT,
                     VEGETATION_CROWN_TOP_HEIGHT      , VEGETATION_ATTENUATION_FACTOR,
                     ID_VEGETATION                    , temporary_built_vegetation,
-                    vegetationBuiltZoneTable         , ID_ZONE_VEGETATION))
+                    vegetationBuiltZoneTable         , ID_ZONE_VEGETATION,
+                    DataUtil.createIndex(tableName=vegetationTable, 
+                                            fieldName=GEOM_FIELD,
+                                            isSpatial=True),
+                    DataUtil.createIndex(tableName=wakeZonesTable, 
+                                         fieldName=GEOM_FIELD,
+                                         isSpatial=True),
+                    DataUtil.createIndex(tableName=temporary_built_vegetation, 
+                                         fieldName=ID_VEGETATION,
+                                         isSpatial=False)))
     
     # Identify vegetation zones being in open areas
     cursor.execute("""
-        CREATE INDEX IF NOT EXISTS id_{6}_{0} ON {0} USING BTREE({6});
-        CREATE INDEX IF NOT EXISTS id_{6}_{2} ON {2} USING BTREE({6});
+        {9};
+        {10};
         DROP TABLE IF EXISTS {7};
         CREATE TABLE {7}({8} SERIAL     , {1} GEOMETRY   , {3} DOUBLE,
                          {4} DOUBLE     , {5} DOUBLE     , {6} INTEGER)
@@ -640,7 +686,12 @@ def vegetationZones(cursor, vegetationTable, wakeZonesTable,
                     temporary_built_vegetation       , VEGETATION_CROWN_BASE_HEIGHT,
                     VEGETATION_CROWN_TOP_HEIGHT      , VEGETATION_ATTENUATION_FACTOR,
                     ID_VEGETATION                    , vegetationOpenZoneTable,
-                    ID_ZONE_VEGETATION))
+                    ID_ZONE_VEGETATION               , DataUtil.createIndex( tableName=vegetationTable, 
+                                                                             fieldName=ID_VEGETATION,
+                                                                             isSpatial=False),
+                    DataUtil.createIndex(tableName=temporary_built_vegetation, 
+                                         fieldName=ID_VEGETATION,
+                                         isSpatial=False)))
     
     if not DEBUG:
         # Drop intermediate tables

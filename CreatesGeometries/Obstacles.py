@@ -131,27 +131,36 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
     
     # Identify building/block relations and convert building height to integer
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{2}_{5} ON {5} USING RTREE({2});
-       CREATE INDEX IF NOT EXISTS id_{2}_{6} ON {6} USING RTREE({2});
+       {7};
+       {8};
        DROP TABLE IF EXISTS {0};
         CREATE TABLE {0} 
                 AS SELECT   a.{1}, a.{2}, CAST(a.{3} AS INT) AS {3}, b.{4},
                             b.{2} AS GEOM_BLOCK
                 FROM    {5} AS a, {6} AS b
                 WHERE   a.{2} && b.{2} AND ST_INTERSECTS(a.{2}, b.{2});
-                   """.format(correlTable, ID_FIELD_BUILD, GEOM_FIELD, 
-                               HEIGHT_FIELD, ID_FIELD_BLOCK, inputBuildings, 
-                               blockTable))
+        """.format( correlTable                 , ID_FIELD_BUILD, 
+                    GEOM_FIELD                  , HEIGHT_FIELD, 
+                    ID_FIELD_BLOCK              , inputBuildings, 
+                    blockTable                  , DataUtil.createIndex( tableName=inputBuildings, 
+                                                                        fieldName=GEOM_FIELD,
+                                                                        isSpatial=True),
+                    DataUtil.createIndex(tableName=blockTable, 
+                                         fieldName=GEOM_FIELD,
+                                         isSpatial=True)))
     
     # Identify all possible values of height for buildings being in a more than 1 building block
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING BTREE({1});
-       """.format(correlTable, ID_FIELD_BLOCK))
+       {0};
+       """.format(DataUtil.createIndex( tableName=correlTable, 
+                                        fieldName=ID_FIELD_BLOCK,
+                                        isSpatial=False)))
     cursor.execute("""
        SELECT DISTINCT a.{2} 
        FROM {0} AS a RIGHT JOIN (SELECT {1} FROM {0} GROUP BY {1}) AS b
        ON a.{1} = b.{1};
-                   """.format(correlTable, ID_FIELD_BLOCK, HEIGHT_FIELD))
+       """.format( correlTable                  , ID_FIELD_BLOCK,
+                   HEIGHT_FIELD))
     listOfHeight = pd.DataFrame(cursor.fetchall()).dropna()[0].astype(int).values
     
     # Create stacked blocks according to building blocks and height
@@ -223,9 +232,9 @@ def identifyBlockAndCavityBase(cursor, stackedBlockTable,
 
     # Identify each block base height and ratio of area between the stacked and its base block
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
-       CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-       CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
+       {7};
+       {8};
+       {9};
        DROP TABLE IF EXISTS {4};
        CREATE TABLE {4} 
            AS SELECT   a.{1}, a.{2}, a.{5}, MIN(a.{3}) AS {3}, MAX(b.{3}) AS {6},
@@ -238,12 +247,20 @@ def identifyBlockAndCavityBase(cursor, stackedBlockTable,
        """.format(  stackedBlockTable        , GEOM_FIELD,
                     ID_FIELD_BLOCK           , HEIGHT_FIELD,
                     tempoAllStacked          , ID_FIELD_STACKED_BLOCK,
-                    BASE_HEIGHT_FIELD))
+                    BASE_HEIGHT_FIELD        , DataUtil.createIndex(tableName=stackedBlockTable, 
+                                                                    fieldName=GEOM_FIELD,
+                                                                    isSpatial=True),
+                    DataUtil.createIndex(tableName=stackedBlockTable, 
+                                         fieldName=ID_FIELD_BLOCK,
+                                         isSpatial=False),
+                    DataUtil.createIndex(tableName=stackedBlockTable, 
+                                         fieldName=HEIGHT_FIELD,
+                                         isSpatial=False)))
                         
     # Set the base height to ground base buildings...
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{5}_{0} ON {0} USING BTREE({5});
-       CREATE INDEX IF NOT EXISTS id_{5}_{7} ON {7} USING BTREE({5});
+       {8};
+       {9};
        DROP TABLE IF EXISTS {4};
        CREATE TABLE {4} 
            AS SELECT   b.{1}, b.{2}, b.{5}, b.{3}, COALESCE(a.{6}, 0) AS {6},
@@ -252,14 +269,20 @@ def identifyBlockAndCavityBase(cursor, stackedBlockTable,
        """.format(  tempoAllStacked          , GEOM_FIELD,
                     ID_FIELD_BLOCK           , HEIGHT_FIELD,
                     tempoAllBlocks           , ID_FIELD_STACKED_BLOCK, 
-                    BASE_HEIGHT_FIELD        , stackedBlockTable))
+                    BASE_HEIGHT_FIELD        , stackedBlockTable,
+                    DataUtil.createIndex(tableName=tempoAllStacked, 
+                                         fieldName=ID_FIELD_STACKED_BLOCK,
+                                         isSpatial=False),
+                    DataUtil.createIndex(tableName=stackedBlockTable, 
+                                         fieldName=ID_FIELD_STACKED_BLOCK,
+                                         isSpatial=False)))
 
     # Calculates the depth where the cavity zone
     # of a upper stacked block may go within the base block cavity zone
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
-       CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-       CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
+       {8};
+       {9};
+       {10};
        DROP TABLE IF EXISTS {4};
        CREATE TABLE {4} 
            AS SELECT   a.{1}, a.{2}, a.{5}, MIN(a.{3}) AS {3}, MAX(a.{6}) AS {6},
@@ -271,12 +294,21 @@ def identifyBlockAndCavityBase(cursor, stackedBlockTable,
        """.format(  tempoAllBlocks           , GEOM_FIELD,
                     ID_FIELD_BLOCK           , HEIGHT_FIELD,
                     tempoCavityStacked       , ID_FIELD_STACKED_BLOCK,
-                    BASE_HEIGHT_FIELD        , CAVITY_BASE_HEIGHT_FIELD))
+                    BASE_HEIGHT_FIELD        , CAVITY_BASE_HEIGHT_FIELD,
+                    DataUtil.createIndex(tableName=tempoAllBlocks, 
+                                         fieldName=GEOM_FIELD,
+                                         isSpatial=True),
+                    DataUtil.createIndex(tableName=tempoAllBlocks, 
+                                         fieldName=ID_FIELD_BLOCK,
+                                         isSpatial=False),
+                    DataUtil.createIndex(tableName=tempoAllBlocks, 
+                                         fieldName=HEIGHT_FIELD,
+                                         isSpatial=False)))
                         
     # Same as previous for stacked buildings being above a ground building (not a stacked one...) 
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{5}_{0} ON {0} USING BTREE({5});
-       CREATE INDEX IF NOT EXISTS id_{5}_{8} ON {8} USING BTREE({5});
+       {9};
+       {10};
        DROP TABLE IF EXISTS {4};
        CREATE TABLE {4} 
            AS SELECT   a.{1}, a.{2}, a.{5}, a.{3}, a.{6},
@@ -287,23 +319,33 @@ def identifyBlockAndCavityBase(cursor, stackedBlockTable,
                     ID_FIELD_BLOCK           , HEIGHT_FIELD,
                     tempoAllCavityStacked    , ID_FIELD_STACKED_BLOCK, 
                     BASE_HEIGHT_FIELD        , CAVITY_BASE_HEIGHT_FIELD,
-                    tempoAllStacked))
+                    tempoAllStacked          , DataUtil.createIndex( tableName=tempoCavityStacked, 
+                                                                     fieldName=ID_FIELD_STACKED_BLOCK,
+                                                                     isSpatial=False),
+                    DataUtil.createIndex(tableName=tempoAllStacked, 
+                                         fieldName=ID_FIELD_STACKED_BLOCK,
+                                         isSpatial=False)))
                         
     # Join blocks being not stacked
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING BTREE({1});
-       CREATE INDEX IF NOT EXISTS id_{1}_{2} ON {0} USING BTREE({1});
+       {9};
+       {10};
        DROP TABLE IF EXISTS {3};
        CREATE TABLE {3} 
            AS SELECT   a.{1}, a.{4}, a.{5}, a.{8},
                        COALESCE(b.{6}, 0) AS {6},
                        COALESCE(b.{7}, 0) AS {7}
            FROM {0} AS a LEFT JOIN {2} AS b ON a.{1} = b.{1}
-       """.format( stackedBlockTable             , ID_FIELD_STACKED_BLOCK,
+       """.format( stackedBlockTable        , ID_FIELD_STACKED_BLOCK,
                    tempoAllCavityStacked    , stackedBlockPropTable,
                    GEOM_FIELD               , ID_FIELD_BLOCK,
                    BASE_HEIGHT_FIELD        , CAVITY_BASE_HEIGHT_FIELD,
-                   HEIGHT_FIELD))
+                   HEIGHT_FIELD             , DataUtil.createIndex( tableName=stackedBlockTable, 
+                                                                     fieldName=ID_FIELD_STACKED_BLOCK,
+                                                                     isSpatial=False),
+                   DataUtil.createIndex(tableName=tempoAllCavityStacked, 
+                                        fieldName=ID_FIELD_STACKED_BLOCK,
+                                        isSpatial=False)))
 
     if not DEBUG:
         # Drop intermediate tables
@@ -411,10 +453,10 @@ def updateUpwindFacadeBase(cursor, upwindTable, prefix = PREFIX_NAME):
     
     # Update base height for facades being shared with the block below
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
-       CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-       CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
-       CREATE INDEX IF NOT EXISTS id_{8}_{0} ON {0} USING BTREE({8});
+       {10};
+       {11};
+       {12};
+       {13};
        DROP TABLE IF EXISTS {4};
        CREATE TABLE {4} 
            AS SELECT   a.{1}, a.{5}, a.{8}, MIN(a.{3}) AS {3}, MIN(b.{6}) AS {6},
@@ -428,12 +470,24 @@ def updateUpwindFacadeBase(cursor, upwindTable, prefix = PREFIX_NAME):
                     ID_FIELD_BLOCK           , HEIGHT_FIELD,
                     tempoUpwind              , ID_FIELD_STACKED_BLOCK,
                     BASE_HEIGHT_FIELD        , UPWIND_FACADE_ANGLE_FIELD,
-                    UPWIND_FACADE_FIELD      , SNAPPING_TOLERANCE))  
+                    UPWIND_FACADE_FIELD      , SNAPPING_TOLERANCE,
+                    DataUtil.createIndex(tableName=upwindTable, 
+                                        fieldName=GEOM_FIELD,
+                                        isSpatial=True),
+                    DataUtil.createIndex(tableName=upwindTable, 
+                                        fieldName=ID_FIELD_BLOCK,
+                                        isSpatial=False),
+                    DataUtil.createIndex(tableName=upwindTable, 
+                                        fieldName=HEIGHT_FIELD,
+                                        isSpatial=False),
+                    DataUtil.createIndex(tableName=upwindTable, 
+                                        fieldName=UPWIND_FACADE_FIELD,
+                                        isSpatial=False)))  
 
     # Upwind facades being not updated are joined to the updated ones
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{5}_{0} ON {0} USING BTREE({5});
-       CREATE INDEX IF NOT EXISTS id_{5}_{2} ON {0} USING BTREE({5});
+       {9};
+       {10};
        DROP TABLE IF EXISTS {3};
        CREATE TABLE {3} 
            AS SELECT   a.{1}, a.{4}, a.{5}, a.{7}, a.{8},
@@ -443,7 +497,12 @@ def updateUpwindFacadeBase(cursor, upwindTable, prefix = PREFIX_NAME):
                    tempoUpwind              , updatedUpwindBaseTable,
                    GEOM_FIELD               , UPWIND_FACADE_FIELD,
                    BASE_HEIGHT_FIELD        , HEIGHT_FIELD,
-                   UPWIND_FACADE_ANGLE_FIELD))
+                   UPWIND_FACADE_ANGLE_FIELD, DataUtil.createIndex( tableName=upwindTable, 
+                                                                    fieldName=UPWIND_FACADE_FIELD,
+                                                                    isSpatial=False),
+                   DataUtil.createIndex(tableName=tempoUpwind, 
+                                        fieldName=UPWIND_FACADE_FIELD,
+                                        isSpatial=False)))
                         
     if not DEBUG:
         # Drop intermediate tables

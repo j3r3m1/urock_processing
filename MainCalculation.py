@@ -320,15 +320,23 @@ def main(z_ref = Z_REF,
                                             prefix = prefix)
     if DEBUG or saveRockleZones:
         for t in dicOfBuildZoneGridPoint:
-            cursor.execute("""DROP TABLE IF EXISTS point_Buildzone_{0};
-                           CREATE INDEX IF NOT EXISTS id_{1}_{3} ON {3} USING BTREE({1});
-                           CREATE INDEX IF NOT EXISTS id_{1}_{4} ON {4} USING BTREE({1});
-                           CREATE TABLE point_Buildzone_{0}
-                               AS SELECT   a.{2}, b.*
-                               FROM {3} AS a RIGHT JOIN {4} AS b
-                                           ON a.{1} = b.{1}
-                               WHERE b.{1} IS NOT NULL
-                               """.format(t, ID_POINT, GEOM_FIELD, gridPoint, dicOfBuildZoneGridPoint[t]))
+            cursor.execute("""
+               DROP TABLE IF EXISTS point_Buildzone_{0};
+               {5};
+               {6};
+               CREATE TABLE point_Buildzone_{0}
+                   AS SELECT   a.{2}, b.*
+                   FROM {3} AS a RIGHT JOIN {4} AS b
+                       ON a.{1} = b.{1}
+                   WHERE b.{1} IS NOT NULL
+               """.format( t                            , ID_POINT, 
+                           GEOM_FIELD                   , gridPoint, 
+                           dicOfBuildZoneGridPoint[t]   , DataUtil.createIndex(tableName=gridPoint, 
+                                                                               fieldName=ID_POINT,
+                                                                               isSpatial=False),
+                           DataUtil.createIndex(tableName=dicOfBuildZoneGridPoint[t], 
+                                                fieldName=ID_POINT,
+                                                isSpatial=False)))
             DataUtil.saveTable(cursor = cursor,
                                tableName = "point_Buildzone_"+t,
                                filedir = outputDataAbs["point_BuildZone"]+t+".geojson",
@@ -345,15 +353,23 @@ def main(z_ref = Z_REF,
                                                   prefix = prefix)
     if DEBUG or saveRockleZones:
         for t in dicOfBuildZone3DWindFactor:
-            cursor.execute("""DROP TABLE IF EXISTS point3D_Buildzone_{0};
-                           CREATE INDEX IF NOT EXISTS id_{1}_{3} ON {3} USING BTREE({1});
-                           CREATE INDEX IF NOT EXISTS id_{1}_{4} ON {4} USING BTREE({1});
-                           CREATE TABLE point3D_Buildzone_{0}
-                               AS SELECT   a.{2}, b.*
-                               FROM {3} AS a RIGHT JOIN {4} AS b
-                                           ON a.{1} = b.{1}
-                               WHERE b.{1} IS NOT NULL
-                               """.format(t, ID_POINT, GEOM_FIELD, gridPoint, dicOfBuildZone3DWindFactor[t]))
+            cursor.execute("""
+               DROP TABLE IF EXISTS point3D_Buildzone_{0};
+               {5};
+               {6};
+               CREATE TABLE point3D_Buildzone_{0}
+                   AS SELECT   a.{2}, b.*
+                   FROM {3} AS a RIGHT JOIN {4} AS b
+                       ON a.{1} = b.{1}
+                   WHERE b.{1} IS NOT NULL
+               """.format( t                            , ID_POINT,
+                           GEOM_FIELD                   , gridPoint, 
+                           dicOfBuildZone3DWindFactor[t], DataUtil.createIndex(tableName=gridPoint, 
+                                                                               fieldName=ID_POINT,
+                                                                               isSpatial=False),
+                           DataUtil.createIndex(tableName=dicOfBuildZone3DWindFactor[t], 
+                                                fieldName=ID_POINT,
+                                                isSpatial=False)))
             DataUtil.saveTable(cursor = cursor,
                                tableName = "point3D_Buildzone_"+t,
                                filedir = outputDataAbs["point3D_BuildZone"]+t+".geojson",
@@ -371,15 +387,23 @@ def main(z_ref = Z_REF,
                                                 dz = dz,
                                                 prefix = prefix)
     if DEBUG or saveRockleZones:
-        cursor.execute("""DROP TABLE IF EXISTS point3D_AllVegZone;
-                       CREATE INDEX IF NOT EXISTS id_{0}_{2} ON {2} USING BTREE({0});
-                       CREATE INDEX IF NOT EXISTS id_{0}_{3} ON {3} USING BTREE({0});
-                       CREATE TABLE point3D_AllVegZone
-                           AS SELECT   a.{1}, b.*
-                           FROM {2} AS a RIGHT JOIN {3} AS b
-                                       ON a.{0} = b.{0}
-                           WHERE b.{0} IS NOT NULL
-                           """.format(ID_POINT, GEOM_FIELD, gridPoint, vegetationWeightFactorTable))
+        cursor.execute("""
+           DROP TABLE IF EXISTS point3D_AllVegZone;
+           {4};
+           {5};
+           CREATE TABLE point3D_AllVegZone
+               AS SELECT   a.{1}, b.*
+               FROM {2} AS a RIGHT JOIN {3} AS b
+                           ON a.{0} = b.{0}
+               WHERE b.{0} IS NOT NULL
+           """.format( ID_POINT                     , GEOM_FIELD, 
+                       gridPoint                    , vegetationWeightFactorTable,
+                       DataUtil.createIndex(tableName=gridPoint, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                       DataUtil.createIndex(tableName=vegetationWeightFactorTable, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False)))
         DataUtil.saveTable(cursor = cursor,
                            tableName = "point3D_AllVegZone",
                            filedir = outputDataAbs["point3D_VegZone"]+".geojson",
@@ -402,15 +426,23 @@ def main(z_ref = Z_REF,
                                             downstreamWeightingTable = DOWNSTREAM_WEIGTHING_TABLE,
                                             prefix = prefix)
     if DEBUG or saveRockleZones:
-        cursor.execute("""DROP TABLE IF EXISTS point3D_All;
-                       CREATE INDEX IF NOT EXISTS id_{0}_{2} ON {2} USING BTREE({0});
-                       CREATE INDEX IF NOT EXISTS id_{0}_{3} ON {3} USING BTREE({0});
-                       CREATE TABLE point3D_All
-                           AS SELECT   a.{1}, b.*
-                           FROM {2} AS a RIGHT JOIN {3} AS b
-                                       ON a.{0} = b.{0}
-                           WHERE b.{0} IS NOT NULL
-                           """.format(ID_POINT, GEOM_FIELD, gridPoint, allZonesPointFactor))
+        cursor.execute("""
+            DROP TABLE IF EXISTS point3D_All;
+            {4};
+            {5};
+            CREATE TABLE point3D_All
+                AS SELECT   a.{1}, b.*
+                FROM {2} AS a RIGHT JOIN {3} AS b
+                            ON a.{0} = b.{0}
+                WHERE b.{0} IS NOT NULL
+            """.format( ID_POINT                    , GEOM_FIELD,
+                        gridPoint                   , allZonesPointFactor,
+                        DataUtil.createIndex(tableName=gridPoint, 
+                                             fieldName=ID_POINT,
+                                             isSpatial=False),
+                        DataUtil.createIndex(tableName=allZonesPointFactor, 
+                                             fieldName=ID_POINT,
+                                             isSpatial=False)))
         DataUtil.saveTable(cursor = cursor,
                            tableName = "point3D_All",
                            filedir = outputDataAbs["point3D_All"]+".geojson",

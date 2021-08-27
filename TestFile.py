@@ -18,10 +18,14 @@ from GlobalVariables import *
 # -----------------------------------------------------------------------------------
 # Geographical input data
 caseToRun = "AIJ_CaseE"
+# inputGeometries = {"buildingFileName" : "buildingSelection.shp",
+#                    "vegetationFileName" : "",
+#                    "cadTriangles" : "",
+#                    "cadTreesIntersection" : ""}
 inputGeometries = {"buildingFileName" : "buildingSelection.shp",
-                   "vegetationFileName" : "",
-                   "cadTriangles" : "AllTriangles.shp",
-                   "cadTreesIntersection" : "treesIntersection.shp"}
+                    "vegetationFileName" : "",
+                    "cadTriangles" : "AllTriangles.shp",
+                    "cadTreesIntersection" : "treesIntersection.shp"}
 idFieldBuild = ID_FIELD_BUILD
 buildingHeightField = HEIGHT_FIELD
 
@@ -32,7 +36,7 @@ vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR
 
 # Meteorological input data
 v_ref = 2
-windDirection = 13
+windDirection = 22.5
 z_ref = 10
 
 # Meshing properties
@@ -43,7 +47,7 @@ meshSize = 2
 dz = 2
 
 # Other simulation parameters
-onlyInitialization = False
+onlyInitialization = True
 saveRockleZones = False
 maxIterations = MAX_ITERATIONS
 thresholdIterations = THRESHOLD_ITERATIONS
@@ -51,7 +55,7 @@ tempoDirectory = TEMPO_DIRECTORY
 
 # Plotting options
 plotBoolean = True
-isInitialField = False
+isInitialField = True
 levelList = [2, 21]
 
 isStream = False

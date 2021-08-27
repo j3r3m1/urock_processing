@@ -137,10 +137,12 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                 ROOFTOP_PERP_NAME       : UPWIND_FACADE_FIELD,
                 ROOFTOP_CORN_NAME       : UPWIND_FACADE_FIELD}  
     
-    query = ["""CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
-                 DROP TABLE IF EXISTS {2}""".format( gridTable,
-                                                     GEOM_FIELD,
-                                                     ",".join(dicOfOutputTables.values()))]
+    query = ["""{0};
+                 DROP TABLE IF EXISTS {1}
+             """.format( DataUtil.createIndex(tableName=gridTable, 
+                                         fieldName=GEOM_FIELD,
+                                         isSpatial=True),
+                         ",".join(dicOfOutputTables.values()))]
     # Construct a query to affect each point to a Rockle zone
     for i, t in enumerate(dicOfBuildRockleZoneTable):
         # The query differs depending on whether y value should be kept
@@ -177,7 +179,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                ID_POINT_X)             
             
         query.append(""" 
-            CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
+            {5};
             DROP TABLE IF EXISTS {2};
             CREATE TABLE {2}
                 AS SELECT {4}
@@ -188,7 +190,10 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     GEOM_FIELD,
                                     tempoTableName,
                                     gridTable,
-                                    columnsToKeepQuery))
+                                    columnsToKeepQuery,
+                                    DataUtil.createIndex(tableName=dicOfBuildRockleZoneTable[t], 
+                                                         fieldName=GEOM_FIELD,
+                                                         isSpatial=True)))
     
     # Get the ID of the lower grid point row
     cursor.execute("""
@@ -200,21 +205,30 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     # For Rockle zones that needs relative point distance, extra calculation is needed
     # First creates vertical lines
     endOfQuery = """ 
-        CREATE INDEX IF NOT EXISTS id_{1}_{3} ON {3} USING BTREE({1});
-        CREATE INDEX IF NOT EXISTS id_{4}_{3} ON {3} USING BTREE({4});
+        {6};
+        {7};
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0} 
             AS SELECT   a.{1},
                         ST_MAKELINE(b.{2}, a.{2}) AS {2}
             FROM {3} AS a LEFT JOIN {3} AS b ON a.{1} = b.{1}
             WHERE a.{4} = 1 AND b.{4} = {5};
-        CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {3} USING RTREE({2});
+        {8};
             """.format( verticalLineTable,
                         ID_POINT_X,
                         GEOM_FIELD,
                         gridTable,
                         ID_POINT_Y,
-                        idLowerGridRow)           
+                        idLowerGridRow,
+                        DataUtil.createIndex(   tableName=gridTable, 
+                                                fieldName=ID_POINT_X,
+                                                isSpatial=False),
+                        DataUtil.createIndex(   tableName=gridTable, 
+                                                fieldName=ID_POINT_Y,
+                                                isSpatial=False),
+                        DataUtil.createIndex(   tableName=gridTable, 
+                                                fieldName=GEOM_FIELD,
+                                                isSpatial=True))           
     
     # Fields to keep in the zone table (zone dependent)
     varToKeepZone = {
@@ -448,16 +462,16 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     # for each "vertical" line and last calculate the relative position of each
     # point according to the upper and lower part of the Rockle zones
     endOfQuery += ";".join(["""
-        CREATE INDEX IF NOT EXISTS id_{1}_{2} ON {2} USING RTREE({1});
+        {10};
         DROP TABLE IF EXISTS {0}, {5};
         CREATE TABLE {0}
             AS SELECT   {6}
             FROM    {4} AS a, {2} AS b
             WHERE   a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1});
-        CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
-        CREATE INDEX IF NOT EXISTS id_{3}_{8} ON {8} USING BTREE({3});
-        CREATE INDEX IF NOT EXISTS id_{9}_{0} ON {0} USING BTREE({9});
-        CREATE INDEX IF NOT EXISTS id_{9}_{8} ON {8} USING BTREE({9});
+        {11};
+        {12};
+        {13};
+        {14};
         CREATE TABLE {5}
             AS SELECT   {7}
             FROM    {0} AS a RIGHT JOIN {8} AS b
@@ -473,7 +487,26 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                               varToKeepPoint[t],
                               DataUtil.prefix(tableName = dicOfOutputTables[t],
                                               prefix = tempoPrefix),
-                              ID_POINT_X)
+                              ID_POINT_X,
+                              DataUtil.createIndex( tableName=dicOfBuildRockleZoneTable[t], 
+                                                    fieldName=GEOM_FIELD,
+                                                    isSpatial=True),
+                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = t,
+                                                                              prefix = prefixZoneLimits), 
+                                                    fieldName=idZone[t],
+                                                    isSpatial=False),
+                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
+                                                                              prefix = tempoPrefix), 
+                                                    fieldName=idZone[t],
+                                                    isSpatial=False),
+                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = t,
+                                                                              prefix = prefixZoneLimits), 
+                                                    fieldName=ID_POINT_X,
+                                                    isSpatial=False),
+                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
+                                                                              prefix = tempoPrefix), 
+                                                    fieldName=ID_POINT_X,
+                                                    isSpatial=False))
                   for t in listTabYvalues])
     query.append(endOfQuery)
     cursor.execute(";".join(query))
@@ -481,17 +514,17 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     # The cavity zone length is needed for the wind speed calculation of
     # wake zone points
     cursor.execute("""
-       CREATE INDEX IF NOT EXISTS id_{6}_{2} ON {2} USING BTREE({6});
-       CREATE INDEX IF NOT EXISTS id_{7}_{2} ON {2} USING BTREE({7});
+       {12};
+       {13};
        DROP TABLE IF EXISTS {11};
        CREATE TABLE {11}
            AS SELECT MIN({3}) AS {3}, {7}, {6}
            FROM {2}
            GROUP BY {6}, {7};
-       CREATE INDEX IF NOT EXISTS id_{6}_{0} ON {0} USING BTREE({6});
-       CREATE INDEX IF NOT EXISTS id_{6}_{11} ON {11} USING BTREE({6});
-       CREATE INDEX IF NOT EXISTS id_{7}_{0} ON {0} USING BTREE({7});
-       CREATE INDEX IF NOT EXISTS id_{7}_{11} ON {11} USING BTREE({7});
+       {14};
+       {15};
+       {16};
+       {17};
        DROP TABLE IF EXISTS TEMPO_WAKE;
        CREATE TABLE TEMPO_WAKE 
            AS SELECT   a.{1}, 
@@ -511,7 +544,25 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                     DISTANCE_BUILD_TO_POINT_FIELD   , HEIGHT_FIELD,                   
                     ID_FIELD_STACKED_BLOCK          , ID_POINT_X,
                     WAKE_RELATIVE_POSITION_FIELD    , UPPER_VERTICAL_THRESHOLD,
-                    Y_WALL                          , tempoCavity))
+                    Y_WALL                          , tempoCavity,
+                    DataUtil.createIndex(   dicOfOutputTables[CAVITY_NAME], 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfOutputTables[CAVITY_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfOutputTables[WAKE_NAME], 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfOutputTables[WAKE_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   tempoCavity, 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   tempoCavity, 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False)))
     
     # Special treatment for rooftop corners which have not been calculated previously
     cursor.execute("""DROP TABLE IF EXISTS {8};
@@ -602,15 +653,15 @@ def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable,
     # Calculate the max of the canopy height for each point and then keep each
     # intersection between point and zone
     cursor.execute(";".join(["""
-        CREATE INDEX IF NOT EXISTS id_{1}_{5} ON {5} USING RTREE({1});
-        CREATE INDEX IF NOT EXISTS id_{1}_{6} ON {6} USING RTREE({1});           
+        {12};
+        {13};           
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
             AS SELECT a.{1}, a.{2}, MAX(b.{3}) AS {7}
             FROM {5} AS a, {6} AS b
             WHERE    a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1})
             GROUP BY a.{2};
-        CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING RTREE({1});
+        {14};
         DROP TABLE IF EXISTS {11};
         CREATE TABLE {11}
             AS SELECT a.{1}, a.{2}, a.{7}, b.{4}, b.{8}, b.{9}, b.{10}
@@ -627,7 +678,17 @@ def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable,
                         VEGETATION_ATTENUATION_FACTOR,
                         VEGETATION_CROWN_BASE_HEIGHT,
                         VEGETATION_CROWN_TOP_HEIGHT,
-                        dicOfOutputTables[t]) for t in dicOfVegRockleZoneTable]))
+                        dicOfOutputTables[t],
+                        DataUtil.createIndex(gridTable, 
+                                             fieldName=GEOM_FIELD,
+                                             isSpatial=True),
+                        DataUtil.createIndex(dicOfVegRockleZoneTable[t], 
+                                             fieldName=GEOM_FIELD,
+                                             isSpatial=True),
+                        DataUtil.createIndex(maxHeightPointTable+t, 
+                                             fieldName=GEOM_FIELD,
+                                             isSpatial=True))
+                             for t in dicOfVegRockleZoneTable]))
     
     if not DEBUG:
         # Remove intermediate tables
@@ -687,9 +748,9 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
     # Identify points needing to be removed in cavity and wake zones
     cursor.execute(";".join(
         [""" 
-           CREATE INDEX IF NOT EXISTS id_{1}_{4} ON {4} USING BTREE({1});
-           CREATE INDEX IF NOT EXISTS id_{1}_{5} ON {5} USING BTREE({1});
-           CREATE INDEX IF NOT EXISTS id_{7}_{5} ON {5} USING BTREE({7});
+           {10};
+           {11};
+           {12};
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS SELECT b.{1}, b.{2}, b.{3}
@@ -699,13 +760,22 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                        ID_FIELD_STACKED_BLOCK                   , ID_POINT_X,
                        dicOfInitBuildZoneGridPoint[CAVITY_NAME] , dicOfInitBuildZoneGridPoint[t],
                        Y_WALL                                   , DISTANCE_BUILD_TO_POINT_FIELD,
-                       MESH_SIZE                                , UPPER_VERTICAL_THRESHOLD)
+                       MESH_SIZE                                , UPPER_VERTICAL_THRESHOLD,
+                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[CAVITY_NAME], 
+                                             fieldName=ID_POINT,
+                                             isSpatial=False),
+                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
+                                             fieldName=ID_POINT,
+                                             isSpatial=False),
+                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
+                                             fieldName=DISTANCE_BUILD_TO_POINT_FIELD,
+                                             isSpatial=False))
            for t in [CAVITY_NAME, WAKE_NAME]]))
     
     # Identify points needing to be removed in street canyon zones
     cursor.execute(""" 
-           CREATE INDEX IF NOT EXISTS id_{1}_{5} ON {5} USING BTREE({1});
-           CREATE INDEX IF NOT EXISTS id_{3}_{5} ON {5} USING BTREE({3});
+           {11};
+           {12};
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS SELECT MIN(b.{1}) AS {1}, MIN(b.{2}) AS {2}, MIN(b.{3}) AS {3}
@@ -717,7 +787,12 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                        dicOfInitBuildZoneGridPoint[CAVITY_NAME]     , dicOfInitBuildZoneGridPoint[STREET_CANYON_NAME],
                        Y_WALL                                       , DISTANCE_BUILD_TO_POINT_FIELD,
                        MESH_SIZE                                    , UPPER_VERTICAL_THRESHOLD,
-                       UPSTREAM_HEIGHT_FIELD))    
+                       UPSTREAM_HEIGHT_FIELD                        , DataUtil.createIndex( dicOfInitBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                                                                             fieldName=ID_POINT,
+                                                                                             isSpatial=False),
+                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False)))    
     
     # Remove points in cavity, wake and street canyon zones
     cavityJoinFields = {CAVITY_NAME: [ID_FIELD_STACKED_BLOCK, ID_POINT_X],
@@ -725,10 +800,10 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                         STREET_CANYON_NAME: [ID_FIELD_CANYON, ID_POINT_X]}
     cursor.execute(";".join(
         [""" 
-           CREATE INDEX IF NOT EXISTS id_{3}_{1} ON {1} USING BTREE({3});
-           CREATE INDEX IF NOT EXISTS id_{3}_{2} ON {2} USING BTREE({3});
-           CREATE INDEX IF NOT EXISTS id_{4}_{1} ON {1} USING BTREE({4});
-           CREATE INDEX IF NOT EXISTS id_{4}_{2} ON {2} USING BTREE({4});
+           {5};
+           {6};
+           {7};
+           {8};
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS SELECT a.*
@@ -736,27 +811,50 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                WHERE b.{3} IS NULL AND b.{4} IS NULL
            """.format( dicOfBuildZoneGridPoint[t]               , dicOfInitBuildZoneGridPoint[t],
                        dicPointsToRemoveCavity[t]               , cavityJoinFields[t][0],
-                       cavityJoinFields[t][1])
+                       cavityJoinFields[t][1]                   , DataUtil.createIndex( dicOfInitBuildZoneGridPoint[t], 
+                                                                                        fieldName=cavityJoinFields[t][0],
+                                                                                        isSpatial=False),
+                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
+                                            fieldName=cavityJoinFields[t][1],
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicPointsToRemoveCavity[t], 
+                                            fieldName=cavityJoinFields[t][0],
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicPointsToRemoveCavity[t], 
+                                            fieldName=cavityJoinFields[t][1],
+                                            isSpatial=False))
            for t in cavityJoinFields.keys()]))
     
     #2. Remove points due to street canyon (street canyon that have been previously updated)
     # Identify points needing to be removed in rootop zones
     cursor.execute(";".join(
         [""" 
-           CREATE INDEX IF NOT EXISTS id_{2}_{4} ON {4} USING BTREE({2});
-           CREATE INDEX IF NOT EXISTS id_{3}_{4} ON {4} USING BTREE({3});
-           CREATE INDEX IF NOT EXISTS id_{2}_{5} ON {5} USING BTREE({2});
-           CREATE INDEX IF NOT EXISTS id_{3}_{5} ON {5} USING BTREE({3});
+           {8};
+           {9};
+           {10};
+           {11};
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS SELECT MIN(b.{1}) AS {1}, MIN(b.{2}) AS {2}, MIN(b.{3}) AS {3}
                FROM {4} AS a RIGHT JOIN {5} AS b ON a.{2} = b.{2} AND a.{3} = b.{3}
                WHERE b.{6} <= a.{7}
                GROUP BY b.{3}
-           """.format( dicPointsToRemoveStreetCanyon[t], ID_POINT,
+           """.format( dicPointsToRemoveStreetCanyon[t]                 , ID_POINT,
                        UPWIND_FACADE_FIELD                              , ID_POINT_X,
                        dicOfBuildZoneGridPoint[STREET_CANYON_NAME]      , dicOfInitBuildZoneGridPoint[t],
-                       HEIGHT_FIELD                                     , MAX_CANYON_HEIGHT_FIELD)
+                       HEIGHT_FIELD                                     , MAX_CANYON_HEIGHT_FIELD,
+                       DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                            fieldName=UPWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
+                                            fieldName=UPWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False))
            for t in dicPointsToRemoveStreetCanyon.keys()]))
     
     # Remove points in rooftop zones
@@ -764,10 +862,10 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                               ROOFTOP_CORN_NAME: [UPWIND_FACADE_FIELD, ID_POINT_X]}
     cursor.execute(";".join(
         [""" 
-           CREATE INDEX IF NOT EXISTS id_{3}_{1} ON {1} USING BTREE({3});
-           CREATE INDEX IF NOT EXISTS id_{3}_{2} ON {2} USING BTREE({3});
-           CREATE INDEX IF NOT EXISTS id_{4}_{1} ON {1} USING BTREE({4});
-           CREATE INDEX IF NOT EXISTS id_{4}_{2} ON {2} USING BTREE({4});
+           {5};
+           {6};
+           {7};
+           {8};
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS SELECT a.*
@@ -775,7 +873,18 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                WHERE b.{3} IS NULL AND b.{4} IS NULL
            """.format( dicOfBuildZoneGridPoint[t]               , dicOfInitBuildZoneGridPoint[t],
                        dicPointsToRemoveStreetCanyon[t]         , streetCanyonJoinFields[t][0],
-                       streetCanyonJoinFields[t][1])
+                       streetCanyonJoinFields[t][1]             , DataUtil.createIndex( dicOfInitBuildZoneGridPoint[t], 
+                                                                                        fieldName=streetCanyonJoinFields[t][0],
+                                                                                        isSpatial=False),
+                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
+                                            fieldName=streetCanyonJoinFields[t][1],
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicPointsToRemoveStreetCanyon[t], 
+                                            fieldName=streetCanyonJoinFields[t][0],
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicPointsToRemoveStreetCanyon[t], 
+                                            fieldName=streetCanyonJoinFields[t][1],
+                                            isSpatial=False))
            for t in streetCanyonJoinFields.keys()]))
          
     # Rename tables which has not been modified to the "updated" name
@@ -792,10 +901,11 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
 
     if not DEBUG:
         # Remove intermediate tables
+        listToRemove = list(dicPointsToRemoveCavity.values())\
+            +list(dicPointsToRemoveStreetCanyon.values())
         cursor.execute("""
             DROP TABLE IF EXISTS {0}
-                      """.format(",".join(set(dicPointsToRemoveCavity.values())
-                                          +set(dicPointsToRemoveStreetCanyon.values()))))
+                      """.format(",".join(listToRemove)))
     
     return dicOfBuildZoneGridPoint
 
@@ -1111,13 +1221,14 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
     
     # Initialize the wind speed field depending on vegetation type and height
     cursor.execute(";".join(["""
-           CREATE INDEX IF NOT EXISTS id_{6}_{4} ON {4} USING BTREE({6});
-           CREATE INDEX IF NOT EXISTS id_{7}_{5} ON {5} USING BTREE({7});           
+           {10};
+           {11};           
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS SELECT b.{9}, a.{1}, {2} AS {3}
                FROM {4} AS a, {5} AS b
                {8};
+           {12};
            UPDATE {0} SET {3} = 1 WHERE {3} > 1;
            UPDATE {0} SET {3} = 0 WHERE {3} < 0;
                    """.format( dicOfTempoTables[t], 
@@ -1129,7 +1240,16 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                                Z,
                                TOP_CANOPY_HEIGHT_POINT,
                                whereQuery[t],
-                               ID_POINT) for t in dicOfTempoTables]))
+                               ID_POINT,
+                               DataUtil.createIndex( tableName=zValueTable, 
+                                                     fieldName=Z,
+                                                     isSpatial=False),
+                               DataUtil.createIndex( tableName=dicOfVegZoneGridPoint[t], 
+                                                     fieldName=TOP_CANOPY_HEIGHT_POINT,
+                                                     isSpatial=False),
+                               DataUtil.createIndex( tableName=dicOfTempoTables[t], 
+                                                     fieldName=VEGETATION_FACTOR,
+                                                     isSpatial=False)) for t in dicOfTempoTables]))
                              
     # Gather zone points in a single vegetation table and keep the minimum value 
     # in case there are several vegetation layers
@@ -1142,8 +1262,8 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS {1};
-           CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-           CREATE INDEX IF NOT EXISTS id_{4}_{0} ON {0} USING BTREE({4});
+           {6};
+           {7};
            DROP TABLE IF EXISTS {3};
            CREATE TABLE {3}
                AS SELECT {2}, {4}, MIN({5}) AS {5}
@@ -1154,7 +1274,13 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                        ID_POINT,
                        vegetationWeightFactorTable,
                        ID_POINT_Z,
-                       VEGETATION_FACTOR))
+                       VEGETATION_FACTOR,
+                       DataUtil.createIndex(tableName=tempoAllVeg, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                       DataUtil.createIndex(tableName=tempoAllVeg, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False)))
     
     if not DEBUG:
         # Remove intermediate tables
@@ -1256,14 +1382,14 @@ def manageSuperimposition(cursor,
     # Weight the wind speeds factors of the upstream priorities when the
     # weighting factors comes from more upstream and a higher position
     cursor.execute("""
-          CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-          CREATE INDEX IF NOT EXISTS id_{2}_{1} ON {1} USING BTREE({2});
-          CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
-          CREATE INDEX IF NOT EXISTS id_{3}_{1} ON {1} USING BTREE({3});
-          CREATE INDEX IF NOT EXISTS id_{4}_{0} ON {0} USING BTREE({4});
-          CREATE INDEX IF NOT EXISTS id_{4}_{1} ON {1} USING BTREE({4});
-          CREATE INDEX IF NOT EXISTS id_{5}_{0} ON {0} USING BTREE({5});
-          CREATE INDEX IF NOT EXISTS id_{5}_{1} ON {1} USING BTREE({5});
+          {12};
+          {13};
+          {14};
+          {15};
+          {16};
+          {17};
+          {18};
+          {19};
           DROP TABLE IF EXISTS {10};
           CREATE TABLE {10}
               AS SELECT   a.{2}, a.{3}, a.{4}, COALESCE(a.{6}*b.{6}, a.{6}) AS {6},
@@ -1278,14 +1404,38 @@ def manageSuperimposition(cursor,
                       HEIGHT_FIELD                   , Y_WALL, 
                       U                              , V,
                       W                              , REF_HEIGHT_FIELD, 
-                      tempoPrioritiesWeighted        , REF_HEIGHT_UPSTREAM_WEIGHTING))
+                      tempoPrioritiesWeighted        , REF_HEIGHT_UPSTREAM_WEIGHTING,
+                      DataUtil.createIndex(tableName=upstreamWeightingTempoTable, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamWeightingTempoTable, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamWeightingTempoTable, 
+                                            fieldName=HEIGHT_FIELD,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamWeightingTempoTable, 
+                                            fieldName=Y_WALL,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                                            fieldName=HEIGHT_FIELD,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                                            fieldName=Y_WALL,
+                                            isSpatial=False)))
     
     # Join the upstream priority weigthted points to the upstream priority non-weighted ones
     cursor.execute("""
-          CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-          CREATE INDEX IF NOT EXISTS id_{2}_{1} ON {1} USING BTREE({2});
-          CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
-          CREATE INDEX IF NOT EXISTS id_{3}_{1} ON {1} USING BTREE({3});
+          {10};
+          {11};
+          {12};
+          {13};
           DROP TABLE IF EXISTS {9};
           CREATE TABLE {9}
               AS SELECT   a.{2}, a.{3}, a.{4}, a.{5}, a.{6}, a.{7}, a.{8}
@@ -1299,14 +1449,26 @@ def manageSuperimposition(cursor,
                       ID_POINT                       , ID_POINT_Z,
                       HEIGHT_FIELD                   , U,
                       V                              , W,
-                      REF_HEIGHT_FIELD               , tempoPrioritiesWeightedAll))
+                      REF_HEIGHT_FIELD               , tempoPrioritiesWeightedAll,
+                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeighted, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeighted, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False)))
                              
     # Weight the wind speeds factors by the downstream weights (vegetation)
     cursor.execute("""
-          CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-          CREATE INDEX IF NOT EXISTS id_{2}_{1} ON {1} USING BTREE({2});
-          CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
-          CREATE INDEX IF NOT EXISTS id_{3}_{1} ON {1} USING BTREE({3});
+          {12};
+          {13};
+          {14};
+          {15};
           DROP TABLE IF EXISTS {10};
           CREATE TABLE {10}
               AS SELECT   a.{2}, a.{3}, COALESCE(b.{4}, NULL) AS {4},
@@ -1322,14 +1484,26 @@ def manageSuperimposition(cursor,
                       HEIGHT_FIELD                   , VEGETATION_FACTOR, 
                       U                              , V,
                       W                              , REF_HEIGHT_FIELD, 
-                      tempoUpstreamAndDownstream     , REF_HEIGHT_DOWNSTREAM_WEIGHTING))
+                      tempoUpstreamAndDownstream     , REF_HEIGHT_DOWNSTREAM_WEIGHTING,
+                      DataUtil.createIndex(tableName=dicAllWeightFactorsTables[downstreamWeightingTable], 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=dicAllWeightFactorsTables[downstreamWeightingTable], 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False)))
     
     # Join the downstream weigthted points to the non downstream weighted ones
     cursor.execute("""
-          CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-          CREATE INDEX IF NOT EXISTS id_{2}_{1} ON {1} USING BTREE({2});
-          CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
-          CREATE INDEX IF NOT EXISTS id_{3}_{1} ON {1} USING BTREE({3});
+          {12};
+          {13};
+          {10};
+          {11};
           DROP TABLE IF EXISTS {9};
           CREATE TABLE {9}
               AS SELECT   a.{2}, a.{3}, a.{4}, a.{5}, a.{6}, a.{7}, a.{8}
@@ -1343,7 +1517,19 @@ def manageSuperimposition(cursor,
                       ID_POINT                       , ID_POINT_Z,
                       HEIGHT_FIELD                   , U,
                       V                              , W,
-                      REF_HEIGHT_FIELD               , initializedWindFactorTable))
+                      REF_HEIGHT_FIELD               , initializedWindFactorTable,
+                      DataUtil.createIndex(tableName=tempoUpstreamAndDownstream, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoUpstreamAndDownstream, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False)))
 
     if not DEBUG:
         # Remove intermediate tables
@@ -1462,10 +1648,10 @@ def identifyUpstreamer( cursor,
     
     # Identify which point should be conserved in the upstream weighting table
     cursor.execute("""
-           CREATE INDEX IF NOT EXISTS id_{4}_{0} ON {0} USING BTREE({4});
-           CREATE INDEX IF NOT EXISTS id_{5}_{0} ON {0} USING BTREE({5});
-           CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-           CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
+           {7};
+           {8};
+           {9};
+           {10};
            DROP TABLE IF EXISTS {6};
            CREATE TABLE {6}
                AS SELECT   DISTINCT(a.{2}) AS {2},
@@ -1477,19 +1663,37 @@ def identifyUpstreamer( cursor,
            """.format( tempoAllPointsTable                  , ID_3D_POINT, 
                        ID_POINT                             , ID_POINT_Z,
                        HEIGHT_FIELD                         , Y_WALL, 
-                       tempoUniquePointsTable))
+                       tempoUniquePointsTable,
+                        DataUtil.createIndex(tableName=tempoAllPointsTable, 
+                                              fieldName=ID_POINT,
+                                              isSpatial=False),
+                        DataUtil.createIndex(tableName=tempoAllPointsTable, 
+                                              fieldName=ID_POINT_Z,
+                                              isSpatial=False),
+                        DataUtil.createIndex(tableName=tempoAllPointsTable, 
+                                              fieldName=HEIGHT_FIELD,
+                                              isSpatial=False),
+                        DataUtil.createIndex(tableName=tempoAllPointsTable, 
+                                              fieldName=Y_WALL,
+                                              isSpatial=False)))
                              
     # Recover the useful informations from the unique points kept
     cursor.execute("""
-          CREATE INDEX IF NOT EXISTS id_{1}_{0} ON {0} USING BTREE({1});
-          CREATE INDEX IF NOT EXISTS id_{1}_{2} ON {2} USING BTREE({1});
+          {4};
+          {5};
           DROP TABLE IF EXISTS {3};
           CREATE TABLE {3}
               AS SELECT a.*
               FROM     {0} AS a RIGHT JOIN {2} AS b
                        ON a.{1} = b.{1}
           """.format( tempoAllPointsTable              , ID_3D_POINT,
-                      tempoUniquePointsTable           , uniqueValuePerPointTable))
+                      tempoUniquePointsTable           , uniqueValuePerPointTable,
+                        DataUtil.createIndex(tableName=tempoAllPointsTable, 
+                                              fieldName=ID_3D_POINT,
+                                              isSpatial=False),
+                        DataUtil.createIndex(tableName=tempoUniquePointsTable, 
+                                              fieldName=ID_3D_POINT,
+                                              isSpatial=False)))
 
     if not DEBUG:
         # Remove intermediate tables
@@ -1654,11 +1858,11 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
     # Calculates the initial wind speed field according to each point rule
     # and join to the table x and y coordinates
     cursor.execute("""
-           CREATE INDEX IF NOT EXISTS id_{2}_{0} ON {0} USING BTREE({2});
-           CREATE INDEX IF NOT EXISTS id_{2}_{1} ON {1} USING BTREE({2});
-           CREATE INDEX IF NOT EXISTS id_{11}_{0} ON {0} USING BTREE({11});
-           CREATE INDEX IF NOT EXISTS id_{11}_{10} ON {10} USING BTREE({11});
-           CREATE INDEX IF NOT EXISTS id_{3}_{0} ON {0} USING BTREE({3});
+           {16};
+           {17};
+           {18};
+           {19};
+           {20};
            DROP TABLE IF EXISTS {4};
            CREATE TABLE {4}
                AS SELECT   a.{5},
@@ -1678,8 +1882,8 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                            a.{6},
                            a.{9}
                FROM {0} AS a;
-           CREATE INDEX IF NOT EXISTS id_{5}_{4} ON {4} USING BTREE({5});
-           CREATE INDEX IF NOT EXISTS id_{5}_{12} ON {12} USING BTREE({5});
+           {21};
+           {22};
            CALL CSVWRITE('{13}',
                          'SELECT b.{14}, b.{15}, a.{2},
                                  a.{8}*WIND_SPEED AS {8},
@@ -1696,7 +1900,28 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                        tempoBuildingHeightWindTable , HEIGHT_FIELD,
                        gridPoint                    , os.path.join(tempoDirectory,
                                                                    initRockleFilename),
-                       ID_POINT_X                   , ID_POINT_Y))
+                       ID_POINT_X                   , ID_POINT_Y,
+                      DataUtil.createIndex(tableName=initializedWindFactorTable, 
+                                            fieldName=HEIGHT_FIELD,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=initializedWindFactorTable, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=initializedWindFactorTable, 
+                                            fieldName=REF_HEIGHT_FIELD,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoVerticalProfileTable, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoBuildingHeightWindTable, 
+                                            fieldName=HEIGHT_FIELD,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoZoneWindSpeedFactorTable, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=gridPoint, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False)))
 
     # Get the number of grid point for each axis x, y and z
     cursor.execute("""SELECT   MAX({0}) AS ID_POINT_X,
@@ -1781,8 +2006,8 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
     
     # Identify 2D coordinates of points intersecting buildings 
     cursor.execute("""
-           CREATE INDEX IF NOT EXISTS id_{7}_{5} ON {5} USING RTREE({7});
-           CREATE INDEX IF NOT EXISTS id_{7}_{6} ON {6} USING RTREE({7});
+           {9};
+           {10};
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS SELECT a.{1}, a.{8}, b.{2}, b.{3}, b.{4}
@@ -1792,7 +2017,13 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
                         ID_FIELD_STACKED_BLOCK          , HEIGHT_FIELD ,
                         BASE_HEIGHT_FIELD               , gridPoint,
                         stackedBlocksWithBaseHeight     , GEOM_FIELD,
-                        ID_POINT_Y))
+                        ID_POINT_Y,
+                        DataUtil.createIndex(tableName=gridPoint, 
+                                            fieldName=GEOM_FIELD,
+                                            isSpatial=True),
+                        DataUtil.createIndex(tableName=stackedBlocksWithBaseHeight, 
+                                              fieldName=GEOM_FIELD,
+                                              isSpatial=True)))
 
     # Get the maximum building height
     cursor.execute("""
@@ -1816,9 +2047,9 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
                        
     # Identify the third dimension of points intersecting buildings and save it...
     cursor.execute("""
-           CREATE INDEX IF NOT EXISTS id_{5}_{4} ON {4} USING BTREE({5});    
-           CREATE INDEX IF NOT EXISTS id_{6}_{3} ON {3} USING BTREE({6});   
-           CREATE INDEX IF NOT EXISTS id_{7}_{3} ON {3} USING BTREE({7});
+           {9};
+           {10};
+           {11};
            CALL CSVWRITE('{0}',
                          ' SELECT a.{1}, a.{8}, b.{2}
                            FROM {3} AS a, {4} AS b
@@ -1829,7 +2060,16 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
                        ID_POINT_Z                           , tempoBuildPointsTable,
                        tempoLevelHeightPointTable           , Z,
                        HEIGHT_FIELD                         , BASE_HEIGHT_FIELD,
-                       ID_POINT_Y))
+                       ID_POINT_Y,
+                      DataUtil.createIndex(tableName=tempoBuildPointsTable, 
+                                            fieldName=HEIGHT_FIELD,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoBuildPointsTable, 
+                                            fieldName=BASE_HEIGHT_FIELD,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoLevelHeightPointTable, 
+                                            fieldName=Z,
+                                            isSpatial=False)))
     
     # ...in order to load it back into Python
     df_gridBuil = pd.read_csv(os.path.join(tempoDirectory,
