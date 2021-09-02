@@ -13,7 +13,7 @@ import math
 import numpy as np
 import os
 
-def createGrid(cursor, dicOfInputTables, 
+def createGrid(cursor, dicOfInputTables,  srid,
                alongWindZoneExtend = ALONG_WIND_ZONE_EXTEND, 
                crossWindZoneExtend = CROSS_WIND_ZONE_EXTEND, 
                meshSize = MESH_SIZE,
@@ -31,6 +31,8 @@ def createGrid(cursor, dicOfInputTables,
             dicOfInputTables: dictionary of String
                 Dictionary of String with table names as values. The grid limits
                 will be based on the enveloppe of this set of geometries
+            srid: int
+                SRID of the building data (useful for grid creation)
             alongWindZoneExtend: float, default ALONG_WIND_ZONE_EXTEND
                 Distance (in meter) of the extend of the zone around the
                 rotated obstacles in the along-wind direction
@@ -56,14 +58,15 @@ def createGrid(cursor, dicOfInputTables,
     gridTable = DataUtil.prefix(outputBaseName, prefix = prefix)
     
     # Gather all tables in one
-    gatherQuery = ["""SELECT {0} FROM {1}""".format( GEOM_FIELD, dicOfInputTables[t])
+    gatherQuery = ["""SELECT {0} AS {0} FROM {1}""".format( GEOM_FIELD, 
+                                                                            dicOfInputTables[t])
                      for t in dicOfInputTables.keys()]
     
     # Calculate the extend of the envelope of all geometries
     finalQuery = """
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
-            AS SELECT   {1},
+            AS SELECT   ST_SETSRID({1}, {9}) AS {1},
                         ID AS {6},
                         ID_COL AS {7},
                         ID_ROW AS {8},
@@ -80,7 +83,8 @@ def createGrid(cursor, dicOfInputTables,
                                                    " UNION ALL ".join(gatherQuery),
                                                    ID_POINT,
                                                    ID_POINT_X,
-                                                   ID_POINT_Y)
+                                                   ID_POINT_Y,
+                                                   srid)
     cursor.execute(finalQuery)
     
     return gridTable

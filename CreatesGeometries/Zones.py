@@ -9,7 +9,7 @@ import DataUtil as DataUtil
 import pandas as pd
 from GlobalVariables import *
 
-def displacementZones(cursor, upwindTable, zonePropertiesTable,
+def displacementZones(cursor, upwindTable, zonePropertiesTable, srid,
                       prefix = PREFIX_NAME):
     """ Creates the displacement zone and the displacement vortex zone
     for each of the building upwind facade based on Kaplan et Dinar (1996)
@@ -41,6 +41,8 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable,
             zonePropertiesTable: String
                 Name of the table containing obstacle zone properties
                 (and also the ID of each stacked obstacle)
+            srid: int
+                SRID of the building data (useful for zone calculation)
             prefix: String, default PREFIX_NAME
                 Prefix to add to the output table name
             
@@ -82,13 +84,14 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable,
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
             AS SELECT   {1},
-                        {2},
+                        ST_SETSRID({2}, {14}) AS {2},
                         {3},
                         {4},
                         {8}
-            FROM ST_EXPLODE('(SELECT ST_SPLIT(ST_SNAP(ST_ROTATE(ST_MAKEELLIPSE(ST_CENTROID(a.{2}),
-                                                                                ST_LENGTH(a.{2}),
-                                                                                2*b.{5}*SIN(a.{4})*SIN(a.{4})),
+            FROM ST_EXPLODE('(SELECT ST_SPLIT(ST_SNAP(ST_ROTATE(ST_SETSRID(ST_MAKEELLIPSE(ST_CENTROID(a.{2}),
+                                                                                            ST_LENGTH(a.{2}),
+                                                                                            2*b.{5}*SIN(a.{4})*SIN(a.{4})),
+                                                                            {14}),
                                                                 0.5*PI()-a.{4}),
                                                      a.{2},
                                                      {10}),
@@ -122,13 +125,14 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable,
                                             isSpatial=False),
                        DataUtil.createIndex(tableName=zonePropertiesTable, 
                                             fieldName=ID_FIELD_STACKED_BLOCK,
-                                            isSpatial=False))
+                                            isSpatial=False),
+                       srid)
                  for zone in partOfQueryThatDiffer.index]
     cursor.execute(";".join(query))
     
     return displacementZonesTable, displacementVortexZonesTable
 
-def cavityAndWakeZones(cursor, zonePropertiesTable,
+def cavityAndWakeZones(cursor, zonePropertiesTable, srid,
                        prefix = PREFIX_NAME):
     """ Creates the cavity and wake zones for each of the stacked building
     based on Kaplan et Dinar (1996) for the equations of the ellipsoid 
@@ -159,6 +163,8 @@ def cavityAndWakeZones(cursor, zonePropertiesTable,
                 A cursor object, used to perform spatial SQL queries
             zonePropertiesTable: String
                 Name of the table stacked obstacle geometries and zone properties
+            srid: int
+                SRID of the building data (useful for zone calculation)
             prefix: String, default PREFIX_NAME
                 Prefix to add to the output table name
             
@@ -185,13 +191,14 @@ def cavityAndWakeZones(cursor, zonePropertiesTable,
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
             AS SELECT   {1},
-                        {2},
+                        ST_SETSRID({2}, {7}) AS {2},
                         {3}
-            FROM ST_EXPLODE('(SELECT ST_SPLIT(ST_SNAP(ST_UNION(ST_MAKEELLIPSE(ST_MAKEPOINT((ST_XMIN(ST_ENVELOPE({2}))+
-                                                                                            ST_XMAX(ST_ENVELOPE({2})))/2,
-                                                                                            ST_YMIN(ST_ENVELOPE({2}))),
-                                                                                ST_XMAX(ST_ENVELOPE({2}))-ST_XMIN(ST_ENVELOPE({2})),
-                                                                                2*{4}),
+            FROM ST_EXPLODE('(SELECT ST_SPLIT(ST_SNAP(ST_UNION(ST_SETSRID(ST_MAKEELLIPSE(ST_MAKEPOINT((ST_XMIN(ST_ENVELOPE({2}))+
+                                                                                                        ST_XMAX(ST_ENVELOPE({2})))/2,
+                                                                                                        ST_YMIN(ST_ENVELOPE({2}))),
+                                                                                        ST_XMAX(ST_ENVELOPE({2}))-ST_XMIN(ST_ENVELOPE({2})),
+                                                                                        2*{4}),
+                                                                             {7}),
                                                                  ST_ENVELOPE({2})),
                                                      ST_ENVELOPE({2}),
                                                      {6}),
@@ -204,7 +211,7 @@ def cavityAndWakeZones(cursor, zonePropertiesTable,
            """.format(cavityZonesTable                  , ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD                       , HEIGHT_FIELD,
                        CAVITY_LENGTH_FIELD              , zonePropertiesTable,
-                       SNAPPING_TOLERANCE)
+                       SNAPPING_TOLERANCE               , srid)
     cursor.execute(queryCavity)
     
     # Queries for the wake zones
@@ -212,13 +219,14 @@ def cavityAndWakeZones(cursor, zonePropertiesTable,
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
             AS SELECT   {1},
-                        {2},
+                        ST_SETSRID({2}, {7}) AS {2},
                         {3}
-            FROM ST_EXPLODE('(SELECT ST_SPLIT(ST_SNAP(ST_UNION(ST_MAKEELLIPSE(ST_MAKEPOINT((ST_XMIN(ST_ENVELOPE({2}))+
-                                                                                            ST_XMAX(ST_ENVELOPE({2})))/2,
-                                                                                            ST_YMIN(ST_ENVELOPE({2}))),
-                                                                                ST_XMAX(ST_ENVELOPE({2}))-ST_XMIN(ST_ENVELOPE({2})),
-                                                                                2*{4}),
+            FROM ST_EXPLODE('(SELECT ST_SPLIT(ST_SNAP(ST_UNION(ST_SETSRID(ST_MAKEELLIPSE(ST_MAKEPOINT((ST_XMIN(ST_ENVELOPE({2}))+
+                                                                                                    ST_XMAX(ST_ENVELOPE({2})))/2,
+                                                                                                    ST_YMIN(ST_ENVELOPE({2}))),
+                                                                                        ST_XMAX(ST_ENVELOPE({2}))-ST_XMIN(ST_ENVELOPE({2})),
+                                                                                        2*{4}),
+                                                                            {7}),
                                                                  ST_ENVELOPE({2})),
                                                      ST_ENVELOPE({2}),
                                                      {6}),
@@ -227,17 +235,16 @@ def cavityAndWakeZones(cursor, zonePropertiesTable,
                                      {3}
                              FROM {5})')
              WHERE EXPLOD_ID = 1
-                     
-           """.format(wakeZonesTable            , ID_FIELD_STACKED_BLOCK,
+           """.format(wakeZonesTable                    , ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD                       , HEIGHT_FIELD,
                        WAKE_LENGTH_FIELD                , zonePropertiesTable,
-                       SNAPPING_TOLERANCE)
+                       SNAPPING_TOLERANCE               , srid)
     cursor.execute(queryWake)    
     
     return cavityZonesTable, wakeZonesTable
 
 def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable,
-                      prefix = PREFIX_NAME):
+                      srid, prefix = PREFIX_NAME):
     """ Creates the street canyon zones for each of the stacked building
     based on Nelson et al. (2008) Figure 8b. The method is slightly different
     since we use the cavity zone instead of the Lr buffer.
@@ -262,6 +269,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
             upwindTable: String
                 Name of the table containing upwind segment geometries
                 (and also the ID of each stacked obstacle)
+            srid: int
+                SRID of the building data (useful for zone calculation)
             prefix: String, default PREFIX_NAME
                 Prefix to add to the output table name
             
@@ -322,14 +331,15 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         b.{6} AS {8},
                         a.{11},
                         a.{12},
-                        ST_MAKEPOLYGON(ST_MAKELINE(ST_STARTPOINT(a.{4}),
+                        ST_SETSRID(ST_MAKEPOLYGON(ST_MAKELINE(ST_STARTPOINT(a.{4}),
                     								ST_STARTPOINT(ST_TRANSLATE( a.{4}, 
                                                                             0, 
                                                                             ST_YMAX(b.{4})-ST_YMIN(b.{4})+b.{5})),
                     								ST_ENDPOINT(ST_TRANSLATE(   a.{4},
                                                                             0, 
                                                                             ST_YMAX(b.{4})-ST_YMIN(b.{4})+b.{5})),
-                    								ST_TOMULTIPOINT(ST_REVERSE(a.{4})))) AS THE_GEOM,
+                    								ST_TOMULTIPOINT(ST_REVERSE(a.{4})))),
+                                   {16}) AS THE_GEOM,
                         a.{13}
             FROM {0} AS a LEFT JOIN {2} AS b ON a.{1} = b.{10}
             WHERE NOT ST_ISEMPTY(a.{4})
@@ -345,7 +355,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                                             isSpatial=False),
                        DataUtil.createIndex(tableName=zonePropertiesTable, 
                                             fieldName=ID_FIELD_STACKED_BLOCK,
-                                            isSpatial=False))
+                                            isSpatial=False),
+                       srid)
     cursor.execute(canyonExtendQuery)
     
     # Creates street canyon zones
@@ -364,7 +375,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
             AS SELECT   NULL AS {13},
                         {1},
                         {8},
-                        {3},
+                        ST_SETSRID({3}, {16}) AS {3},
                         {4},
                         {5},
                         {11},
@@ -391,7 +402,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        BASE_HEIGHT_FIELD                , ID_FIELD_CANYON,
                        UPWIND_FACADE_FIELD              , DataUtil.createIndex( tableName=canyonExtendTable, 
                                                                                 fieldName=ID_UPSTREAM_STACKED_BLOCK,
-                                                                                isSpatial=False))
+                                                                                isSpatial=False),
+                       srid)
     cursor.execute(streetCanyonQuery)
     
     if not DEBUG:

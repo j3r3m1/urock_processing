@@ -13,7 +13,7 @@ def loadData(inputGeometries                , prefix,
              idFieldBuild                   , buildingHeightField,
              vegetationBaseHeight           , vegetationTopHeight,
              idVegetation                   , vegetationAttenuationFactor,
-             cursor):
+             cursor                         , inputDirectory = INPUT_DIRECTORY):
     """ Load the input files into the database (could be converted if from CAD)
     
 		Parameters
@@ -42,14 +42,15 @@ def loadData(inputGeometries                , prefix,
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 
-            None"""
+            srid: int
+                SRID of the building data (useful for future calculation)"""
     print("Load input data")
     inputDataRel = {}
     inputDataAbs = {}
     # Check if the input comes from CAD file
     if inputGeometries["cadTriangles"]:
         # IMPORT TRIANGLES AND CONVERT TO BUILDINGS AND VEGETATION GEOMETRIES
-        inputDataRel["cadTriangles"] = os.path.join(INPUT_DIRECTORY, prefix, 
+        inputDataRel["cadTriangles"] = os.path.join(inputDirectory, prefix, 
                                                     inputGeometries["cadTriangles"])
         inputDataAbs["cadTriangles"] = os.path.abspath(inputDataRel["cadTriangles"])        
         
@@ -59,7 +60,7 @@ def loadData(inputGeometries                , prefix,
                  tableName = CAD_TRIANGLE_NAME)
         
         if inputGeometries["cadTreesIntersection"]:
-            inputDataRel["cadTreesIntersection"] = os.path.join(INPUT_DIRECTORY, prefix, 
+            inputDataRel["cadTreesIntersection"] = os.path.join(inputDirectory, prefix, 
                                                                 inputGeometries["cadTreesIntersection"])
             inputDataAbs["cadTreesIntersection"] = os.path.abspath(inputDataRel["cadTreesIntersection"])        
             
@@ -88,7 +89,7 @@ def loadData(inputGeometries                , prefix,
         
     else:
         # 1. IMPORT BUILDING GEOMETRIES
-        inputDataRel["buildings"] = os.path.join(INPUT_DIRECTORY, prefix, 
+        inputDataRel["buildings"] = os.path.join(inputDirectory, prefix, 
                                                  inputGeometries["buildingFileName"])
         inputDataAbs["buildings"] = os.path.abspath(inputDataRel["buildings"])
         
@@ -107,7 +108,7 @@ def loadData(inputGeometries                , prefix,
         
         # 2. IMPORT VEGETATION GEOMETRIES
         if inputGeometries["vegetationFileName"]:
-            inputDataRel["vegetation"] = os.path.join(INPUT_DIRECTORY, prefix, 
+            inputDataRel["vegetation"] = os.path.join(inputDirectory, prefix, 
                                                       inputGeometries["vegetationFileName"])
             inputDataAbs["vegetation"] = os.path.abspath(inputDataRel["vegetation"])
 
@@ -138,6 +139,13 @@ def loadData(inputGeometries                , prefix,
                                         ID_VEGETATION,
                                         VEGETATION_ATTENUATION_FACTOR)
         cursor.execute(importQuery)
+    
+    cursor.execute("""
+           SELECT ST_SRID({0}) AS SRID FROM {1} LIMIT 1
+           """.format(GEOM_FIELD                , BUILDING_TABLE_NAME))
+    srid = cursor.fetchall()[0][0]
+    
+    return srid
     
 def loadFile(cursor, filePath, tableName):
     """ Load a file in the database according to its extension

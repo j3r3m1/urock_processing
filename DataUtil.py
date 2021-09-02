@@ -169,7 +169,13 @@ def saveTable(cursor, tableName, filedir, delete):
     # Delete files
     if delete and os.path.isfile(filedir):
         os.remove(filedir)
-    
+        if extension.upper() == "SHP":
+            filedirWithoutExt = filedir.split(".")[0]
+            os.remove(filedirWithoutExt+".dbf")
+            os.remove(filedirWithoutExt+".shx")
+            if os.path.isfile(filedir+".prj"):
+                os.remove(filedirWithoutExt+".prj")
+                
     # Write files
     cursor.execute("""CALL {0}('{1}','{2}')""".format(h2_function,
                                                       filedir,

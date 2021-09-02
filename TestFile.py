@@ -16,15 +16,15 @@ from GlobalVariables import *
 # SET INPUT PARAMETERS --------------------------------------------------------------
 # -----------------------------------------------------------------------------------
 # Geographical input data
-caseToRun = "AIJ_CaseE"
+caseToRun = "BigArea"
+inputGeometries = {"buildingFileName" : "buildings.shp",
+                    "vegetationFileName" : "vegetation.shp",
+                    "cadTriangles" : "",
+                    "cadTreesIntersection" : ""}
 # inputGeometries = {"buildingFileName" : "buildingSelection.shp",
 #                     "vegetationFileName" : "",
-#                     "cadTriangles" : "",
-#                     "cadTreesIntersection" : ""}
-inputGeometries = {"buildingFileName" : "buildingSelection.shp",
-                    "vegetationFileName" : "",
-                    "cadTriangles" : "AllTriangles.shp",
-                    "cadTreesIntersection" : "treesIntersection.shp"}
+#                     "cadTriangles" : "AllTriangles.shp",
+#                     "cadTreesIntersection" : "treesIntersection.shp"}
 idFieldBuild = ID_FIELD_BUILD
 buildingHeightField = HEIGHT_FIELD
 
@@ -46,7 +46,7 @@ meshSize = 2
 dz = 2
 
 # Other simulation parameters
-onlyInitialization = False
+onlyInitialization = True
 saveRockleZones = False
 maxIterations = MAX_ITERATIONS
 thresholdIterations = THRESHOLD_ITERATIONS
@@ -57,7 +57,7 @@ plotBoolean = True
 isInitialField = False
 levelList = [2, 21]
 
-isStream = True
+isStream = False
 streamDensity = 4
 
 headwidth = 3
@@ -72,7 +72,7 @@ zRange = [0, 40]
 # -----------------------------------------------------------------------------------
 # MAIN CALCULATIONS -----------------------------------------------------------------
 # -----------------------------------------------------------------------------------
-u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName = \
+u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName, rotationCenterCoordinates = \
     MainCalculation.main(   z_ref = z_ref,
                             v_ref = v_ref,
                             windDirection = windDirection,

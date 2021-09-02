@@ -25,7 +25,7 @@ DESCENDING_Y = False
 TEMPO_DIRECTORY = tempfile.gettempdir()
 INPUT_DIRECTORY = os.path.join("./Ressources","Inputs")
 OUTPUT_DIRECTORY = os.path.join("./Ressources","Outputs")
-INPUT_GEOMETRIES_FILENAME = {  "buildingFileName" : "buildingSelection.shp",
+INPUT_GEOMETRIES_FILENAME = {  "buildingFileName" : "buildings.shp",
                                "vegetationFileName" : "vegetation.shp",
                                "cadTriangles" : "",
                                "cadTreesIntersection" : ""}

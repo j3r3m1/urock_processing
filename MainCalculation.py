@@ -22,26 +22,27 @@ import os
 # If there is no JAVA variable environment set or neither already one 
 # saved in the URock repository, ask the user to enter one for
 # local use
-if os.path.exists(JAVA_PATH_FILE):
-    javaFilePath = open(JAVA_PATH_FILE, "r")
-    javaPath = javaFilePath.read()
-    javaFilePath.close()
-    javaPathOk = input("""Your current JAVA path is: \n{0}\n
-                       Please type 'change' if you want to change the path.
-                       Otherwise, type enter
-                       """.format(javaPath))
-    if javaPathOk.lower()=="change":
+if os.path.exists(JAVA_PATH_FILE) or not os.environ.get("JAVA_HOME"):
+    if os.path.exists(JAVA_PATH_FILE):
+        javaFilePath = open(JAVA_PATH_FILE, "r")
+        javaPath = javaFilePath.read()
+        javaFilePath.close()
+        javaPathOk = input("""Your current JAVA path is: \n{0}\n
+                           Please type 'change' if you want to change the path.
+                           Otherwise, type enter
+                           """.format(javaPath))
+        if javaPathOk.lower()=="change":
+            javaPath = input("Please enter your JAVA path: ")
+            os.remove(JAVA_PATH_FILE)
+            javaFilePath = open(JAVA_PATH_FILE, "w")
+            javaFilePath.write(javaPath)
+            javaFilePath.close()
+    elif not os.environ.get("JAVA_HOME"):
         javaPath = input("Please enter your JAVA path: ")
-        os.remove(JAVA_PATH_FILE)
         javaFilePath = open(JAVA_PATH_FILE, "w")
         javaFilePath.write(javaPath)
         javaFilePath.close()
-elif not os.environ.get("JAVA_HOME"):
-    javaPath = input("Please enter your JAVA path: ")
-    javaFilePath = open(JAVA_PATH_FILE, "w")
-    javaFilePath.write(javaPath)
-    javaFilePath.close()
-os.environ.setdefault("JAVA_HOME", javaPath)
+    os.environ.setdefault("JAVA_HOME", javaPath)
 
 def main(z_ref = Z_REF,
          v_ref = V_REF,
@@ -53,6 +54,8 @@ def main(z_ref = Z_REF,
          crossWindZoneExtend = CROSS_WIND_ZONE_EXTEND,
          verticalExtend = VERTICAL_EXTEND,
          tempoDirectory = TEMPO_DIRECTORY,
+         inputDirectory = INPUT_DIRECTORY,
+         outputDirectory = OUTPUT_DIRECTORY,
          inputGeometries = INPUT_GEOMETRIES_FILENAME,
          onlyInitialization = ONLY_INITIALIZATION,
          maxIterations = MAX_ITERATIONS,
@@ -71,31 +74,31 @@ def main(z_ref = Z_REF,
     outputDataRel = {}
 
     # Blocks and stacked blocks
-    outputDataRel["blocks"] = os.path.join(OUTPUT_DIRECTORY, "blocks.geojson")
-    outputDataRel["stacked_blocks"] = os.path.join(OUTPUT_DIRECTORY, "stackedBlocks.geojson")
+    outputDataRel["blocks"] = os.path.join(outputDirectory, "blocks.geojson")
+    outputDataRel["stacked_blocks"] = os.path.join(outputDirectory, "stackedBlocks.geojson")
 
     # Rotated geometries
-    outputDataRel["rotated_stacked_blocks"] = os.path.join(OUTPUT_DIRECTORY, "rotated_stacked_blocks.geojson")
-    outputDataRel["rotated_vegetation"] = os.path.join(OUTPUT_DIRECTORY, "vegetationRotated.geojson")
-    outputDataRel["facades"] = os.path.join(OUTPUT_DIRECTORY, "facades.geojson")
+    outputDataRel["rotated_stacked_blocks"] = os.path.join(outputDirectory, "rotated_stacked_blocks.geojson")
+    outputDataRel["rotated_vegetation"] = os.path.join(outputDirectory, "vegetationRotated.geojson")
+    outputDataRel["facades"] = os.path.join(outputDirectory, "facades.geojson")
     
     # Created zones
-    outputDataRel["displacement"] = os.path.join(OUTPUT_DIRECTORY, "displacementZones.geojson")
-    outputDataRel["displacement_vortex"] = os.path.join(OUTPUT_DIRECTORY, "displacementVortexZones.geojson")
-    outputDataRel["cavity"] = os.path.join(OUTPUT_DIRECTORY, "cavity.geojson")
-    outputDataRel["wake"] = os.path.join(OUTPUT_DIRECTORY, "wake.geojson")
-    outputDataRel["street_canyon"] = os.path.join(OUTPUT_DIRECTORY, "streetCanyon.geojson")
-    outputDataRel["rooftop_perpendicular"] = os.path.join(OUTPUT_DIRECTORY, "rooftopPerp.geojson")
-    outputDataRel["rooftop_corner"] = os.path.join(OUTPUT_DIRECTORY, "rooftopCorner.geojson")
-    outputDataRel["vegetation_built"] = os.path.join(OUTPUT_DIRECTORY, "vegetationBuilt.geojson")
-    outputDataRel["vegetation_open"] = os.path.join(OUTPUT_DIRECTORY, "vegetationOpen.geojson")
+    outputDataRel["displacement"] = os.path.join(outputDirectory, "displacementZones.geojson")
+    outputDataRel["displacement_vortex"] = os.path.join(outputDirectory, "displacementVortexZones.geojson")
+    outputDataRel["cavity"] = os.path.join(outputDirectory, "cavity.geojson")
+    outputDataRel["wake"] = os.path.join(outputDirectory, "wake.geojson")
+    outputDataRel["street_canyon"] = os.path.join(outputDirectory, "streetCanyon.geojson")
+    outputDataRel["rooftop_perpendicular"] = os.path.join(outputDirectory, "rooftopPerp.geojson")
+    outputDataRel["rooftop_corner"] = os.path.join(outputDirectory, "rooftopCorner.geojson")
+    outputDataRel["vegetation_built"] = os.path.join(outputDirectory, "vegetationBuilt.geojson")
+    outputDataRel["vegetation_open"] = os.path.join(outputDirectory, "vegetationOpen.geojson")
     
     # Grid points
-    outputDataRel["point_BuildZone"] = os.path.join(OUTPUT_DIRECTORY, "point_BuildZone")
-    outputDataRel["point3D_BuildZone"] = os.path.join(OUTPUT_DIRECTORY, "point3D_BuildZone")
-    outputDataRel["point_VegZone"] = os.path.join(OUTPUT_DIRECTORY, "point_VegZone")
-    outputDataRel["point3D_VegZone"] = os.path.join(OUTPUT_DIRECTORY, "point3D_VegZone")
-    outputDataRel["point3D_All"] = os.path.join(OUTPUT_DIRECTORY, "point3D_All")
+    outputDataRel["point_BuildZone"] = os.path.join(outputDirectory, "point_BuildZone")
+    outputDataRel["point3D_BuildZone"] = os.path.join(outputDirectory, "point3D_BuildZone")
+    outputDataRel["point_VegZone"] = os.path.join(outputDirectory, "point_VegZone")
+    outputDataRel["point3D_VegZone"] = os.path.join(outputDirectory, "point3D_VegZone")
+    outputDataRel["point3D_All"] = os.path.join(outputDirectory, "point3D_All")
     
     # Convert relative to absolute paths
     outputDataAbs = {i : os.path.abspath(outputDataRel[i]) for i in outputDataRel}
@@ -112,15 +115,16 @@ def main(z_ref = Z_REF,
                                                 dbInstanceDir = tempoDirectory)
     
     # Load data
-    loadData.loadData(inputGeometries = inputGeometries, 
-                      prefix = prefix,
-                      idFieldBuild = idFieldBuild,
-                      buildingHeightField = buildingHeightField,
-                      vegetationBaseHeight = vegetationBaseHeight,
-                      vegetationTopHeight = vegetationTopHeight,
-                      idVegetation = idVegetation,
-                      vegetationAttenuationFactor = vegetationAttenuationFactor,
-                      cursor = cursor)
+    srid = loadData.loadData(inputGeometries = inputGeometries, 
+                              prefix = prefix,
+                              idFieldBuild = idFieldBuild,
+                              buildingHeightField = buildingHeightField,
+                              vegetationBaseHeight = vegetationBaseHeight,
+                              vegetationTopHeight = vegetationTopHeight,
+                              idVegetation = idVegetation,
+                              vegetationAttenuationFactor = vegetationAttenuationFactor,
+                              cursor = cursor,
+                              inputDirectory = inputDirectory)
     
     timeStartCalculation = time.time()
     
@@ -214,6 +218,7 @@ def main(z_ref = Z_REF,
         CreatesGeometries.Zones.displacementZones(cursor = cursor,
                                                   upwindTable = upwindTable,
                                                   zonePropertiesTable = zonePropertiesTable,
+                                                  srid = srid,
                                                   prefix = prefix)
     
     
@@ -228,6 +233,7 @@ def main(z_ref = Z_REF,
     cavityZonesTable, wakeZonesTable = \
         CreatesGeometries.Zones.cavityAndWakeZones(cursor = cursor, 
                                                    zonePropertiesTable = zonePropertiesTable,
+                                                   srid = srid,
                                                    prefix = prefix)
     
     # Save the resulting displacement zones as geojson
@@ -244,6 +250,7 @@ def main(z_ref = Z_REF,
                                                   cavityZonesTable = cavityZonesTable,
                                                   zonePropertiesTable = zonePropertiesTable,
                                                   upwindTable = upwindTable,
+                                                  srid = srid,
                                                   prefix = prefix)
     
     # Save the resulting street canyon zones as geojson
@@ -294,6 +301,7 @@ def main(z_ref = Z_REF,
     # Creates the grid of points
     gridPoint = InitWindField.createGrid(cursor = cursor, 
                                          dicOfInputTables = dict(dicOfBuildRockleZoneTable,**dicOfVegRockleZoneTable),
+                                         srid = srid,
                                          alongWindZoneExtend = alongWindZoneExtend, 
                                          crossWindZoneExtend = crossWindZoneExtend, 
                                          meshSize = meshSize,
@@ -554,4 +562,4 @@ def main(z_ref = Z_REF,
         v = v0
         w = w0
     
-    return u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridPoint
+    return u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridPoint, rotationCenterCoordinates
