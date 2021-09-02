@@ -166,12 +166,13 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
     # Create stacked blocks according to building blocks and height
     listOfSqlQueries = [
         """ SELECT NULL, {2}, ST_NORMALIZE({0}) AS {0} , {4}
-            FROM ST_EXPLODE('(SELECT ST_SNAP(ST_SIMPLIFY(ST_UNION(ST_ACCUM(ST_BUFFER(a.{0},
+            FROM ST_EXPLODE('(SELECT ST_MAKEVALID(ST_SNAP(ST_SIMPLIFY(ST_UNION(ST_ACCUM(ST_BUFFER(a.{0},
                                                                                     {6},
                                                                                     ''join=mitre''))),
-                                                        {5}),
-                                             a.GEOM_BLOCK,
-                                             {6}) AS {0},
+                                                                    {5}),
+                                                         a.GEOM_BLOCK,
+                                                         {6})
+                                                    ) AS {0},
                                     a.{2} AS {2}
                             FROM {3} AS a RIGHT JOIN (SELECT {2} 
                                                       FROM {3}

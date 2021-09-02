@@ -1019,9 +1019,18 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                              ID_POINT),
             WAKE_NAME       : """
                  b.{0},
-                 1-a.{1}*POWER(1-POWER(b.{2}/a.{3},2),1.5) AS {4},
-                 1-a.{1}*POWER(1-POWER(b.{2}/a.{3},2),1.5) AS {6},
-                 1-a.{1}*POWER(1-POWER(b.{2}/a.{3},2),1.5) AS {7},
+                 CASE WHEN   {1} <= 1
+                             THEN 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)
+                             ELSE 0
+                             END AS {4},
+                 CASE WHEN   {1} <= 1
+                             THEN 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)
+                             ELSE 0
+                             END AS {6},
+                 CASE WHEN   {1} <= 1
+                             THEN 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)
+                             ELSE 0
+                             END AS {7},
                  a.{5},
                  a.{3}
                  """.format( ID_POINT_Z,
@@ -1361,6 +1370,7 @@ def manageSuperimposition(cursor,
                                                  prefix = prefix)
         
     # Temporary tables (and prefix for temporary tables)
+    tempoPrioritiesAll = DataUtil.postfix("TEMPO_PRIORITY_ALL")
     tempoPrioritiesWeighted = DataUtil.postfix("TEMPO_PRIORITY_WEIGHTED")
     tempoPrioritiesWeightedAll = DataUtil.postfix("TEMPO_PRIORITY_WEIGHTED_ALL")
     tempoUpstreamAndDownstream = DataUtil.postfix("TEMPO_UPSTREAM_AND_DOWNSTREAM")
@@ -1373,12 +1383,61 @@ def manageSuperimposition(cursor,
                            prefix = "TEMPO_WEIGHTING")
     
     # Identify the points to keep for duplicates in upstream priorities
+    # (except zones being in weighting)
     upstreamPrioritiesTempoTable = \
         identifyUpstreamer(cursor = cursor,
                            dicAllWeightFactorsTables = dicAllWeightFactorsTables,
-                           tablesToConsider = upstreamPriorityTables,
+                           tablesToConsider = upstreamPriorityTables\
+                                               .reindex(upstreamPriorityTables.index\
+                                                            .difference(pd.Index(upstreamWeightingTables))),
                            prefix = "TEMPO_PRIORITIES")
-    
+        
+    # Identify the points to keep for duplicates in upstream priorities
+    # (only zones being in weighting - ie the most downstream wake zones...)
+    upstreamPrioritiesWeightTempoTable = \
+        identifyUpstreamer(cursor = cursor,
+                           dicAllWeightFactorsTables = dicAllWeightFactorsTables,
+                           tablesToConsider = upstreamWeightingTables,
+                           prefix = "TEMPO_PRIORITIES_WEIGHT",
+                           upstream = False)
+
+    # Join the points from the priority table to the downstreamest points of the
+    # weighting table
+    cursor.execute("""
+          {12};
+          {13};
+          {14};
+          {15};
+          DROP TABLE IF EXISTS {10};
+          CREATE TABLE {10}
+              AS SELECT   {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}
+              FROM        {1}
+              UNION ALL   
+              SELECT    a.{2}, a.{3}, a.{5}, a.{4}, NULL AS {6}, a.{7},
+                          NULL AS {8},
+                          {11} AS {9}
+              FROM     {0} AS a LEFT JOIN {1} AS b
+                       ON a.{2} = b.{2} AND a.{3} = b.{3}
+              WHERE    b.{2} IS NULL AND b.{3} IS NULL
+          """.format( upstreamPrioritiesWeightTempoTable    , upstreamPrioritiesTempoTable,
+                      ID_POINT                              , ID_POINT_Z,
+                      HEIGHT_FIELD                          , Y_WALL, 
+                      U                                     , V,
+                      W                                     , REF_HEIGHT_FIELD, 
+                      tempoPrioritiesAll                    , REF_HEIGHT_UPSTREAM_WEIGHTING,
+                      DataUtil.createIndex(tableName=upstreamPrioritiesWeightTempoTable, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamPrioritiesWeightTempoTable, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False)))
+
     # Weight the wind speeds factors of the upstream priorities when the
     # weighting factors comes from more upstream and a higher position
     cursor.execute("""
@@ -1392,14 +1451,14 @@ def manageSuperimposition(cursor,
           {19};
           DROP TABLE IF EXISTS {10};
           CREATE TABLE {10}
-              AS SELECT   a.{2}, a.{3}, a.{4}, COALESCE(a.{6}*b.{6}, a.{6}) AS {6},
-                          COALESCE(a.{7}*b.{7}, 0) AS {7},
+              AS SELECT   a.{2}, a.{3}, a.{4}, COALESCE(a.{6}*b.{6}, 0) AS {6},
+                          COALESCE(a.{7}*b.{7}, a.{7}) AS {7},
                           COALESCE(a.{8}*b.{8}, 0) AS {8},
                           COALESCE(b.{9}, {11}) AS {9}
               FROM     {0} AS a LEFT JOIN {1} AS b
                        ON a.{2} = b.{2} AND a.{3} = b.{3}
-              WHERE    a.{5} > b.{5} OR a.{5} = b.{5} AND a.{6} > b.{6}
-          """.format( upstreamWeightingTempoTable    , upstreamPrioritiesTempoTable,
+              WHERE    a.{5} > b.{5} OR (a.{5} = b.{5} AND a.{4} > b.{4})
+          """.format( upstreamWeightingTempoTable    , tempoPrioritiesAll,
                       ID_POINT                       , ID_POINT_Z,
                       HEIGHT_FIELD                   , Y_WALL, 
                       U                              , V,
@@ -1417,16 +1476,16 @@ def manageSuperimposition(cursor,
                       DataUtil.createIndex(tableName=upstreamWeightingTempoTable, 
                                             fieldName=Y_WALL,
                                             isSpatial=False),
-                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                      DataUtil.createIndex(tableName=tempoPrioritiesAll, 
                                             fieldName=ID_POINT,
                                             isSpatial=False),
-                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                      DataUtil.createIndex(tableName=tempoPrioritiesAll, 
                                             fieldName=ID_POINT_Z,
                                             isSpatial=False),
-                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                      DataUtil.createIndex(tableName=tempoPrioritiesAll, 
                                             fieldName=HEIGHT_FIELD,
                                             isSpatial=False),
-                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                      DataUtil.createIndex(tableName=tempoPrioritiesAll, 
                                             fieldName=Y_WALL,
                                             isSpatial=False)))
     
@@ -1539,7 +1598,9 @@ def manageSuperimposition(cursor,
                                            upstreamPrioritiesTempoTable,
                                            tempoUpstreamAndDownstream,
                                            tempoPrioritiesWeighted,
-                                           tempoPrioritiesWeightedAll])))
+                                           tempoPrioritiesWeightedAll,
+                                           tempoPrioritiesAll,
+                                           upstreamPrioritiesWeightTempoTable])))
     
     return initializedWindFactorTable
 
@@ -1547,13 +1608,18 @@ def manageSuperimposition(cursor,
 def identifyUpstreamer( cursor,
                         dicAllWeightFactorsTables, 
                         tablesToConsider,
-                        prefix = PREFIX_NAME):
+                        prefix = PREFIX_NAME,
+                        upstream = True):
     """ If a point is covered by several zones, keep the value only from
         a single zone based on the following priorities:
             1. the most upstream zone (if equal, use the next priority)
             2. the upper obstacle (if equal, use the next priority)
             3. (optionnally) a zone priority order set in 'tablesToConsider'
-
+        Note that the most downstream zone and lower obstacles (contrary of 
+                                                               conditions 1
+                                                               and 2)
+        may be conserved if upstream is set to False.
+        
 		Parameters
 		_ _ _ _ _ _ _ _ _ _ 
 
@@ -1575,6 +1641,9 @@ def identifyUpstreamer( cursor,
                 -> 3: "building height"
         prefix: String, default PREFIX_NAME
             Prefix to add to the output table name
+        upstream: Boolean, default True
+            If False, the downstreamest zone coming from the lowest obstacles 
+            are used for calculation
         
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -1604,6 +1673,7 @@ def identifyUpstreamer( cursor,
     
     # Set columns to keep in the final table
     selectQueryDownstream = {}
+    considerPrioritiesQuery = ""
     
     for t in listOfTables:
         selectQueryDownstream[t] = """
@@ -1623,6 +1693,10 @@ def identifyUpstreamer( cursor,
                             REF_HEIGHT_FIELD,
                             PRIORITY_FIELD)
         
+            # Add the priority field as a decision criteria if two zones have 
+            # the same upstream obstacle
+            considerPrioritiesQuery = ", b.{0} ASC".format(PRIORITY_FIELD)
+                       
         #  Set to null wind speed factor for axis not set by upstream zones
         columns = DataUtil.getColumns(cursor = cursor, tableName = dicAllWeightFactorsTables[t])
         for i in [U, V, W]:
@@ -1646,6 +1720,10 @@ def identifyUpstreamer( cursor,
                        V                                , W, 
                        " UNION ALL ".join(selectQueryDownstream.values())))
     
+    if upstream:
+        order = "DESC"
+    else:
+        order = "ASC"
     # Identify which point should be conserved in the upstream weighting table
     cursor.execute("""
            {7};
@@ -1658,7 +1736,7 @@ def identifyUpstreamer( cursor,
                            (SELECT  b.{1}
                             FROM    {0} AS b
                             WHERE a.{2} = b.{2} AND a.{3} = b.{3}
-                            ORDER BY (b.{5}, b.{4}) DESC LIMIT 1) AS {1}
+                            ORDER BY (b.{5}, b.{4}) {11} {12} LIMIT 1) AS {1}
                FROM        {0} AS a;
            """.format( tempoAllPointsTable                  , ID_3D_POINT, 
                        ID_POINT                             , ID_POINT_Z,
@@ -1675,7 +1753,8 @@ def identifyUpstreamer( cursor,
                                               isSpatial=False),
                         DataUtil.createIndex(tableName=tempoAllPointsTable, 
                                               fieldName=Y_WALL,
-                                              isSpatial=False)))
+                                              isSpatial=False),
+                        order                               , considerPrioritiesQuery))
                              
     # Recover the useful informations from the unique points kept
     cursor.execute("""
@@ -2076,6 +2155,9 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
                                            buildPointsFilename),
                                   header = 0,
                                   index_col = [0, 1, 2])
+    
+    # Remove potential duplicated indexes
+    df_gridBuil = pd.DataFrame(index = df_gridBuil.index.drop_duplicates())
 
     if not DEBUG:
         # Remove intermediate tables

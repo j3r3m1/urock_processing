@@ -554,4 +554,4 @@ def main(z_ref = Z_REF,
         v = v0
         w = w0
     
-    return u, v, w, u0, v0, w0, x, y, z, buildingCoordinates
+    return u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridPoint

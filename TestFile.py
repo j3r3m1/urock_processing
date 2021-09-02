@@ -12,16 +12,15 @@ import matplotlib.pylab as plt
 
 from GlobalVariables import * 
 
-
 # -----------------------------------------------------------------------------------
 # SET INPUT PARAMETERS --------------------------------------------------------------
 # -----------------------------------------------------------------------------------
 # Geographical input data
 caseToRun = "AIJ_CaseE"
 # inputGeometries = {"buildingFileName" : "buildingSelection.shp",
-#                    "vegetationFileName" : "",
-#                    "cadTriangles" : "",
-#                    "cadTreesIntersection" : ""}
+#                     "vegetationFileName" : "",
+#                     "cadTriangles" : "",
+#                     "cadTreesIntersection" : ""}
 inputGeometries = {"buildingFileName" : "buildingSelection.shp",
                     "vegetationFileName" : "",
                     "cadTriangles" : "AllTriangles.shp",
@@ -36,7 +35,7 @@ vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR
 
 # Meteorological input data
 v_ref = 2
-windDirection = 22.5
+windDirection = 20
 z_ref = 10
 
 # Meshing properties
@@ -47,7 +46,7 @@ meshSize = 2
 dz = 2
 
 # Other simulation parameters
-onlyInitialization = True
+onlyInitialization = False
 saveRockleZones = False
 maxIterations = MAX_ITERATIONS
 thresholdIterations = THRESHOLD_ITERATIONS
@@ -55,11 +54,11 @@ tempoDirectory = TEMPO_DIRECTORY
 
 # Plotting options
 plotBoolean = True
-isInitialField = True
+isInitialField = False
 levelList = [2, 21]
 
-isStream = False
-streamDensity = 3
+isStream = True
+streamDensity = 4
 
 headwidth = 3
 headlength = 1.5
@@ -73,7 +72,7 @@ zRange = [0, 40]
 # -----------------------------------------------------------------------------------
 # MAIN CALCULATIONS -----------------------------------------------------------------
 # -----------------------------------------------------------------------------------
-u, v, w, u0, v0, w0, x, y, z, buildingCoordinates = \
+u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName = \
     MainCalculation.main(   z_ref = z_ref,
                             v_ref = v_ref,
                             windDirection = windDirection,

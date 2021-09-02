@@ -549,7 +549,7 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable,
                         a.{2},
                         a.{4},
                         {7}
-                        ST_INTERSECTION(a.{3}, ST_PRECISIONREDUCER(b.{3},3)) AS {3}
+                        ST_INTERSECTION(a.{3}, b.{3}) AS {3}
             FROM {5} AS a LEFT JOIN {6} AS b ON a.{1} = b.{1}
             WHERE a.{3} && b.{3} AND ST_INTERSECTS(a.{3}, b.{3})
            """.format( dicTableNames.loc[typeZone, "final"] , ID_FIELD_STACKED_BLOCK,
@@ -567,7 +567,8 @@ def rooftopZones(cursor, upwindTable, zonePropertiesTable,
                                             isSpatial=False),
                        DataUtil.createIndex(tableName=zonePropertiesTable, 
                                             fieldName=ID_FIELD_STACKED_BLOCK,
-                                            isSpatial=False))
+                                            isSpatial=False),
+                       SNAPPING_TOLERANCE)
                for typeZone in dicTableNames.index]
     cursor.execute(";".join(queryCutRooftop))
     

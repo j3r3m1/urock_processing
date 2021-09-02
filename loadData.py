@@ -306,7 +306,7 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
         CREATE TABLE {0} 
             AS SELECT   b.ID AS ID
             FROM    {3} AS a, {3} AS b
-            WHERE   a.{1} && b.{1} AND ST_COVERS(a.{1}, b.{1}) AND
+            WHERE   a.{1} && b.{1} AND 
                     (ST_COVERS(a.{1}, b.{1}) AND a.{2} > b.{2} OR
                     ST_EQUALS(a.{1}, b.{1}) AND a.{2} = b.{2} AND a.ID < b.ID)
             GROUP BY b.ID;
