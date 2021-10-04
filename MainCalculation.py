@@ -16,6 +16,8 @@ import InitWindField
 import DataUtil
 import WindSolver
 import time
+from numba import jit
+import copy as cp
 
 import os
 
@@ -469,7 +471,7 @@ def main(z_ref = Z_REF,
                                           tempoDirectory = tempoDirectory)
     
     # Set the initial 3D wind speed field
-    df_wind0, nPoints = \
+    df_wind0, nPoints, verticalWindProfile = \
         InitWindField.setInitialWindField(cursor = cursor, 
                                           initializedWindFactorTable = allZonesPointFactor,
                                           gridPoint = gridPoint,
@@ -562,4 +564,68 @@ def main(z_ref = Z_REF,
         v = v0
         w = w0
     
-    return u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridPoint, rotationCenterCoordinates
+    # -------------------------------------------------------------------
+    # 11. NEED TO ROTATE THE WIND FIELD TO THE INITIAL DISPOSITION ------
+    # ------------------------------------------------------------------- 
+    # Get the relative position of the upper right corner of the grid from
+    # the center of rotation used to rotate the grid
+    cursor.execute(
+        """{0};{1}
+        """.format(DataUtil.createIndex(tableName=gridPoint, 
+                                        fieldName=ID_POINT_X,
+                                        isSpatial=False),
+                    DataUtil.createIndex(tableName=gridPoint, 
+                                         fieldName=ID_POINT_Y,
+                                         isSpatial=False)))
+    cursor.execute(
+        """
+        SELECT  {3}-ST_X(a.{0}) AS DIST_ROT_X,
+                {4}-ST_Y(a.{0}) AS DIST_ROT_Y
+        FROM {5} AS a
+        WHERE   a.{1} = (SELECT MAX({1}) FROM {5})
+                AND a.{2} = (SELECT MAX({2}) FROM {5})
+        """.format(GEOM_FIELD                   , ID_POINT_X,
+                   ID_POINT_Y                   , rotationCenterCoordinates[0],
+                   rotationCenterCoordinates[1] , gridPoint))
+    dist_rot_x, dist_rot_y = cursor.fetchall()[0]
+    x += dist_rot_x
+    y += dist_rot_y
+    
+    x_rot = np.zeros((nx, ny))
+    y_rot = np.zeros((nx, ny))
+    x_rot, y_rot, u_rot, v_rot = rotateData(theta = -windDirection*np.pi/180, nx = nx, 
+                                            ny = ny                         , nz = nz, 
+                                            x = x                           , y = y,
+                                            x_rot = x_rot                   , y_rot = y_rot,
+                                            u = u                           , v = v)
+
+    x_rot, y_rot, u0_rot, v0_rot = rotateData(theta = -windDirection*np.pi/180  , nx = nx, 
+                                              ny = ny                           , nz = nz, 
+                                              x = x                             , y = y,
+                                              x_rot = x_rot                     , y_rot = y_rot,
+                                              u = u0                            , v = v0)
+    # Set the real (x,y) grid coordinates
+    x_rot += rotationCenterCoordinates[0]
+    y_rot += rotationCenterCoordinates[1]
+    
+    return  u_rot, v_rot, w, u0_rot, v0_rot, w0, x_rot, y_rot, z,\
+            buildingCoordinates, cursor, gridPoint, rotationCenterCoordinates,\
+            verticalWindProfile
+
+@jit(nopython=True)
+def rotateData(theta, nx, ny, nz, x, y, x_rot, y_rot, u, v):
+    u_rot = np.zeros(u.shape)
+    v_rot = np.zeros(v.shape)
+    rot = np.array([[math.cos(theta), -math.sin(theta)],
+                    [math.sin(theta), math.cos(theta)]])
+    xmax = x.max()
+    ymax = y.max()
+    for i in range(nx):
+        for j in range(ny):
+            x_rot[i,j] = (xmax-x[i]) * rot[0,0] + (ymax-y[j]) * rot[0,1]
+            y_rot[i,j] = (xmax-x[i]) * rot[1,0] + (ymax-y[j]) * rot[1,1]
+            for k in range(nz):
+                u_rot[i, j, k] = u[i,j,k] * rot[0,0] + v[i,j,k] * rot[0,1]
+                v_rot[i, j, k] = u[i,j,k] * rot[1,0] + v[i,j,k] * rot[1,1]
+    
+    return x_rot, y_rot, u_rot, v_rot

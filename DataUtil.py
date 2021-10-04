@@ -4,6 +4,7 @@ import os
 import shutil
 import errno
 import numpy as np
+import netCDF4 as nc4
 
 from GlobalVariables import *
 
@@ -226,3 +227,159 @@ def createIndex(tableName, fieldName, isSpatial):
                                                                            fieldName,
                                                                            tableName)
     return query
+
+def radToDeg(data, origin = 90, direction = "CLOCKWISE"):
+    """Convert angle arrays from radian to degree.
+    
+    Parameters
+	_ _ _ _ _ _ _ _ _ _ 
+		data : pd.Series()
+			Array containing the angle values to convert from radian to degree.
+		origin : float
+			Origin of the output coordinate (given in a reference trigonometric coordinate)
+		direction : {"CLOCKWISE", "COUNTER-CLOCKWISE"}, default "CLOCKWISE"
+			Direction where go the output coordinate
+    
+    Returns
+	_ _ _ _ _ _ _ _ _ _ 	
+		Array containing the data in degree coordinate.
+    """
+    if direction == "CLOCKWISE":
+        degree = (360 - data * 180 / np.pi) + origin
+    if direction == "COUNTER-CLOCKWISE":
+        degree = (data * 180 / np.pi) - origin
+    
+    degree[degree>360] = degree[degree>360] - 360
+    degree[degree<0] = degree[degree<0] + 360
+    
+    return degree
+
+def windDirectionFromXY(windSpeedEast, windSpeedNorth):
+    """
+    Calculates wind direction from wind speeds in carthesian coordinates.
+    
+    Parameters
+    _ _ _ _ _ _ _ _ _ _ 
+        windSpeedEast: pd.Series
+            Wind speed along a West->East axis (m/s)
+        windSpeedNorth: pd.Series
+            Wind speed along a South->North axis (m/s)
+    
+    Returns
+    -------
+        pd.Series containing the wind direction from East counterclockwise.
+    """
+    # Calculate the angle in Radian in a [-pi/2, pi/2]
+    radAngle = np.zeros(windSpeedEast.shape)
+    radAngle[windSpeedEast==0] = 0
+    if type(windSpeedEast) == type(pd.Series()):
+        radAngle[windSpeedEast!=0] = np.arctan(windSpeedNorth[windSpeedEast!=0]\
+                                               .divide(windSpeedEast[windSpeedEast!=0]))
+    else:
+        radAngle[windSpeedEast!=0] = np.arctan(windSpeedNorth[windSpeedEast!=0]
+                                               /windSpeedEast[windSpeedEast!=0])
+    
+    # Add or subtract pi.2 for left side trigonometric circle vectors
+    radAngle[(windSpeedEast<=0)&(windSpeedNorth>0)] = \
+        radAngle[(windSpeedEast<=0)&(windSpeedNorth>0)] + np.pi
+    radAngle[(windSpeedEast<0)&(windSpeedNorth<=0)] = \
+        radAngle[(windSpeedEast<0)&(windSpeedNorth<=0)] + np.pi
+    radAngle[(windSpeedEast>=0)&(windSpeedNorth<0)] = \
+        radAngle[(windSpeedEast>=0)&(windSpeedNorth<0)] + 2*np.pi
+    
+    return radAngle
+
+# https://pyhogs.github.io/intro_netcdf4.html
+def saveToNetCDF(longitude,
+                 latitude,
+                 x,
+                 y,
+                 z,
+                 u,
+                 v,
+                 w,
+                 verticalWindProfile,
+                 path = OUTPUT_DIRECTORY + os.sep + OUTPUT_NETCDF_FILE):
+    """
+    Create a netCDF file and save wind speed, direction and initial 
+    vertical wind profile in it.
+    
+    Parameters
+    _ _ _ _ _ _ _ _ _ _ 
+        windSpeedEast: pd.Series
+            Wind speed along a West->East axis (m/s)
+        windSpeedNorth: pd.Series
+            Wind speed along a South->North axis (m/s)
+    
+    Returns
+    -------
+        pd.Series containing the wind direction from East counterclockwise.
+    """
+     # Opens a netCDF file in writing mode ('w')
+    f = nc4.Dataset(path+'.nc','w', format='NETCDF4')
+    
+    # 3D WIND SPEED DATA
+    # Creates a group within this file for the 3D wind speed
+    wind3dGrp = f.createGroup('3D_wind')
+    
+    # Creates dimensions within this group
+    wind3dGrp.createDimension('rlon', len(x))
+    wind3dGrp.createDimension('rlat', len(y))
+    wind3dGrp.createDimension('z', len(z))
+    wind3dGrp.createDimension('u', None)
+    wind3dGrp.createDimension('v', None)
+    wind3dGrp.createDimension('w', None)
+    
+    # Build the variables
+    rlon = wind3dGrp.createVariable('rlon', 'i4', 'rlon')
+    rlat = wind3dGrp.createVariable('rlat', 'i4', 'rlat')
+    lon = wind3dGrp.createVariable('lon', 'f4', ('rlon', 'rlat'))
+    lat = wind3dGrp.createVariable('lat', 'f4', ('rlon', 'rlat'))
+    levels = wind3dGrp.createVariable('Levels', 'i4', 'z')
+    windSpeed_x = wind3dGrp.createVariable('windSpeed_x', 'f4', ('rlon', 'rlat', 'z'))
+    windSpeed_y = wind3dGrp.createVariable('windSpeed_y', 'f4', ('rlon', 'rlat', 'z'))  
+    windSpeed_z = wind3dGrp.createVariable('windSpeed_z', 'f4', ('rlon', 'rlat', 'z'))
+    
+    # Fill the variables
+    rlon[:] = x
+    rlat[:] = y
+    lon[:,:] = longitude
+    lat[:,:] = latitude
+    levels[:] = z
+    windSpeed_x[:,:,:] = u
+    windSpeed_y[:,:,:] = v
+    windSpeed_z[:,:,:] = w
+    
+    # VERTICAL WIND PROFILE DATA
+    # Creates a group within this file for the vertical wind profile
+    vertWindProfGrp = f.createGroup('vertWind')
+    
+    # Creates dimensions within this group
+    vertWindProfGrp.createDimension('z', len(z))
+    
+    # Build the variables 
+    profileLevels = vertWindProfGrp.createVariable('profileLevels', 'i4', 'z')
+    WindSpeed = vertWindProfGrp.createVariable('WindSpeed', 'f4', ('z'))
+    
+    # Fill the variables
+    profileLevels[:] = z
+    WindSpeed[:] = verticalWindProfile
+    
+    
+    # ADD METADATA
+
+    #Add local attributes to variable instances
+    lon.units = 'degrees east'
+    lat.units = 'degrees north'
+    windSpeed_x.units = 'meter per second'
+    windSpeed_y.units = 'meter per second'
+    windSpeed_z.units = 'meter per second'
+    levels.units = 'meters'
+    WindSpeed.units = 'meter per second'
+    profileLevels.units = 'meters'
+
+    #Add global attributes
+    f.description = "URock dataset containing one group of 3D wind field value and one group of input vertical wind speed profile"
+    f.history = "Created " + datetime.today().strftime("%y-%m-%d")
+    
+    f.close()

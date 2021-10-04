@@ -87,6 +87,18 @@ def loadData(inputGeometries                , prefix,
         fromShp3dTo2_5(cursor = cursor, triangles3d = CAD_TRIANGLE_NAME,
                        TreesZone = treesZone, prefix = PREFIX_NAME)
         
+        # Save the building and vegetation layers ready to be used in URock
+        DataUtil.saveTable(cursor = cursor,
+                           tableName = BUILDING_TABLE_NAME,
+                           filedir = os.path.join(inputDirectory, prefix, 
+                                                  BUILDING_TABLE_NAME+".shp"),
+                           delete=True)
+        DataUtil.saveTable(cursor = cursor,
+                           tableName = VEGETATION_TABLE_NAME,
+                           filedir = os.path.join(inputDirectory, prefix, 
+                                                  VEGETATION_TABLE_NAME+".shp"),
+                           delete=True)
+        
     else:
         # 1. IMPORT BUILDING GEOMETRIES
         inputDataRel["buildings"] = os.path.join(inputDirectory, prefix, 
@@ -97,6 +109,10 @@ def loadData(inputGeometries                , prefix,
         loadFile(cursor = cursor,
                  filePath = inputDataAbs["buildings"], 
                  tableName = BUILDING_TABLE_NAME)
+        
+        # If the id field is None, set the primary key "PK" as id
+        if idFieldBuild is None:
+            idFieldBuild = "PK"
         
         # Rename building fields to generic names
         importQuery = """
@@ -112,10 +128,31 @@ def loadData(inputGeometries                , prefix,
                                                       inputGeometries["vegetationFileName"])
             inputDataAbs["vegetation"] = os.path.abspath(inputDataRel["vegetation"])
 
-            # Load buildings into H2GIS DB
+            # Load vegetation into H2GIS DB
             loadFile(cursor = cursor,
                      filePath = inputDataAbs["vegetation"], 
                      tableName = VEGETATION_TABLE_NAME)
+            # Create an ID FIELD if None.
+            if idVegetation is None:
+                idVegetation = "PK"
+            # Create an attenuation attribute with default 'DEFAULT_VEG_ATTEN_FACT'
+            # if no column
+            if vegetationAttenuationFactor is None:
+                cursor.execute(""" 
+                   ALTER TABLE {0} ADD COLUMN {1} DOUBLE DEFAULT {2};
+                   """.format( VEGETATION_TABLE_NAME     , VEGETATION_ATTENUATION_FACTOR,
+                               DEFAULT_VEG_ATTEN_FACT))
+                vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR
+            # Create a base height attribute with default 'DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC'
+            # if no column
+            if vegetationBaseHeight is None:
+                cursor.execute(""" 
+                   ALTER TABLE {0} ADD COLUMN {1} DOUBLE DEFAULT {2};
+                   """.format( VEGETATION_TABLE_NAME,
+                               VEGETATION_CROWN_BASE_HEIGHT,
+                               DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC))
+                vegetationBaseHeight = VEGETATION_CROWN_BASE_HEIGHT
+    
             # Load vegetation data and rename fields to generic names
             importQuery += """
                 ALTER TABLE {0} RENAME COLUMN {1} TO {2};

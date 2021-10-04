@@ -34,6 +34,9 @@ VEGETATION_TABLE_NAME = "VEGETATION"
 CAD_TRIANGLE_NAME = "CAD_TRIANGLES"
 CAD_VEG_INTERSECTION = "CAD_VEG_INTERSECTION"
 
+# Output files
+OUTPUT_NETCDF_FILE = "UROCK_OUTPUT"
+
 # Informations to set the DB used for geographical calculations
 INSTANCE_NAME = "myDbH2"
 INSTANCE_ID ="sa"
@@ -45,7 +48,7 @@ JAVA_PATH_FILE = os.path.join("./","JavaPath.csv")
 
 # If debug is True, keep intermediate tables (within each process) and save
 # intermediate tables (such as Röckle zones) as GIS file
-DEBUG = True
+DEBUG = False
 ONLY_INITIALIZATION = False
 SAVE_ROCKLE_ZONES = True
 MAX_ITERATIONS = 10000      # Based on Pardyjak et Brown  (2003)
@@ -152,6 +155,8 @@ P_DZ = 0.16
 P_RTP = 0.16
 # Default vegetation attenuation factor
 DEFAULT_VEG_ATTEN_FACT = 2.8
+# Default vegetation crown base height (in % of crown top height)
+DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC = 25
 
 # Defines priorities (column "priority") when the zone comes from a same 
 # obstacle of same height. Also contains a column "ref_height" to
