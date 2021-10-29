@@ -149,9 +149,6 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     verticalLineTable = "VERTICAL_LINES"
     tempoPrefix = "TEMPO"
     prefixZoneLimits = "ZONE_LIMITS"
-    modifCavWakMedianPoint = DataUtil.postfix("MODIF_CAVI_WAKE_MEDIAN_POINT")
-    modifCavWakMedianPointLength = DataUtil.postfix("MODIF_CAVI_WAKE_MEDIAN_POINT_LENGTH")
-    modifCavWakFinal = DataUtil.postfix("MODIF_CAVI_WAKE_FINAL")
     tempoCavity = DataUtil.postfix("TEMPO_CAVITY")
     
     # Tables that should keep y value (distance from upwind building)
@@ -558,53 +555,6 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     query.append(endOfQuery)
     cursor.execute(";".join(query))
     
-    # # The cavity and wake zones extend may be too much longer near building edges,
-    # # thus need to correct these values to have a more correct ellipsoid shape
-    # cursor.execute(";".join(["""
-    #     DROP TABLE IF EXISTS {0}, {8}, {12};
-    #     CREATE TABLE {0}
-    #         AS SELECT   {1}, CAST((MAX({2}) + MIN({2}))/2 AS INT) AS {2},
-    #                     CAST((MAX({2}) - MIN({2}))/2 AS DOUBLE) AS HALF_WIDTH
-    #         FROM    {3}
-    #         GROUP BY {1};
-    #     {4}{5}{6}{7}
-    #     CREATE TABLE {8}
-    #         AS SELECT   a.*, b.{9}
-    #         FROM    {0} AS a LEFT JOIN {3} AS b
-    #         ON      a.{1} = b.{1} AND a.{2} = b.{2};
-    #     {10}
-    #     CREATE TABLE {11}
-    #         AS SELECT   a.{1}, a.{12}, a.{2}, a.{13}, 
-    #                     b.{9} * SQRT(1 - POWER((a.{2} - b.{2}) / HALF_WIDTH, 2)) AS {9}
-    #         FROM    {3} AS a LEFT JOIN {8} AS b
-    #         ON      a.{1} = b.{1};
-    #     DROP TABLE IF EXISTS {3};
-    #     ALTER TABLE {11} RENAME TO {3};
-    #     """.format( modifCavWakMedianPoint              , ID_FIELD_STACKED_BLOCK,
-    #                 ID_POINT_X                          , DataUtil.prefix(tableName = dicOfOutputTables[t],
-    #                                                                       prefix = tempoPrefix),
-    #                 DataUtil.createIndex(tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
-    #                                                                prefix = tempoPrefix), 
-    #                                      fieldName=ID_FIELD_STACKED_BLOCK,
-    #                                      isSpatial=False),
-    #                 DataUtil.createIndex(tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
-    #                                                                prefix = tempoPrefix), 
-    #                                      fieldName=ID_POINT_X,
-    #                                      isSpatial=False),
-    #                 DataUtil.createIndex(tableName=modifCavWakMedianPoint, 
-    #                                      fieldName=ID_FIELD_STACKED_BLOCK,
-    #                                      isSpatial=False),
-    #                 DataUtil.createIndex(tableName=modifCavWakMedianPoint, 
-    #                                      fieldName=ID_POINT_X,
-    #                                      isSpatial=False),
-    #                 modifCavWakMedianPointLength        , LENGTH_ZONE_FIELD+t[0],
-    #                 DataUtil.createIndex(tableName=modifCavWakMedianPointLength, 
-    #                                      fieldName=ID_FIELD_STACKED_BLOCK,
-    #                                      isSpatial=False),
-    #                 modifCavWakFinal                    , HEIGHT_FIELD,
-    #                 Y_WALL)
-    #           for t in [CAVITY_NAME, WAKE_NAME]]))
-    
     # The cavity zone length is needed for the wind speed calculation of
     # wake zone points
     cursor.execute("""
@@ -703,10 +653,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                             prefix = prefixZoneLimits)
                                                  for t in listTabYvalues]),
                                  verticalLineTable,
-                                 tempoCavity,
-                                 modifCavWakMedianPoint,
-                                 modifCavWakMedianPointLength,
-                                 modifCavWakFinal))
+                                 tempoCavity))
         
      
     return dicOfOutputTables
