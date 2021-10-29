@@ -4,9 +4,12 @@ import os
 import shutil
 import errno
 import numpy as np
-import netCDF4 as nc4
+import sys
+from pathlib import Path
+import platform
+from packaging import version
 
-from GlobalVariables import *
+from .GlobalVariables import *
 
 
 def decompressZip(dirPath, inputFileName, outputFileBaseName=None, 
@@ -138,52 +141,6 @@ def getColumns(cursor, tableName):
     
     return columnNames
 
-def saveTable(cursor, tableName, filedir, delete):
-    """ Save a table in .geojson or .shp
-    
-    Parameters
-	_ _ _ _ _ _ _ _ _ _ 
-        cursor: conn.cursor
-            A cursor object, used to perform spatial SQL queries
-		tableName : String
-			Name of the table to save
-        filedir: String
-            Directory (including filename and extension) of the file where to 
-            store the table
-        delete: Boolean, default False
-            Whether or not the file is delete if exist
-    
-    Returns
-	_ _ _ _ _ _ _ _ _ _ 	
-		None"""
-    # Get extension
-    extension = filedir.split(".")[-1]
-    
-    # Define the H2GIS function depending on extension
-    if extension.upper() == "GEOJSON":
-        h2_function = "GEOJSONWRITE"
-    elif extension.upper() == "SHP":
-        h2_function = "SHPWRITE"
-    else:
-        print("The extension should be .geojson or .shp")
-    
-    # Delete files
-    if delete and os.path.isfile(filedir):
-        os.remove(filedir)
-        if extension.upper() == "SHP":
-            filedirWithoutExt = filedir.split(".")[0]
-            os.remove(filedirWithoutExt+".dbf")
-            os.remove(filedirWithoutExt+".shx")
-            if os.path.isfile(filedir+".prj"):
-                os.remove(filedirWithoutExt+".prj")
-                
-    # Write files
-    cursor.execute("""CALL {0}('{1}','{2}')""".format(h2_function,
-                                                      filedir,
-                                                      tableName))
-    
-    return None
-
 def readFunction(extension):
     """ Return the name of the right H2GIS function to use depending of the file extension
     
@@ -289,97 +246,32 @@ def windDirectionFromXY(windSpeedEast, windSpeedNorth):
     
     return radAngle
 
-# https://pyhogs.github.io/intro_netcdf4.html
-def saveToNetCDF(longitude,
-                 latitude,
-                 x,
-                 y,
-                 z,
-                 u,
-                 v,
-                 w,
-                 verticalWindProfile,
-                 path = OUTPUT_DIRECTORY + os.sep + OUTPUT_NETCDF_FILE):
-    """
-    Create a netCDF file and save wind speed, direction and initial 
-    vertical wind profile in it.
+####### SHOULD BE DELETED SINCE ALREADY IN UMEP !!!
+def locate_py():
+    # get Python version
+    str_ver_qgis = sys.version.split(' ')[0]
     
-    Parameters
-    _ _ _ _ _ _ _ _ _ _ 
-        windSpeedEast: pd.Series
-            Wind speed along a West->East axis (m/s)
-        windSpeedNorth: pd.Series
-            Wind speed along a South->North axis (m/s)
-    
-    Returns
-    -------
-        pd.Series containing the wind direction from East counterclockwise.
-    """
-     # Opens a netCDF file in writing mode ('w')
-    f = nc4.Dataset(path+'.nc','w', format='NETCDF4')
-    
-    # 3D WIND SPEED DATA
-    # Creates a group within this file for the 3D wind speed
-    wind3dGrp = f.createGroup('3D_wind')
-    
-    # Creates dimensions within this group
-    wind3dGrp.createDimension('rlon', len(x))
-    wind3dGrp.createDimension('rlat', len(y))
-    wind3dGrp.createDimension('z', len(z))
-    wind3dGrp.createDimension('u', None)
-    wind3dGrp.createDimension('v', None)
-    wind3dGrp.createDimension('w', None)
-    
-    # Build the variables
-    rlon = wind3dGrp.createVariable('rlon', 'i4', 'rlon')
-    rlat = wind3dGrp.createVariable('rlat', 'i4', 'rlat')
-    lon = wind3dGrp.createVariable('lon', 'f4', ('rlon', 'rlat'))
-    lat = wind3dGrp.createVariable('lat', 'f4', ('rlon', 'rlat'))
-    levels = wind3dGrp.createVariable('Levels', 'i4', 'z')
-    windSpeed_x = wind3dGrp.createVariable('windSpeed_x', 'f4', ('rlon', 'rlat', 'z'))
-    windSpeed_y = wind3dGrp.createVariable('windSpeed_y', 'f4', ('rlon', 'rlat', 'z'))  
-    windSpeed_z = wind3dGrp.createVariable('windSpeed_z', 'f4', ('rlon', 'rlat', 'z'))
-    
-    # Fill the variables
-    rlon[:] = x
-    rlat[:] = y
-    lon[:,:] = longitude
-    lat[:,:] = latitude
-    levels[:] = z
-    windSpeed_x[:,:,:] = u
-    windSpeed_y[:,:,:] = v
-    windSpeed_z[:,:,:] = w
-    
-    # VERTICAL WIND PROFILE DATA
-    # Creates a group within this file for the vertical wind profile
-    vertWindProfGrp = f.createGroup('vertWind')
-    
-    # Creates dimensions within this group
-    vertWindProfGrp.createDimension('z', len(z))
-    
-    # Build the variables 
-    profileLevels = vertWindProfGrp.createVariable('profileLevels', 'i4', 'z')
-    WindSpeed = vertWindProfGrp.createVariable('WindSpeed', 'f4', ('z'))
-    
-    # Fill the variables
-    profileLevels[:] = z
-    WindSpeed[:] = verticalWindProfile
-    
-    
-    # ADD METADATA
+    try:
+        # non-Linux
+        path_py = os.environ["PYTHONHOME"]
+    except Exception:
+        # Linux
+        path_py = sys.executable
 
-    #Add local attributes to variable instances
-    lon.units = 'degrees east'
-    lat.units = 'degrees north'
-    windSpeed_x.units = 'meter per second'
-    windSpeed_y.units = 'meter per second'
-    windSpeed_z.units = 'meter per second'
-    levels.units = 'meters'
-    WindSpeed.units = 'meter per second'
-    profileLevels.units = 'meters'
+    # convert to Path for eaiser processing
+    path_py = Path(path_py)
 
-    #Add global attributes
-    f.description = "URock dataset containing one group of 3D wind field value and one group of input vertical wind speed profile"
-    f.history = "Created " + datetime.today().strftime("%y-%m-%d")
-    
-    f.close()
+    # pre-defined paths for python executable
+    dict_pybin = {
+        "Darwin": path_py / "bin" / "python3",
+        "Windows": path_py / ("../../bin/pythonw.exe" if version.parse(str_ver_qgis) >= version.parse("3.9.1") else "pythonw.exe"),
+        "Linux": path_py,
+    }
+
+    # python executable
+    path_pybin = dict_pybin[platform.system()]
+
+    if path_pybin.exists():
+        return path_pybin
+    else:
+        raise RuntimeError("UMEP cannot locate the Python interpreter used by QGIS!")

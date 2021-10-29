@@ -5,9 +5,9 @@ Created on Fri Jan 22 11:05:28 2021
 
 @author: Jérémy Bernard, University of Gothenburg
 """
-import DataUtil as DataUtil
+from . import DataUtil as DataUtil
 import pandas as pd
-from GlobalVariables import * 
+from .GlobalVariables import * 
 
 def windRotation(cursor, dicOfInputTables, rotateAngle, rotationCenterCoordinates = None,
                  prefix = PREFIX_NAME):

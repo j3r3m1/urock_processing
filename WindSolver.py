@@ -6,14 +6,19 @@ Created on Mon Mar 29 14:57:25 2021
 # Sandro Oswald, sandro.oswald@boku.ac.at
 # Vienna Urban Climate Group
 # University of natural sciences (BOKU)
+
+# Jérémy Bernard, jeremy.bernard@zaclys.net
+# University of Gothenburg
+# Department of Earth Sciences
 """
 import numpy as np
 import time
-from GlobalVariables import *
+from .GlobalVariables import MAX_ITERATIONS, THRESHOLD_ITERATIONS, DESCENDING_Y
 from numba import jit
 
 def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
-           maxIterations = MAX_ITERATIONS, thresholdIterations = THRESHOLD_ITERATIONS):
+           maxIterations = MAX_ITERATIONS, thresholdIterations = THRESHOLD_ITERATIONS,
+           feedback = None):
     """ Use the mass-balance solver minimizing the modification of the initial
     wind speed field. The method used is based on Pardyjak and Brown (2003).
     
@@ -53,7 +58,8 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
                 Threshold for stopping wind solver: when the relative 
                 variation of lambda between 2 iterations goes under this 
                 threshold, the wind solver stops
-            
+            feedback: Qgis.core class QgsProcessingFeedback
+                Base class for providing feedback to QGIS from a processing algorithm (if not in standalone mode).
         
     		Returns
     		_ _ _ _ _ _ _ _ _ _ 
@@ -64,7 +70,7 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
                 Updated 3D wind speed value in Y direction 
             w: 3D array
                 Updated 3D wind speed value in Z direction"""    
-    
+
     print("Start to apply the wind solver")
     timeStartCalculation = time.time()
 
@@ -156,6 +162,15 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
         else:
             print("   eps = {0} >= {1}".format(np.round(eps,6),
                                                thresholdIterations))
+            # Feedback to QGIS every 50 iterations
+            if (N % 50 == 0) & (feedback is not None):
+                textToSend = """Iteration {0} (max {1}) - eps = {2} >= {3}
+                            """.format( N + 1, 
+                                        maxIterations,
+                                        np.round(eps,6),
+                                        thresholdIterations)
+                feedback.setProgressText(textToSend)
+            
     
     # Calculates the final wind speed
     u[1:nx, :, :] = u0[1:nx, :, :] + 0.5 * (

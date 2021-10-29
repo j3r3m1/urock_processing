@@ -25,17 +25,34 @@ DESCENDING_Y = False
 TEMPO_DIRECTORY = tempfile.gettempdir()
 INPUT_DIRECTORY = os.path.join("./Ressources","Inputs")
 OUTPUT_DIRECTORY = os.path.join("./Ressources","Outputs")
-INPUT_GEOMETRIES_FILENAME = {  "buildingFileName" : "buildings.shp",
-                               "vegetationFileName" : "vegetation.shp",
-                               "cadTriangles" : "",
-                               "cadTreesIntersection" : ""}
 BUILDING_TABLE_NAME = "BUILDINGS"
 VEGETATION_TABLE_NAME = "VEGETATION"
-CAD_TRIANGLE_NAME = "CAD_TRIANGLES"
-CAD_VEG_INTERSECTION = "CAD_VEG_INTERSECTION"
-
+CAD_TRIANGLE_NAME = "ALL_TRIANGLES"
+CAD_VEG_INTERSECTION = "VEG_INTERSECTION"
+BUILDING_FILENAME = "buildings.shp"
+VEGETATION_FILENAME = ""
+CAD_TRIANGLE_FILENAME = ""
+CAD_VEG_INTERSECTION_FILENAME = ""
+DELETE_OUTPUT_IF_EXISTS = True
+# VEGETATION_FILENAME = "vegetation.shp"
+# CAD_TRIANGLE_FILENAME = "AllTriangles.shp"
+# CAD_VEG_INTERSECTION_FILENAME = "treesIntersection.shp"
+TEMPO_HORIZ_WIND_FILE = "tempo_horiz_wind.csv"
 # Output files
-OUTPUT_NETCDF_FILE = "UROCK_OUTPUT"
+OUTPUT_FILENAME = "UROCK_OUTPUT"
+OUTPUT_RASTER_EXTENSION = ".GTiff"
+OUTPUT_VECTOR_EXTENSION = ".GeoJSON"
+OUTPUT_NETCDF_EXTENSION = ".nc"
+VECTOR_STYLE_FILENAME = "vectorStyle.qml"
+
+# List of vertical height for the output horizontal wind
+Z_OUT = [1.5]
+
+# Output field names (Horizontal wind speed, wind direction and vertical wind speed)
+HORIZ_WIND_SPEED = "HWS"
+HORIZ_WIND_DIRECTION = "HWD"
+VERT_WIND_SPEED = "VWS"
+WIND_SPEED = "WS"
 
 # Informations to set the DB used for geographical calculations
 INSTANCE_NAME = "myDbH2"
@@ -44,13 +61,13 @@ INSTANCE_PASS = "sa"
 NEW_DB = True
 
 # Where to save the current JAVA path
-JAVA_PATH_FILE = os.path.join("./","JavaPath.csv")
+JAVA_PATH_FILENAME = "JavaPath.csv"
 
 # If debug is True, keep intermediate tables (within each process) and save
 # intermediate tables (such as Röckle zones) as GIS file
 DEBUG = False
 ONLY_INITIALIZATION = False
-SAVE_ROCKLE_ZONES = True
+SAVE_ROCKLE_ZONES = False
 MAX_ITERATIONS = 10000      # Based on Pardyjak et Brown  (2003)
 THRESHOLD_ITERATIONS = 1e-6 # Based on Pardyjak et Brown  (2003)
 
@@ -84,7 +101,7 @@ GEOM_FIELD = "THE_GEOM"
 ID_FIELD_BUILD = "ID_BUILD"
 ID_FIELD_BLOCK = "ID_BLOCK"
 ID_FIELD_STACKED_BLOCK = "ID_STACKED_BLOCK"
-ID_UPSTREAM_STACKED_BLOCK = "ID_UPSTREAM_STACKED_BLOCK"
+ID_UPSTREAM_STACKED_BLOCK = ID_FIELD_STACKED_BLOCK
 ID_DOWNSTREAM_STACKED_BLOCK = "ID_DOWNSTREAM_STACKED_BLOCK"
 ID_FIELD_CANYON = "ID_CANYON"
 ID_VEGETATION = "ID_VEG"
@@ -122,6 +139,7 @@ ROOFTOP_CORNER_VAR_HEIGHT = "Hccp"
 
 PREFIX_NAME = "BigArea"
 Y_WALL = "Y_WALL"
+Y_POINT = "Y_POINT"
 DISTANCE_BUILD_TO_POINT_FIELD = "DY"
 LENGTH_ZONE_FIELD = "D_0"
 POINT_RELATIVE_POSITION_FIELD = "DY_D0"
@@ -183,3 +201,4 @@ UPSTREAM_WEIGHTING_INTER_RULES = "upstream"
 DOWNSTREAM_WEIGTHING_TABLE = ALL_VEGETATION_NAME
 
 ID_3D_POINT = "ID"
+SELECTED_SUFFIX = "_SELECTION"

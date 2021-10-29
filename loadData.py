@@ -6,21 +6,23 @@ Created on Fri Aug 20 14:29:14 2021
 @author: Jérémy Bernard, University of Gothenburg
 """
 
-from GlobalVariables import *
-import DataUtil
+from .GlobalVariables import *
+from . import DataUtil
+import os
 
-def loadData(inputGeometries                , prefix,
+def loadData(fromCad                        , prefix,
              idFieldBuild                   , buildingHeightField,
              vegetationBaseHeight           , vegetationTopHeight,
              idVegetation                   , vegetationAttenuationFactor,
-             cursor                         , inputDirectory = INPUT_DIRECTORY):
+             cursor                         , buildingFilePath,
+             vegetationFilePath             , srid):
     """ Load the input files into the database (could be converted if from CAD)
     
 		Parameters
 		_ _ _ _ _ _ _ _ _ _ 
         
-            inputGeometries: Dictionary
-                Contains the type of geometry to load and the associated file name
+            fromCad: boolean
+                Whether or not the data has to be converted from a CAD file
             prefix: String
                 Name of the case to run. Also the name of the subdirectory containing
                 the geometry files.
@@ -38,17 +40,27 @@ def loadData(inputGeometries                , prefix,
                 Name of the attenuatiojn factor field from the input vegetation data
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
+            buildingFilePath: String
+                The path of the file where are saved buildings data
+            vegetationFilePath: String
+                The path of the file where are saved vegetation data
+            srid: int
+                The SRID of the data
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 
-            srid: int
-                SRID of the building data (useful for future calculation)"""
+            None"""
     print("Load input data")
+
+    # Create temporary table names (for tables that will be removed at the end of the IProcess)
+    buildTablePreSrid = DataUtil.postfix("build_pre_srid")
+    vegTablePreSrid = DataUtil.postfix("veg_pre_srid")
+
     inputDataRel = {}
     inputDataAbs = {}
     # Check if the input comes from CAD file
-    if inputGeometries["cadTriangles"]:
+    if fromCad:
         # IMPORT TRIANGLES AND CONVERT TO BUILDINGS AND VEGETATION GEOMETRIES
         inputDataRel["cadTriangles"] = os.path.join(inputDirectory, prefix, 
                                                     inputGeometries["cadTriangles"])
@@ -75,7 +87,7 @@ def loadData(inputGeometries                , prefix,
                 CREATE TABLE {0}(PK INTEGER, {1} GEOMETRY,
                                  {2} DOUBLE, {3} DOUBLE,
                                  {4} INTEGER, {5} DOUBLE)
-                """.format( VEGETATION_TABLE_NAME,
+                """.format( vegTablePreSrid,
                             GEOM_FIELD,
                             VEGETATION_CROWN_BASE_HEIGHT,
                             VEGETATION_CROWN_TOP_HEIGHT,
@@ -84,31 +96,26 @@ def loadData(inputGeometries                , prefix,
             treesZone = None
         
         # Convert 3D triangles to 2.5 d buildings and tree patches
-        fromShp3dTo2_5(cursor = cursor, triangles3d = CAD_TRIANGLE_NAME,
-                       TreesZone = treesZone, prefix = PREFIX_NAME)
+        fromShp3dTo2_5(cursor = cursor                  , triangles3d = CAD_TRIANGLE_NAME,
+                       TreesZone = treesZone            , buildTableName = buildTablePreSrid,
+                       vegTableName = vegTablePreSrid   , prefix = PREFIX_NAME)
         
         # Save the building and vegetation layers ready to be used in URock
         DataUtil.saveTable(cursor = cursor,
-                           tableName = BUILDING_TABLE_NAME,
-                           filedir = os.path.join(inputDirectory, prefix, 
-                                                  BUILDING_TABLE_NAME+".shp"),
+                           tableName = buildTablePreSrid,
+                           filedir = os.path.join(buildingFilePath),
                            delete=True)
         DataUtil.saveTable(cursor = cursor,
-                           tableName = VEGETATION_TABLE_NAME,
-                           filedir = os.path.join(inputDirectory, prefix, 
-                                                  VEGETATION_TABLE_NAME+".shp"),
+                           tableName = vegTablePreSrid,
+                           filedir = os.path.join(vegetationFilePath),
                            delete=True)
         
     else:
-        # 1. IMPORT BUILDING GEOMETRIES
-        inputDataRel["buildings"] = os.path.join(inputDirectory, prefix, 
-                                                 inputGeometries["buildingFileName"])
-        inputDataAbs["buildings"] = os.path.abspath(inputDataRel["buildings"])
-        
+        # 1. IMPORT BUILDING GEOMETRIES        
         # Load buildings into H2GIS DB
         loadFile(cursor = cursor,
-                 filePath = inputDataAbs["buildings"], 
-                 tableName = BUILDING_TABLE_NAME)
+                 filePath = os.path.abspath(buildingFilePath), 
+                 tableName = buildTablePreSrid)
         
         # If the id field is None, set the primary key "PK" as id
         if idFieldBuild is None:
@@ -118,20 +125,16 @@ def loadData(inputGeometries                , prefix,
         importQuery = """
             ALTER TABLE {0} RENAME COLUMN {1} TO {2};
             ALTER TABLE {0} RENAME COLUMN {3} TO {4};
-            """.format( BUILDING_TABLE_NAME,
+            """.format( buildTablePreSrid,
                         idFieldBuild, ID_FIELD_BUILD,
                         buildingHeightField, HEIGHT_FIELD)
         
         # 2. IMPORT VEGETATION GEOMETRIES
-        if inputGeometries["vegetationFileName"]:
-            inputDataRel["vegetation"] = os.path.join(inputDirectory, prefix, 
-                                                      inputGeometries["vegetationFileName"])
-            inputDataAbs["vegetation"] = os.path.abspath(inputDataRel["vegetation"])
-
+        if vegetationFilePath:
             # Load vegetation into H2GIS DB
             loadFile(cursor = cursor,
-                     filePath = inputDataAbs["vegetation"], 
-                     tableName = VEGETATION_TABLE_NAME)
+                     filePath = os.path.abspath(vegetationFilePath),
+                     tableName = vegTablePreSrid)
             # Create an ID FIELD if None.
             if idVegetation is None:
                 idVegetation = "PK"
@@ -140,7 +143,7 @@ def loadData(inputGeometries                , prefix,
             if vegetationAttenuationFactor is None:
                 cursor.execute(""" 
                    ALTER TABLE {0} ADD COLUMN {1} DOUBLE DEFAULT {2};
-                   """.format( VEGETATION_TABLE_NAME     , VEGETATION_ATTENUATION_FACTOR,
+                   """.format( vegTablePreSrid     , VEGETATION_ATTENUATION_FACTOR,
                                DEFAULT_VEG_ATTEN_FACT))
                 vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR
             # Create a base height attribute with default 'DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC'
@@ -148,7 +151,7 @@ def loadData(inputGeometries                , prefix,
             if vegetationBaseHeight is None:
                 cursor.execute(""" 
                    ALTER TABLE {0} ADD COLUMN {1} DOUBLE DEFAULT {2};
-                   """.format( VEGETATION_TABLE_NAME,
+                   """.format( vegTablePreSrid,
                                VEGETATION_CROWN_BASE_HEIGHT,
                                DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC))
                 vegetationBaseHeight = VEGETATION_CROWN_BASE_HEIGHT
@@ -159,7 +162,7 @@ def loadData(inputGeometries                , prefix,
                 ALTER TABLE {0} RENAME COLUMN {3} TO {4};
                 ALTER TABLE {0} RENAME COLUMN {5} TO {6};
                 ALTER TABLE {0} RENAME COLUMN {7} TO {8};
-                """.format( VEGETATION_TABLE_NAME,
+                """.format( vegTablePreSrid,
                             vegetationBaseHeight, VEGETATION_CROWN_BASE_HEIGHT,
                             vegetationTopHeight, VEGETATION_CROWN_TOP_HEIGHT,
                             idVegetation, ID_VEGETATION,
@@ -169,7 +172,7 @@ def loadData(inputGeometries                , prefix,
                                CREATE TABLE {0}(PK INTEGER, {1} GEOMETRY,
                                                 {2} DOUBLE, {3} DOUBLE,
                                                 {4} INTEGER, {5} DOUBLE)
-                            """.format( VEGETATION_TABLE_NAME,
+                            """.format( vegTablePreSrid,
                                         GEOM_FIELD,
                                         VEGETATION_CROWN_BASE_HEIGHT,
                                         VEGETATION_CROWN_TOP_HEIGHT,
@@ -179,10 +182,38 @@ def loadData(inputGeometries                , prefix,
     
     cursor.execute("""
            SELECT ST_SRID({0}) AS SRID FROM {1} LIMIT 1
-           """.format(GEOM_FIELD                , BUILDING_TABLE_NAME))
-    srid = cursor.fetchall()[0][0]
-    
-    return srid
+           """.format(GEOM_FIELD                , buildTablePreSrid))
+    h2gisBuildSrid = cursor.fetchall()[0][0]
+    print(h2gisBuildSrid)
+    # If H2GIS does not identify any SRID for the tables, set the ones identied by GDAL
+    if h2gisBuildSrid == 0:
+        cursor.execute("""
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0}
+               AS SELECT ST_SETSRID({1}, {2}) AS {1},
+                         {3}, {4}
+               FROM {5};
+           DROP TABLE IF EXISTS {6};
+           CREATE TABLE {6}
+               AS SELECT ST_SETSRID({1}, {2}) AS {1},
+                         {7}, {8}, {9}, {10}
+               FROM {11};           
+           """.format(BUILDING_TABLE_NAME           , GEOM_FIELD,
+                      srid                          , ID_FIELD_BUILD,
+                      HEIGHT_FIELD                  , buildTablePreSrid,
+                      VEGETATION_TABLE_NAME         , ID_VEGETATION,
+                      VEGETATION_CROWN_BASE_HEIGHT  , VEGETATION_CROWN_TOP_HEIGHT,
+                      VEGETATION_ATTENUATION_FACTOR , vegTablePreSrid))
+    else:
+        cursor.execute("""
+           ALTER TABLE {2} RENAME TO {0};
+           ALTER TABLE {3} RENAME TO {1};
+           """.format(BUILDING_TABLE_NAME       , VEGETATION_TABLE_NAME,
+                      buildTablePreSrid         , vegTablePreSrid))        
+        
+    if not DEBUG:
+        # Drop intermediate tables
+        cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([vegTablePreSrid, buildTablePreSrid])))
     
 def loadFile(cursor, filePath, tableName):
     """ Load a file in the database according to its extension
@@ -213,8 +244,8 @@ def loadFile(cursor, filePath, tableName):
         CALL {2}('{1}','{0}');
         """.format( tableName, filePath,readFunction))
 
-def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME, 
-                   save = True):
+def fromShp3dTo2_5(cursor, triangles3d, TreesZone, buildTableName,
+                   vegTableName, prefix = PREFIX_NAME, save = True):
     """ Convert 3D shapefile to 2.5 D shapefiles distinguishing
     buildings from trees if the surface intersecting trees is passed
     
@@ -227,6 +258,10 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
                 Name of the table containing the 3D geometries from the CAD
             TreesZone: String
                 Name of the table containing the zones intersecting trees triangles
+            buildTableName: String
+                Name of the output building table name
+            vegTableName: String
+                Name of the output vegetation table name
             prefix: String, default PREFIX_NAME
                 Prefix to add to the output table name
             save: boolean, default True
@@ -318,7 +353,7 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
            WHERE    b.ID IS NULL
             """.format( treesCovered                    , GEOM_FIELD,
                         VEGETATION_CROWN_TOP_HEIGHT     , trees2d,
-                        VEGETATION_TABLE_NAME           , ID_VEGETATION,
+                        vegTableName                    , ID_VEGETATION,
                         VEGETATION_CROWN_BASE_HEIGHT    , DEFAULT_VEG_ATTEN_FACT,
                         VEGETATION_ATTENUATION_FACTOR   , DataUtil.createIndex(tableName=trees2d, 
                                                                                fieldName=GEOM_FIELD,
@@ -364,7 +399,7 @@ def fromShp3dTo2_5(cursor, triangles3d, TreesZone, prefix = PREFIX_NAME,
         WHERE    b.ID IS NULL
             """.format( buildingsCovered        , GEOM_FIELD,
                         HEIGHT_FIELD            , buildings2d,
-                        BUILDING_TABLE_NAME     , ID_FIELD_BUILD,
+                        buildTableName          , ID_FIELD_BUILD,
                         DataUtil.createIndex(tableName=buildings2d, 
                                              fieldName="ID",
                                              isSpatial=False),

@@ -5,9 +5,9 @@ Created on Mon Jan 25 15:27:25 2021
 
 @author: Jérémy Bernard, University of Gothenburg
 """
-import DataUtil as DataUtil
+from . import DataUtil as DataUtil
 import pandas as pd
-from GlobalVariables import *
+from .GlobalVariables import *
 
 def displacementZones(cursor, upwindTable, zonePropertiesTable, srid,
                       prefix = PREFIX_NAME):
@@ -383,8 +383,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         {14}
             FROM ST_EXPLODE('(SELECT    a.{1},
                                         a.{8},
-                                        ST_SPLIT(ST_PRECISIONREDUCER(a.{3},3),
-                                                ST_GeometryN(ST_TOMULTILINE(b.{3}),1)) AS {3},
+                                        ST_SPLIT(ST_SNAP(a.{3}, b.{3}, {6}),
+                                                 ST_GeometryN(ST_TOMULTILINE(b.{3}),1)) AS {3},
                                         a.{4},
                                         a.{5},
                                         a.{11},
@@ -711,3 +711,244 @@ def vegetationZones(cursor, vegetationTable, wakeZonesTable,
         cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([temporary_built_vegetation])))
     
     return vegetationBuiltZoneTable, vegetationOpenZoneTable
+
+def identifyImpactingStackedBlocks(cursor,
+                                   dicOfBuildRockleZoneTable,
+                                   dicOfVegRockleZoneTable,
+                                   impactedZone,
+                                   stackedBlocksTable,
+                                   vegetationTable,
+                                   crossWindExtend,
+                                   prefix):
+    """ Identify all stacked blocks potentially impacting a given impacted zone.
+    This is done in 3 steps
+            STEP 1. Whenever any Röckle zone of a stacked block SB1 intersects the impacted zone,
+    all the stacked blocks belonging to the same block as SB1 are identified.
+            STEP 2. We also identify the blocks which does not intersect the impacted zone 
+    but which are at the same upstream or downstream position as the blocks 
+    impacting the impacted zone. In the cross-wind direction, we stop searching
+    for blocks when we get further than the most extreme cross-wind
+    positions of both the previous identified blocks and the impacted zone
+    plus a given extend 'crossWindExtend' in the cross-wind direction.
+            STEP 3. For each block identified in 1 and 2, we select the
+    stacked blocks and the corresponding Röckle zones.
+
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            dicOfBuildRockleZoneTable: Dictionary
+                Dictionary containing as key the building Rockle 
+                zone name and as value the corresponding table name
+            dicOfVegRockleZoneTable: Dictionary
+                Dictionary containing as key the vegetation Rockle 
+                zone name and as value the corresponding table name
+            impactedZone: String
+                Name of the table where is saved the study area table
+                (should contain only one polygon)
+            stackedBlocksTable: String
+                Name of the table containing all stacked blocks
+            vegetationTable: String
+                Name of the table containing all vegetation patches
+            crossWindExtend: float
+                Distance (in meter) of the extend of the zone around the
+                rotated obstacles and the impactedZone in the cross-wind direction
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
+            
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+            dicOfSelectedBuiltZones: Dictionary of Rockle zone tables
+                Dictionary containing as key the building or vegetation Rockle 
+                zone name and as value the corresponding table name
+            stackedBlocksTableSelection: String
+                Name of the table used to save selected stacked blocks
+                
+    """
+    print("Identify the buildings concerned by the impacted zone chosen by the user")
+
+    # Name of the output tables
+    dicOfSelectedBuildZones = {t: dicOfBuildRockleZoneTable[t] + SELECTED_SUFFIX \
+                          for t in dicOfBuildRockleZoneTable.keys()}
+    dicOfSelectedVegZones = {t: dicOfVegRockleZoneTable[t] + SELECTED_SUFFIX \
+                          for t in dicOfVegRockleZoneTable.keys()}
+    outputStackedBlocks = DataUtil.prefix("IMPACTING_STACKED_BLOCKS", 
+                                          prefix = prefix)
+    outputVegetation = DataUtil.prefix("IMPACTING_VEGETATION", 
+                                       prefix = prefix)
+        
+    # Create temporary table names (for tables that will be removed at the end of the IProcess)
+    tabAllBuildZones = DataUtil.postfix("tab_all_build_zones")
+    tabTempStack = DataUtil.postfix("tab_temp_stack")
+    tabTempBlock = DataUtil.postfix("tab_temp_blocks")
+    tabCrossExtBox = DataUtil.postfix("tab_cross_extend_box")
+    tabTempBlock2 = DataUtil.postfix("tab_temp_blocks2")
+    
+    # ------------------------------------------------------------------------
+    # 1. MAKE THE CALCULATION FOR THE BUILDINGS ------------------------------
+    # ------------------------------------------------------------------------
+    # Gather all building Röckle zones in one
+    gatherBuQuery = ["""SELECT {0}, {1} FROM {2}""".format(ID_FIELD_STACKED_BLOCK,
+                                                           GEOM_FIELD,
+                                                           dicOfBuildRockleZoneTable[t])
+                     for t in dicOfBuildRockleZoneTable.keys()]
+    cursor.execute("""
+        DROP TABLE IF EXISTS {0};
+        CREATE TABLE {0}
+            AS {1}
+        """.format(tabAllBuildZones, " UNION ALL ".join(gatherBuQuery)))
+    
+    # Identify which stacked blocks intersect the Röckle zones
+    cursor.execute("""
+        {0};{1};
+        DROP TABLE IF EXISTS {2};
+        CREATE TABLE {2}
+            AS SELECT a.{3}
+            FROM {4} AS a, {5} AS b
+            WHERE a.{6} && b.{6} AND ST_INTERSECTS(a.{6}, b.{6})
+        """.format(DataUtil.createIndex(tableName=tabAllBuildZones, 
+                                        fieldName=GEOM_FIELD,
+                                        isSpatial=True),
+                   DataUtil.createIndex(tableName=impactedZone, 
+                                        fieldName=GEOM_FIELD,
+                                        isSpatial=True),
+                    tabTempStack                   , ID_FIELD_STACKED_BLOCK,
+                    tabAllBuildZones               , impactedZone,
+                    GEOM_FIELD))
+    
+    # Identify to which blocks belong the identified stacked blocks
+    cursor.execute("""
+        {0};{1};
+        DROP TABLE IF EXISTS {2};
+        CREATE TABLE {2}
+            AS SELECT b.{3}, b.{7}
+            FROM {4} AS a LEFT JOIN {5} AS b
+            ON a.{6} = b.{6}
+        """.format(DataUtil.createIndex(tableName=tabTempStack, 
+                                        fieldName=ID_FIELD_STACKED_BLOCK,
+                                        isSpatial=False),
+                   DataUtil.createIndex(tableName=stackedBlocksTable, 
+                                        fieldName=ID_FIELD_STACKED_BLOCK,
+                                        isSpatial=False),
+                   tabTempBlock                    , ID_FIELD_BLOCK,
+                   tabTempStack                    , stackedBlocksTable,
+                   ID_FIELD_STACKED_BLOCK          , GEOM_FIELD))
+   
+    # Identify which blocks are in the cross-wind extend of blocks and impacted zone
+    cursor.execute("""
+        DROP TABLE IF EXISTS {0};
+        CREATE TABLE {0}
+            AS SELECT ST_EXPAND(ST_EXTENT(a.{1}), {2}, 0) AS {1}
+            FROM (SELECT {1} FROM {4} 
+                  UNION ALL
+                  SELECT {1} FROM {5}) AS a;
+        {6};{7};
+        DROP TABLE IF EXISTS {8};
+        CREATE TABLE {8}
+            AS SELECT DISTINCT(a.{9}) AS {9}
+            FROM {10} AS a, {0} AS b
+            WHERE a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1})
+            UNION ALL
+            SELECT DISTINCT({9}) AS {9} FROM {11}
+        """.format( tabCrossExtBox                  , GEOM_FIELD,
+                    crossWindExtend                 , stackedBlocksTable,
+                    tabTempBlock                    , impactedZone,
+                    DataUtil.createIndex(tableName=tabCrossExtBox, 
+                                        fieldName=GEOM_FIELD,
+                                        isSpatial=True),
+                    DataUtil.createIndex(tableName=stackedBlocksTable, 
+                                        fieldName=GEOM_FIELD,
+                                        isSpatial=True),
+                    tabTempBlock2                   , ID_FIELD_BLOCK,
+                    stackedBlocksTable              , tabTempBlock))  
+    
+    # Identify all stacked blocks belonging to the previously identified blocks
+    cursor.execute("""
+        {0};{1};
+        DROP TABLE IF EXISTS {2};
+        CREATE TABLE {2}
+            AS SELECT a.*
+            FROM {4} AS a RIGHT JOIN {5} AS b
+            ON a.{6} = b.{6}
+        """.format(DataUtil.createIndex(tableName=tabTempBlock2, 
+                                        fieldName=ID_FIELD_BLOCK,
+                                        isSpatial=False),
+                   DataUtil.createIndex(tableName=stackedBlocksTable, 
+                                        fieldName=ID_FIELD_BLOCK,
+                                        isSpatial=False),
+                    outputStackedBlocks     , ID_FIELD_STACKED_BLOCK,
+                    stackedBlocksTable      , tabTempBlock2,
+                    ID_FIELD_BLOCK))
+    
+    # Select the Rôckle zones corresponding to the stacked blocks selection
+    selectionBuildQueries = ["""
+        {4};
+        DROP TABLE IF EXISTS {0};
+        CREATE TABLE    {0}
+            AS SELECT   a.*
+            FROM        {1} AS a RIGHT JOIN {2} AS b
+                        ON a.{3} = b.{3}
+        """.format( dicOfSelectedBuildZones[t]  , dicOfBuildRockleZoneTable[t],
+                    outputStackedBlocks         , ID_FIELD_STACKED_BLOCK,
+                    DataUtil.createIndex(tableName=dicOfBuildRockleZoneTable[t], 
+                                         fieldName=ID_FIELD_STACKED_BLOCK,
+                                         isSpatial=False))
+                        for t in dicOfBuildRockleZoneTable]
+    cursor.execute("""{0}; {1}
+                   """.format(DataUtil.createIndex(tableName=outputStackedBlocks, 
+                                                   fieldName=ID_FIELD_STACKED_BLOCK,
+                                                   isSpatial=False),
+                              ";".join(selectionBuildQueries)))
+   
+    # ------------------------------------------------------------------------
+    # 2. MAKE THE CALCULATION FOR THE VEGETATION -----------------------------
+    # ------------------------------------------------------------------------
+    # Identify which vegetation patches are in the cross-wind extend of blocks and impacted zone
+    cursor.execute("""
+        {0};{1};
+        DROP TABLE IF EXISTS {2};
+        CREATE TABLE {2}
+            AS SELECT a.*
+            FROM {3} AS a, {4} AS b
+            WHERE a.{5} && b.{5} AND ST_INTERSECTS(a.{5}, b.{5})
+        """.format( DataUtil.createIndex(tableName=tabCrossExtBox, 
+                                         fieldName=GEOM_FIELD,
+                                         isSpatial=True),
+                    DataUtil.createIndex(tableName=vegetationTable, 
+                                         fieldName=GEOM_FIELD,
+                                         isSpatial=True),
+                    outputVegetation            , vegetationTable,
+                    tabCrossExtBox              , GEOM_FIELD))
+
+    # Select the Rôckle zones corresponding to the vegetation patches selection
+    selectionVegQueries = ["""
+        {4};
+        DROP TABLE IF EXISTS {0};
+        CREATE TABLE    {0}
+            AS SELECT   a.*
+            FROM        {1} AS a RIGHT JOIN {2} AS b
+                        ON a.{3} = b.{3}
+        """.format( dicOfSelectedVegZones[t]    , dicOfVegRockleZoneTable[t],
+                    outputVegetation            , ID_VEGETATION,
+                    DataUtil.createIndex(tableName=dicOfVegRockleZoneTable[t], 
+                                         fieldName=ID_VEGETATION,
+                                         isSpatial=False))
+                        for t in dicOfVegRockleZoneTable]
+    cursor.execute("""{0}; {1}
+                   """.format(DataUtil.createIndex(tableName=outputVegetation, 
+                                                   fieldName=ID_VEGETATION,
+                                                   isSpatial=False),
+                              ";".join(selectionVegQueries)))
+    
+                        
+    if not DEBUG:
+        # Drop intermediate tables
+        cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([tabTempStack,
+                                                                   tabTempBlock,
+                                                                   tabCrossExtBox,
+                                                                   tabTempBlock2])))
+    
+    
+    return dicOfSelectedBuildZones, dicOfSelectedVegZones, outputStackedBlocks, outputVegetation

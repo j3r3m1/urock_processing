@@ -6,47 +6,30 @@ Created on Thu Jan 21 11:39:39 2021
 @author: Jérémy Bernard, University of Gothenburg
 """
 
-from GlobalVariables import * 
+from .GlobalVariables import * 
 
-import H2gisConnection
-import loadData
-import CreatesGeometries
-import CalculatesIndicators
-import InitWindField
-import DataUtil
-import WindSolver
+from . import H2gisConnection
+from . import loadData
+from . import saveData
+from . import Obstacles
+from . import Zones
+from . import CalculatesIndicators
+from . import InitWindField
+from . import DataUtil
+from . import WindSolver
 import time
 from numba import jit
 import copy as cp
 
 import os
 
-# If there is no JAVA variable environment set or neither already one 
-# saved in the URock repository, ask the user to enter one for
-# local use
-if os.path.exists(JAVA_PATH_FILE) or not os.environ.get("JAVA_HOME"):
-    if os.path.exists(JAVA_PATH_FILE):
-        javaFilePath = open(JAVA_PATH_FILE, "r")
-        javaPath = javaFilePath.read()
-        javaFilePath.close()
-        javaPathOk = input("""Your current JAVA path is: \n{0}\n
-                           Please type 'change' if you want to change the path.
-                           Otherwise, type enter
-                           """.format(javaPath))
-        if javaPathOk.lower()=="change":
-            javaPath = input("Please enter your JAVA path: ")
-            os.remove(JAVA_PATH_FILE)
-            javaFilePath = open(JAVA_PATH_FILE, "w")
-            javaFilePath.write(javaPath)
-            javaFilePath.close()
-    elif not os.environ.get("JAVA_HOME"):
-        javaPath = input("Please enter your JAVA path: ")
-        javaFilePath = open(JAVA_PATH_FILE, "w")
-        javaFilePath.write(javaPath)
-        javaFilePath.close()
-    os.environ.setdefault("JAVA_HOME", javaPath)
-
-def main(z_ref = Z_REF,
+def main(javaEnvironmentPath,
+         pluginDirectory,
+         outputFilePathAndNameBase,
+         buildingFilePath,
+         srid,
+         vegetationFilePath = "",
+         z_ref = Z_REF,
          v_ref = V_REF,
          windDirection = WIND_DIRECTION,
          prefix = PREFIX_NAME,
@@ -58,7 +41,8 @@ def main(z_ref = Z_REF,
          tempoDirectory = TEMPO_DIRECTORY,
          inputDirectory = INPUT_DIRECTORY,
          outputDirectory = OUTPUT_DIRECTORY,
-         inputGeometries = INPUT_GEOMETRIES_FILENAME,
+         cadTriangles = CAD_TRIANGLE_FILENAME,
+         cadTreesIntersection = CAD_VEG_INTERSECTION_FILENAME,
          onlyInitialization = ONLY_INITIALIZATION,
          maxIterations = MAX_ITERATIONS,
          thresholdIterations = THRESHOLD_ITERATIONS,
@@ -68,39 +52,48 @@ def main(z_ref = Z_REF,
          vegetationTopHeight = VEGETATION_CROWN_TOP_HEIGHT,
          idVegetation = ID_VEGETATION,
          vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR,
-         saveRockleZones = SAVE_ROCKLE_ZONES):
-
-
+         saveRockleZones = SAVE_ROCKLE_ZONES,
+         z_out = Z_OUT,
+         outputRaster = None,
+         feedback = None,
+         saveRaster = True,
+         saveVector = True,
+         saveNetcdf = True,
+         debug = DEBUG):
+    # If the function is called within QGIS, a feedback is sent into the QGIS interface
+    if feedback:
+        feedback.setProgressText('Initiating algorithm')
+    
     ################################ INIT OUTPUT VARIABLES ############################
     # Define dictionaries of input and output relative directories
     outputDataRel = {}
 
     # Blocks and stacked blocks
-    outputDataRel["blocks"] = os.path.join(outputDirectory, "blocks.geojson")
-    outputDataRel["stacked_blocks"] = os.path.join(outputDirectory, "stackedBlocks.geojson")
+    outputDataRel["blocks"] = os.path.join(tempoDirectory, "blocks.geojson")
+    outputDataRel["stacked_blocks"] = os.path.join(tempoDirectory, "stackedBlocks.geojson")
 
     # Rotated geometries
-    outputDataRel["rotated_stacked_blocks"] = os.path.join(outputDirectory, "rotated_stacked_blocks.geojson")
-    outputDataRel["rotated_vegetation"] = os.path.join(outputDirectory, "vegetationRotated.geojson")
-    outputDataRel["facades"] = os.path.join(outputDirectory, "facades.geojson")
+    outputDataRel["rotated_stacked_blocks"] = os.path.join(tempoDirectory, "rotated_stacked_blocks.geojson")
+    outputDataRel["rotated_vegetation"] = os.path.join(tempoDirectory, "vegetationRotated.geojson")
+    outputDataRel["facades"] = os.path.join(tempoDirectory, "facades.geojson")
     
     # Created zones
-    outputDataRel["displacement"] = os.path.join(outputDirectory, "displacementZones.geojson")
-    outputDataRel["displacement_vortex"] = os.path.join(outputDirectory, "displacementVortexZones.geojson")
-    outputDataRel["cavity"] = os.path.join(outputDirectory, "cavity.geojson")
-    outputDataRel["wake"] = os.path.join(outputDirectory, "wake.geojson")
-    outputDataRel["street_canyon"] = os.path.join(outputDirectory, "streetCanyon.geojson")
-    outputDataRel["rooftop_perpendicular"] = os.path.join(outputDirectory, "rooftopPerp.geojson")
-    outputDataRel["rooftop_corner"] = os.path.join(outputDirectory, "rooftopCorner.geojson")
-    outputDataRel["vegetation_built"] = os.path.join(outputDirectory, "vegetationBuilt.geojson")
-    outputDataRel["vegetation_open"] = os.path.join(outputDirectory, "vegetationOpen.geojson")
+    outputDataRel["displacement"] = os.path.join(tempoDirectory, "displacementZones.geojson")
+    outputDataRel["displacement_vortex"] = os.path.join(tempoDirectory, "displacementVortexZones.geojson")
+    outputDataRel["cavity"] = os.path.join(tempoDirectory, "cavity.geojson")
+    outputDataRel["wake"] = os.path.join(tempoDirectory, "wake.geojson")
+    outputDataRel["street_canyon"] = os.path.join(tempoDirectory, "streetCanyon.geojson")
+    outputDataRel["rooftop_perpendicular"] = os.path.join(tempoDirectory, "rooftopPerp.geojson")
+    outputDataRel["rooftop_corner"] = os.path.join(tempoDirectory, "rooftopCorner.geojson")
+    outputDataRel["vegetation_built"] = os.path.join(tempoDirectory, "vegetationBuilt.geojson")
+    outputDataRel["vegetation_open"] = os.path.join(tempoDirectory, "vegetationOpen.geojson")
     
     # Grid points
-    outputDataRel["point_BuildZone"] = os.path.join(outputDirectory, "point_BuildZone")
-    outputDataRel["point3D_BuildZone"] = os.path.join(outputDirectory, "point3D_BuildZone")
-    outputDataRel["point_VegZone"] = os.path.join(outputDirectory, "point_VegZone")
-    outputDataRel["point3D_VegZone"] = os.path.join(outputDirectory, "point3D_VegZone")
-    outputDataRel["point3D_All"] = os.path.join(outputDirectory, "point3D_All")
+    outputDataRel["point_BuildZone"] = os.path.join(tempoDirectory, "point_BuildZone")
+    outputDataRel["point3D_BuildZone"] = os.path.join(tempoDirectory, "point3D_BuildZone")
+    outputDataRel["point_VegZone"] = os.path.join(tempoDirectory, "point_VegZone")
+    outputDataRel["point3D_VegZone"] = os.path.join(tempoDirectory, "point3D_VegZone")
+    outputDataRel["point3D_All"] = os.path.join(tempoDirectory, "point3D_All")
     
     # Convert relative to absolute paths
     outputDataAbs = {i : os.path.abspath(outputDataRel[i]) for i in outputDataRel}
@@ -110,52 +103,61 @@ def main(z_ref = Z_REF,
     ############################################################################
     # ----------------------------------------------------------------------
     # 1. SET H2GIS DATABASE ENVIRONMENT AND LOAD DATA
+    # ----------------------------------------------------------------------
+    if feedback:
+        feedback.setProgressText('Creates an H2GIS Instance and load data')
     #Download H2GIS
-    H2gisConnection.downloadH2gis(dbDirectory = tempoDirectory)
+    H2gisConnection.downloadH2gis(dbDirectory = pluginDirectory)
     #Initialize a H2GIS database connection
-    cursor = H2gisConnection.startH2gisInstance(dbDirectory = tempoDirectory,
+    cursor = H2gisConnection.startH2gisInstance(dbDirectory = pluginDirectory,
                                                 dbInstanceDir = tempoDirectory)
     
     # Load data
-    srid = loadData.loadData(inputGeometries = inputGeometries, 
-                              prefix = prefix,
-                              idFieldBuild = idFieldBuild,
-                              buildingHeightField = buildingHeightField,
-                              vegetationBaseHeight = vegetationBaseHeight,
-                              vegetationTopHeight = vegetationTopHeight,
-                              idVegetation = idVegetation,
-                              vegetationAttenuationFactor = vegetationAttenuationFactor,
-                              cursor = cursor,
-                              inputDirectory = inputDirectory)
+    loadData.loadData(fromCad = False, 
+                      prefix = prefix,
+                      idFieldBuild = idFieldBuild,
+                      buildingHeightField = buildingHeightField,
+                      vegetationBaseHeight = vegetationBaseHeight,
+                      vegetationTopHeight = vegetationTopHeight,
+                      idVegetation = idVegetation,
+                      vegetationAttenuationFactor = vegetationAttenuationFactor,
+                      cursor = cursor,
+                      buildingFilePath = buildingFilePath,
+                      vegetationFilePath = vegetationFilePath,
+                      srid = srid)
     
     timeStartCalculation = time.time()
     
     # -----------------------------------------------------------------------------------
     # 2. CREATES OBSTACLE GEOMETRIES ----------------------------------------------------
     # -----------------------------------------------------------------------------------
+    if feedback:
+        feedback.setProgressText('Creates the stacked blocks used as obstacles')
     # Create the stacked blocks
     blockTable, stackedBlockTable = \
-        CreatesGeometries.Obstacles.createsBlocks(cursor = cursor, 
-                                                  inputBuildings = BUILDING_TABLE_NAME,
-                                                  prefix = prefix)
+        Obstacles.createsBlocks(cursor = cursor, 
+                                inputBuildings = BUILDING_TABLE_NAME,
+                                prefix = prefix)
     
     # Save the blocks and stacked blocks as geojson
-    if DEBUG or saveRockleZones:
-        DataUtil.saveTable(cursor = cursor                          , tableName = stackedBlockTable,
+    if debug or saveRockleZones:
+        saveData.saveTable(cursor = cursor                          , tableName = stackedBlockTable,
                            filedir = outputDataAbs["stacked_blocks"], delete = True)
-        DataUtil.saveTable(cursor = cursor                      , tableName = blockTable,
+        saveData.saveTable(cursor = cursor                      , tableName = blockTable,
                            filedir = outputDataAbs["blocks"]    , delete = True)
     
     # -----------------------------------------------------------------------------------
     # 3. ROTATES OBSTACLES TO THE RIGHT DIRECTION AND CALCULATES GEOMETRY PROPERTIES ----
     # -----------------------------------------------------------------------------------
+    if feedback:
+        feedback.setProgressText('Rotates obstacles to the right direction and calculates geometry properties')
     # Define a set of obstacles in a dictionary before the rotation
     dicOfObstacles = {BUILDING_TABLE_NAME       : stackedBlockTable,
                       VEGETATION_TABLE_NAME     : VEGETATION_TABLE_NAME}
     
     # Rotate obstacles
     dicRotatedTables, rotationCenterCoordinates = \
-        CreatesGeometries.Obstacles.windRotation(cursor = cursor,
+        Obstacles.windRotation(cursor = cursor,
                                                  dicOfInputTables = dicOfObstacles,
                                                  rotateAngle = windDirection,
                                                  rotationCenterCoordinates = None,
@@ -167,29 +169,29 @@ def main(z_ref = Z_REF,
     
     # Calculates base block height and base of block cavity zone
     rotatedPropStackedBlocks = \
-        CreatesGeometries.Obstacles.identifyBlockAndCavityBase(cursor, rotatedStackedBlocks,
+        Obstacles.identifyBlockAndCavityBase(cursor, rotatedStackedBlocks,
                                                                prefix = prefix)
         
     # Save the rotating tables as geojson
-    if DEBUG or saveRockleZones:
-        DataUtil.saveTable(cursor = cursor                          , tableName = rotatedPropStackedBlocks,
+    if debug or saveRockleZones:
+        saveData.saveTable(cursor = cursor                          , tableName = rotatedPropStackedBlocks,
                   filedir = outputDataAbs["rotated_stacked_blocks"] , delete = True)
-        DataUtil.saveTable(cursor = cursor                         , tableName = rotatedVegetation,
+        saveData.saveTable(cursor = cursor                         , tableName = rotatedVegetation,
                   filedir = outputDataAbs["rotated_vegetation"]    , delete = True)
     
     # Init the upwind facades
     upwindInitedTable = \
-        CreatesGeometries.Obstacles.initUpwindFacades(cursor = cursor,
+        Obstacles.initUpwindFacades(cursor = cursor,
                                                       obstaclesTable = rotatedPropStackedBlocks,
                                                       prefix = prefix)
     # Update base height of upwind facades (if shared with the building below)
     upwindTable = \
-        CreatesGeometries.Obstacles.updateUpwindFacadeBase(cursor = cursor,
+        Obstacles.updateUpwindFacadeBase(cursor = cursor,
                                                            upwindTable = upwindInitedTable,
                                                            prefix = prefix)
     # Save the upwind facades as geojson
-    if DEBUG or saveRockleZones:
-        DataUtil.saveTable(cursor = cursor                      , tableName = upwindTable,
+    if debug or saveRockleZones:
+        saveData.saveTable(cursor = cursor                      , tableName = upwindTable,
                            filedir = outputDataAbs["facades"]   , delete = True)
     
     # Calculates obstacles properties
@@ -215,9 +217,11 @@ def main(z_ref = Z_REF,
     # -----------------------------------------------------------------------------------
     # 4. CREATES THE 2D ROCKLE ZONES ----------------------------------------------------
     # -----------------------------------------------------------------------------------
+    if feedback:
+        feedback.setProgressText('Creates the 2D Röckle zones')
     # Creates the displacement zone (upwind)
     displacementZonesTable, displacementVortexZonesTable = \
-        CreatesGeometries.Zones.displacementZones(cursor = cursor,
+        Zones.displacementZones(cursor = cursor,
                                                   upwindTable = upwindTable,
                                                   zonePropertiesTable = zonePropertiesTable,
                                                   srid = srid,
@@ -225,30 +229,30 @@ def main(z_ref = Z_REF,
     
     
     # Save the resulting displacement zones as geojson
-    if DEBUG or saveRockleZones:
-        DataUtil.saveTable(cursor = cursor                      , tableName = displacementZonesTable,
+    if debug or saveRockleZones:
+        saveData.saveTable(cursor = cursor                      , tableName = displacementZonesTable,
                   filedir = outputDataAbs["displacement"]       , delete = True)
-        DataUtil.saveTable(cursor = cursor                          , tableName = displacementVortexZonesTable,
+        saveData.saveTable(cursor = cursor                          , tableName = displacementVortexZonesTable,
                   filedir = outputDataAbs["displacement_vortex"]    , delete = True)
     
     # Creates the cavity and wake zones
     cavityZonesTable, wakeZonesTable = \
-        CreatesGeometries.Zones.cavityAndWakeZones(cursor = cursor, 
+        Zones.cavityAndWakeZones(cursor = cursor, 
                                                    zonePropertiesTable = zonePropertiesTable,
                                                    srid = srid,
                                                    prefix = prefix)
     
     # Save the resulting displacement zones as geojson
-    if DEBUG or saveRockleZones:
-        DataUtil.saveTable(cursor = cursor             , tableName = cavityZonesTable,
+    if debug or saveRockleZones:
+        saveData.saveTable(cursor = cursor             , tableName = cavityZonesTable,
                   filedir = outputDataAbs["cavity"]    , delete = True)
-        DataUtil.saveTable(cursor = cursor           , tableName = wakeZonesTable,
+        saveData.saveTable(cursor = cursor           , tableName = wakeZonesTable,
                   filedir = outputDataAbs["wake"]    , delete = True)
     
     
     # Creates the street canyon zones
     streetCanyonTable = \
-        CreatesGeometries.Zones.streetCanyonZones(cursor = cursor,
+        Zones.streetCanyonZones(cursor = cursor,
                                                   cavityZonesTable = cavityZonesTable,
                                                   zonePropertiesTable = zonePropertiesTable,
                                                   upwindTable = upwindTable,
@@ -256,39 +260,35 @@ def main(z_ref = Z_REF,
                                                   prefix = prefix)
     
     # Save the resulting street canyon zones as geojson
-    if DEBUG or saveRockleZones:
-        DataUtil.saveTable(cursor = cursor                    , tableName = streetCanyonTable,
+    if debug or saveRockleZones:
+        saveData.saveTable(cursor = cursor                    , tableName = streetCanyonTable,
                   filedir = outputDataAbs["street_canyon"]    , delete = True)
     
     # Creates the rooftop zones
     rooftopPerpendicularZoneTable, rooftopCornerZoneTable = \
-        CreatesGeometries.Zones.rooftopZones(cursor = cursor,
+        Zones.rooftopZones(cursor = cursor,
                                              upwindTable = upwindTable,
                                              zonePropertiesTable = zonePropertiesTable,
                                              prefix = prefix)
     # Save the resulting rooftop zones as geojson
-    if DEBUG or saveRockleZones:
-        DataUtil.saveTable(cursor = cursor                              , tableName = rooftopPerpendicularZoneTable,
+    if debug or saveRockleZones:
+        saveData.saveTable(cursor = cursor                              , tableName = rooftopPerpendicularZoneTable,
                   filedir = outputDataAbs["rooftop_perpendicular"]      , delete = True)
-        DataUtil.saveTable(cursor = cursor                      , tableName = rooftopCornerZoneTable,
+        saveData.saveTable(cursor = cursor                      , tableName = rooftopCornerZoneTable,
                   filedir = outputDataAbs["rooftop_corner"]     , delete = True)
     
     # Creates the vegetation zones
     vegetationBuiltZoneTable, vegetationOpenZoneTable = \
-        CreatesGeometries.Zones.vegetationZones(cursor = cursor,
+        Zones.vegetationZones(cursor = cursor,
                                                 vegetationTable = rotatedVegetation,
                                                 wakeZonesTable = wakeZonesTable,
                                                 prefix = prefix)
-    if DEBUG or saveRockleZones:
-        DataUtil.saveTable(cursor = cursor                      , tableName = vegetationBuiltZoneTable,
+    if debug or saveRockleZones:
+        saveData.saveTable(cursor = cursor                      , tableName = vegetationBuiltZoneTable,
                   filedir = outputDataAbs["vegetation_built"]   , delete = True)
-        DataUtil.saveTable(cursor = cursor                      , tableName = vegetationOpenZoneTable,
+        saveData.saveTable(cursor = cursor                      , tableName = vegetationOpenZoneTable,
                   filedir = outputDataAbs["vegetation_open"]    , delete = True)
     
-    
-    # ----------------------------------------------------------------------
-    # 5. SET THE 2D GRID IN THE ROCKLE ZONES -------------------------------
-    # ----------------------------------------------------------------------
     # Define a dictionary of all building Rockle zones and same for veg
     dicOfBuildRockleZoneTable = {DISPLACEMENT_NAME       : displacementZonesTable,
                                 DISPLACEMENT_VORTEX_NAME: displacementVortexZonesTable,
@@ -298,11 +298,51 @@ def main(z_ref = Z_REF,
                                 ROOFTOP_PERP_NAME       : rooftopPerpendicularZoneTable,
                                 ROOFTOP_CORN_NAME       : rooftopCornerZoneTable}
     dicOfVegRockleZoneTable = {VEGETATION_BUILT_NAME   : vegetationBuiltZoneTable,
-                               VEGETATION_OPEN_NAME    : vegetationOpenZoneTable}
-
+                               VEGETATION_OPEN_NAME    : vegetationOpenZoneTable}    
+    
+    if outputRaster:
+        # Creates a table with a polygon covering the raster zone envelope
+        smallStudyZone = "SMALL_STUDY_ZONE"
+        outputRasterExtent = outputRaster.extent()
+        cursor.execute("""
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0}({5} GEOMETRY)
+               AS SELECT ST_SETSRID(ST_ROTATE(ST_ENVELOPE('MULTIPOINT({1} {2},
+                                               {3} {4})'),
+                                              {6},
+                                              {7},
+                                              {8}), {9})
+           """.format(smallStudyZone,
+                       outputRasterExtent.xMinimum(),
+                       outputRasterExtent.yMinimum(),
+                       outputRasterExtent.xMaximum(),
+                       outputRasterExtent.yMaximum(),
+                       GEOM_FIELD,
+                       DataUtil.degToRad(windDirection),
+                       rotationCenterCoordinates[0],
+                       rotationCenterCoordinates[1],
+                       srid))
+        # Identify the stacked blocks, blocks potentially impacting the
+        # impacted zone and their corresponding Röckle zones 
+        dicOfBuildRockleZoneTable, dicOfVegRockleZoneTable, rotatedPropStackedBlocks,\
+        rotatedVegetation = \
+            Zones.identifyImpactingStackedBlocks(cursor = cursor,
+                                                 dicOfBuildRockleZoneTable = dicOfBuildRockleZoneTable,
+                                                 dicOfVegRockleZoneTable = dicOfVegRockleZoneTable,
+                                                 impactedZone = smallStudyZone,
+                                                 stackedBlocksTable = rotatedPropStackedBlocks,
+                                                 vegetationTable = rotatedVegetation,
+                                                 crossWindExtend = crossWindZoneExtend,                                                 
+                                                 prefix = prefix)
+    # ----------------------------------------------------------------------
+    # 5. SET THE 2D GRID IN THE ROCKLE ZONES -------------------------------
+    # ----------------------------------------------------------------------
+    if feedback:
+        feedback.setProgressText('Creates the 2D grid')
     # Creates the grid of points
     gridPoint = InitWindField.createGrid(cursor = cursor, 
-                                         dicOfInputTables = dict(dicOfBuildRockleZoneTable,**dicOfVegRockleZoneTable),
+                                         dicOfInputTables = dict(dicOfBuildRockleZoneTable,
+                                                                 **dicOfVegRockleZoneTable),
                                          srid = srid,
                                          alongWindZoneExtend = alongWindZoneExtend, 
                                          crossWindZoneExtend = crossWindZoneExtend, 
@@ -328,7 +368,7 @@ def main(z_ref = Z_REF,
         InitWindField.removeBuildZonePoints(cursor = cursor, 
                                             dicOfInitBuildZoneGridPoint = dicOfInitBuildZoneGridPoint,
                                             prefix = prefix)
-    if DEBUG or saveRockleZones:
+    if debug or saveRockleZones:
         for t in dicOfBuildZoneGridPoint:
             cursor.execute("""
                DROP TABLE IF EXISTS point_Buildzone_{0};
@@ -347,7 +387,7 @@ def main(z_ref = Z_REF,
                            DataUtil.createIndex(tableName=dicOfBuildZoneGridPoint[t], 
                                                 fieldName=ID_POINT,
                                                 isSpatial=False)))
-            DataUtil.saveTable(cursor = cursor,
+            saveData.saveTable(cursor = cursor,
                                tableName = "point_Buildzone_"+t,
                                filedir = outputDataAbs["point_BuildZone"]+t+".geojson",
                                delete = True)
@@ -355,13 +395,15 @@ def main(z_ref = Z_REF,
     # -----------------------------------------------------------------------------------
     # 6. INITIALIZE THE 3D WIND FIELD IN THE ROCKLE ZONES -------------------------------
     # -----------------------------------------------------------------------------------   
+    if feedback:
+        feedback.setProgressText('Initializes the 3D grid within Röckle zones')
     # Calculates the 3D wind speed factors for each building Röckle zone
     dicOfBuildZone3DWindFactor, maxHeight = \
         InitWindField.calculates3dBuildWindFactor(cursor = cursor,
                                                   dicOfBuildZoneGridPoint = dicOfBuildZoneGridPoint,
                                                   dz = dz,
                                                   prefix = prefix)
-    if DEBUG or saveRockleZones:
+    if debug or saveRockleZones:
         for t in dicOfBuildZone3DWindFactor:
             cursor.execute("""
                DROP TABLE IF EXISTS point3D_Buildzone_{0};
@@ -380,7 +422,7 @@ def main(z_ref = Z_REF,
                            DataUtil.createIndex(tableName=dicOfBuildZone3DWindFactor[t], 
                                                 fieldName=ID_POINT,
                                                 isSpatial=False)))
-            DataUtil.saveTable(cursor = cursor,
+            saveData.saveTable(cursor = cursor,
                                tableName = "point3D_Buildzone_"+t,
                                filedir = outputDataAbs["point3D_BuildZone"]+t+".geojson",
                                delete = True)
@@ -396,7 +438,7 @@ def main(z_ref = Z_REF,
                                                 d = d,
                                                 dz = dz,
                                                 prefix = prefix)
-    if DEBUG or saveRockleZones:
+    if debug or saveRockleZones:
         cursor.execute("""
            DROP TABLE IF EXISTS point3D_AllVegZone;
            {4};
@@ -414,7 +456,7 @@ def main(z_ref = Z_REF,
                        DataUtil.createIndex(tableName=vegetationWeightFactorTable, 
                                             fieldName=ID_POINT,
                                             isSpatial=False)))
-        DataUtil.saveTable(cursor = cursor,
+        saveData.saveTable(cursor = cursor,
                            tableName = "point3D_AllVegZone",
                            filedir = outputDataAbs["point3D_VegZone"]+".geojson",
                            delete = True)
@@ -423,6 +465,8 @@ def main(z_ref = Z_REF,
     # ----------------------------------------------------------------
     # 7. DEALS WITH SUPERIMPOSED ZONES -------------------------------
     # ----------------------------------------------------------------
+    if feedback:
+        feedback.setProgressText('Deals with zones superimposition')
     # Calculates the final weighting factor for each point, dealing with duplicates (superimposition)
     dicAllWeightFactorsTables = dicOfBuildZone3DWindFactor.copy()
     dicAllWeightFactorsTables[ALL_VEGETATION_NAME] = vegetationWeightFactorTable
@@ -435,7 +479,7 @@ def main(z_ref = Z_REF,
                                             upstreamWeightingIntraRules = UPSTREAM_WEIGHTING_INTRA_RULES,
                                             downstreamWeightingTable = DOWNSTREAM_WEIGTHING_TABLE,
                                             prefix = prefix)
-    if DEBUG or saveRockleZones:
+    if debug or saveRockleZones:
         cursor.execute("""
             DROP TABLE IF EXISTS point3D_All;
             {4};
@@ -453,7 +497,7 @@ def main(z_ref = Z_REF,
                         DataUtil.createIndex(tableName=allZonesPointFactor, 
                                              fieldName=ID_POINT,
                                              isSpatial=False)))
-        DataUtil.saveTable(cursor = cursor,
+        saveData.saveTable(cursor = cursor,
                            tableName = "point3D_All",
                            filedir = outputDataAbs["point3D_All"]+".geojson",
                            delete = True)        
@@ -462,6 +506,8 @@ def main(z_ref = Z_REF,
     # -------------------------------------------------------------------
     # 8. 3D WIND SPEED INITIALIZATION -----------------------------------
     # -------------------------------------------------------------------
+    if feedback:
+        feedback.setProgressText('Initialize the 3D wind in the grid')
     # Identify 3D grid points intersected by buildings
     df_gridBuil = \
         InitWindField.identifyBuildPoints(cursor = cursor,
@@ -486,7 +532,9 @@ def main(z_ref = Z_REF,
     
     # -------------------------------------------------------------------
     # 9. "RASTERIZE" THE DATA - PREPARE MATRICES FOR WIND CALCULATION ---
-    # -------------------------------------------------------------------        
+    # -------------------------------------------------------------------
+    if feedback:
+        feedback.setProgressText('Rasterize the data')
     # Set the ground as "building" (understand solid wall) - after getting grid size
     nx, ny, nz = nPoints.values()
     df_gridBuil = df_gridBuil.reindex(df_gridBuil.index.append(pd.MultiIndex.from_product([range(1,nx-1),
@@ -551,6 +599,8 @@ def main(z_ref = Z_REF,
     # -------------------------------------------------------------------
     # 10. WIND SOLVER APPLICATION ----------------------------------------
     # ------------------------------------------------------------------- 
+    if feedback:
+        feedback.setProgressText('Apply the wind solver equations')
     if not onlyInitialization:
         # Apply a mass-flow balance to have a more physical 3D wind speed field
         u, v, w = \
@@ -558,14 +608,15 @@ def main(z_ref = Z_REF,
                                 dx = meshSize               , dy = meshSize         , dz = dz,
                                 u0 = u0                     , v0 = v0               , w0 = w0,
                                 buildingCoordinates = buildingCoordinates   , cells4Solver = cells4Solver,
-                                maxIterations = maxIterations, thresholdIterations = thresholdIterations)
+                                maxIterations = maxIterations, thresholdIterations = thresholdIterations,
+                                feedback = feedback)
     else:
         u = u0
         v = v0
         w = w0
     
     # -------------------------------------------------------------------
-    # 11. NEED TO ROTATE THE WIND FIELD TO THE INITIAL DISPOSITION ------
+    # 11. ROTATE THE WIND FIELD TO THE INITIAL DISPOSITION --------------
     # ------------------------------------------------------------------- 
     # Get the relative position of the upper right corner of the grid from
     # the center of rotation used to rotate the grid
@@ -608,6 +659,30 @@ def main(z_ref = Z_REF,
     x_rot += rotationCenterCoordinates[0]
     y_rot += rotationCenterCoordinates[1]
     
+    # -------------------------------------------------------------------
+    # 12. SAVE EACH OF THE UROCK OUTPUT ---------------------------------
+    # ------------------------------------------------------------------- 
+    saveData.saveBasicOutputs(cursor = cursor                , z_out = z_out,
+                              dz = dz                        , u = u_rot,
+                              v = v_rot                      , w = w, 
+                              gridName = gridPoint           , rotationCenterCoordinates = rotationCenterCoordinates,
+                              windDirection = windDirection  , verticalWindProfile = verticalWindProfile,
+                              outputFilePathAndNameBase = outputFilePathAndNameBase,
+                              meshSize = meshSize            , outputRaster = outputRaster,
+                              saveRaster = saveRaster        , saveVector = saveVector,
+                              saveNetcdf = saveNetcdf)
+
+    if debug:
+        saveData.saveBasicOutputs(cursor = cursor                , z_out = z_out,
+                                  dz = dz                        , u = u0_rot,
+                                  v = v0_rot                     , w = w, 
+                                  gridName = gridPoint           , rotationCenterCoordinates = rotationCenterCoordinates,
+                                  windDirection = windDirection  , verticalWindProfile = verticalWindProfile,
+                                  outputFilePathAndNameBase = os.path.join(tempoDirectory, "wind_initiatlisation"),
+                                  meshSize = meshSize            , outputRaster = outputRaster,
+                                  saveRaster = saveRaster        , saveVector = saveVector,
+                                  saveNetcdf = saveNetcdf)        
+
     return  u_rot, v_rot, w, u0_rot, v0_rot, w0, x_rot, y_rot, z,\
             buildingCoordinates, cursor, gridPoint, rotationCenterCoordinates,\
             verticalWindProfile
