@@ -509,52 +509,23 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     # for each "vertical" line and last calculate the relative position of each
     # point according to the upper and lower part of the Rockle zones
     endOfQuery += ";".join(["""
-        {10};
-        DROP TABLE IF EXISTS {0}, {5};
-        CREATE TABLE {0}
-            AS SELECT   {6}
-            FROM    {4} AS a, {2} AS b
-            WHERE   a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1});
-        {11};
-        {12};
-        {13};
-        {14};
-        CREATE TABLE {5}
-            AS SELECT   {7}
-            FROM    {0} AS a RIGHT JOIN {8} AS b
-                        ON a.{3} = b.{3} AND a.{9} = b.{9}
-                  """.format( DataUtil.prefix(tableName = t,
-                                             prefix = prefixZoneLimits),
-                              GEOM_FIELD,
-                              dicOfBuildRockleZoneTable[t],
-                              idZone[t],
-                              verticalLineTable,
-                              dicOfOutputTables[t],
-                              varToKeepZone[t],
-                              varToKeepPoint[t],
-                              DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                              prefix = tempoPrefix),
-                              ID_POINT_X,
-                              DataUtil.createIndex( tableName=dicOfBuildRockleZoneTable[t], 
-                                                    fieldName=GEOM_FIELD,
-                                                    isSpatial=True),
-                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = t,
-                                                                              prefix = prefixZoneLimits), 
-                                                    fieldName=idZone[t],
-                                                    isSpatial=False),
-                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                                                              prefix = tempoPrefix), 
-                                                    fieldName=idZone[t],
-                                                    isSpatial=False),
-                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = t,
-                                                                              prefix = prefixZoneLimits), 
-                                                    fieldName=ID_POINT_X,
-                                                    isSpatial=False),
-                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                                                              prefix = tempoPrefix), 
-                                                    fieldName=ID_POINT_X,
-                                                    isSpatial=False))
-                  for t in listTabYvalues])
+    {3};
+    DROP TABLE IF EXISTS {0}, {5};
+    CREATE TABLE {0}
+        AS SELECT   {6}
+        FROM    {4} AS a, {2} AS b
+        WHERE   a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1});
+    """.format( DataUtil.prefix(tableName = t,
+                                prefix = prefixZoneLimits),
+                          GEOM_FIELD,
+                          dicOfBuildRockleZoneTable[t],
+                          DataUtil.createIndex( tableName=dicOfBuildRockleZoneTable[t], 
+                                                fieldName=GEOM_FIELD,
+                                                isSpatial=True),
+                          verticalLineTable,
+                          dicOfOutputTables[t],
+                          varToKeepZone[t])
+              for t in listTabYvalues])
     query.append(endOfQuery)
     cursor.execute(";".join(query))
     
@@ -581,14 +552,14 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
         DROP TABLE IF EXISTS {3};
         ALTER TABLE {11} RENAME TO {3};
         """.format( modifCavWakMedianPoint              , ID_FIELD_STACKED_BLOCK,
-                    ID_POINT_X                          , DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                                                          prefix = tempoPrefix),
-                    DataUtil.createIndex(tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                                                    prefix = tempoPrefix), 
+                    ID_POINT_X                          , DataUtil.prefix(tableName = t,
+                                                                          prefix = prefixZoneLimits),
+                    DataUtil.createIndex(tableName=DataUtil.prefix(tableName = t,
+                                                                    prefix = prefixZoneLimits), 
                                           fieldName=ID_FIELD_STACKED_BLOCK,
                                           isSpatial=False),
-                    DataUtil.createIndex(tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                                                    prefix = tempoPrefix), 
+                    DataUtil.createIndex(tableName=DataUtil.prefix(tableName = t,
+                                                                    prefix = prefixZoneLimits), 
                                           fieldName=ID_POINT_X,
                                           isSpatial=False),
                     DataUtil.createIndex(tableName=modifCavWakMedianPoint, 
@@ -604,6 +575,43 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                     modifCavWakFinal                    , HEIGHT_FIELD,
                     Y_WALL)
               for t in [CAVITY_NAME, WAKE_NAME]]))
+    
+    cursor.execute(";".join(["""
+        {1};
+        {2};
+        {4};
+        {6};
+        CREATE TABLE {5}
+            AS SELECT   {7}
+            FROM    {0} AS a RIGHT JOIN {8} AS b
+                        ON a.{3} = b.{3} AND a.{9} = b.{9}
+                  """.format( DataUtil.prefix(tableName = t,
+                                             prefix = prefixZoneLimits),
+                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = t,
+                                                                              prefix = prefixZoneLimits),
+                                                   fieldName=idZone[t],
+                                                    isSpatial=False),
+                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
+                                                                              prefix = tempoPrefix),
+                                                   fieldName=idZone[t],
+                                                    isSpatial=False),
+                              idZone[t],
+                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = t,
+                                                                              prefix = prefixZoneLimits), 
+                                                    fieldName=ID_POINT_X,
+                                                    isSpatial=False),
+                              dicOfOutputTables[t],
+                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
+                                                                              prefix = tempoPrefix), 
+                                                    fieldName=ID_POINT_X,
+                                                    isSpatial=False),
+                              varToKeepPoint[t],
+                              DataUtil.prefix(tableName = dicOfOutputTables[t],
+                                              prefix = tempoPrefix),
+                              ID_POINT_X
+                              )
+                  for t in listTabYvalues]))
+    
     
     # The cavity zone length is needed for the wind speed calculation of
     # wake zone points
