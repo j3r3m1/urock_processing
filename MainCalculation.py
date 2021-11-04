@@ -75,7 +75,8 @@ def main(javaEnvironmentPath,
     # Rotated geometries
     outputDataRel["rotated_stacked_blocks"] = os.path.join(tempoDirectory, "rotated_stacked_blocks.geojson")
     outputDataRel["rotated_vegetation"] = os.path.join(tempoDirectory, "vegetationRotated.geojson")
-    outputDataRel["facades"] = os.path.join(tempoDirectory, "facades.geojson")
+    outputDataRel["upwind_facades"] = os.path.join(tempoDirectory, "upwind_facades.geojson")
+    outputDataRel["downwind_facades"] = os.path.join(tempoDirectory, "downwind_facades.geojson")
     
     # Created zones
     outputDataRel["displacement"] = os.path.join(tempoDirectory, "displacementZones.geojson")
@@ -171,28 +172,17 @@ def main(javaEnvironmentPath,
     rotatedPropStackedBlocks = \
         Obstacles.identifyBlockAndCavityBase(cursor, rotatedStackedBlocks,
                                                                prefix = prefix)
-        
-    # Save the rotating tables as geojson
-    if debug or saveRockleZones:
-        saveData.saveTable(cursor = cursor                          , tableName = rotatedPropStackedBlocks,
-                  filedir = outputDataAbs["rotated_stacked_blocks"] , delete = True)
-        saveData.saveTable(cursor = cursor                         , tableName = rotatedVegetation,
-                  filedir = outputDataAbs["rotated_vegetation"]    , delete = True)
     
     # Init the upwind facades
     upwindInitedTable = \
         Obstacles.initUpwindFacades(cursor = cursor,
-                                                      obstaclesTable = rotatedPropStackedBlocks,
-                                                      prefix = prefix)
+                                    obstaclesTable = rotatedPropStackedBlocks,
+                                    prefix = prefix)
     # Update base height of upwind facades (if shared with the building below)
     upwindTable = \
         Obstacles.updateUpwindFacadeBase(cursor = cursor,
-                                                           upwindTable = upwindInitedTable,
-                                                           prefix = prefix)
-    # Save the upwind facades as geojson
-    if debug or saveRockleZones:
-        saveData.saveTable(cursor = cursor                      , tableName = upwindTable,
-                           filedir = outputDataAbs["facades"]   , delete = True)
+                                        upwindTable = upwindInitedTable,
+                                        prefix = prefix)
     
     # Calculates obstacles properties
     obstaclePropertiesTable = \
@@ -212,6 +202,24 @@ def main(javaEnvironmentPath,
                                                  upwindTable = upwindInitedTable, 
                                                  stackedBlockTable = rotatedStackedBlocks, 
                                                  vegetationTable = rotatedVegetation)
+    
+    # Calculates downwind facades 
+    downwindTable = \
+        Obstacles.initDownwindFacades(cursor = cursor,
+                                      obstaclesTable = zonePropertiesTable,
+                                      prefix = prefix)
+
+
+    # Save the rotated obstacles and facades as geojson
+    if debug or saveRockleZones:
+        saveData.saveTable(cursor = cursor                          , tableName = rotatedPropStackedBlocks,
+                  filedir = outputDataAbs["rotated_stacked_blocks"] , delete = True)
+        saveData.saveTable(cursor = cursor                         , tableName = rotatedVegetation,
+                  filedir = outputDataAbs["rotated_vegetation"]    , delete = True)
+        saveData.saveTable(cursor = cursor                      , tableName = upwindTable,
+                           filedir = outputDataAbs["upwind_facades"]   , delete = True)
+        saveData.saveTable(cursor = cursor                      , tableName = downwindTable,
+                           filedir = outputDataAbs["downwind_facades"]   , delete = True)
     
     
     # -----------------------------------------------------------------------------------
@@ -238,9 +246,10 @@ def main(javaEnvironmentPath,
     # Creates the cavity and wake zones
     cavityZonesTable, wakeZonesTable = \
         Zones.cavityAndWakeZones(cursor = cursor, 
-                                                   zonePropertiesTable = zonePropertiesTable,
-                                                   srid = srid,
-                                                   prefix = prefix)
+                                downwindWithPropTable = downwindTable,
+                                srid = srid,
+                                ellipseResolution = meshSize,
+                                prefix = prefix).values()
     
     # Save the resulting displacement zones as geojson
     if debug or saveRockleZones:

@@ -510,3 +510,91 @@ def updateUpwindFacadeBase(cursor, upwindTable, prefix = PREFIX_NAME):
         cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([tempoUpwind])))
     
     return updatedUpwindBaseTable
+
+def initDownwindFacades(cursor, obstaclesTable, prefix = PREFIX_NAME):
+    """ Identify downwind facades, convert them to lines (they are initially
+    included within polygons) and then union those which intersect each other.
+
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            obstacleTable: String
+                Name of the table containing the obstacle geometries and properties
+                ('EFFECTIVE_LENGTH_FIELD', 'EFFECTIVE_WIDTH_FIELD' and
+                 'HEIGHT_FIELD')
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
+            
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+            downwindTable: String
+                Name of the table containing the downwind obstacle facades"""
+    print("Initializes downwind facades")
+    
+    # Output base name
+    outputBaseName = "DOWNWIND_FACADES"
+    
+    # Name of the output table
+    downwindTable = DataUtil.prefix(outputBaseName, prefix = prefix)
+    
+    # Create temporary table names (for tables that will be removed at the end of the process)
+    tempoDownwindSegments = DataUtil.postfix("TEMPO_DOWNWIND_SEGMENTS")
+    tempoDownwindLines = DataUtil.postfix("TEMPO_DOWNWIND_LINES")
+    
+    # Identify upwind facade
+    cursor.execute("""
+       DROP TABLE IF EXISTS {0};
+       CREATE TABLE {0}({4} SERIAL, {1} INTEGER, {2} GEOMETRY, 
+                        {5} INTEGER)
+           AS SELECT   NULL AS {4},
+                       {1},
+                       {2} AS {2},
+                       {5}
+           FROM ST_EXPLODE('(SELECT ST_TOMULTISEGMENTS({2}) AS {2},
+                                  {1},
+                                  {5}
+                                  FROM {3})')
+           WHERE ST_AZIMUTH(ST_STARTPOINT({2}), 
+                            ST_ENDPOINT({2})) > PI()
+           """.format( tempoDownwindSegments, 
+                       ID_FIELD_STACKED_BLOCK,
+                       GEOM_FIELD,
+                       obstaclesTable, 
+                       DOWNWIND_FACADE_FIELD,
+                       HEIGHT_FIELD))
+    
+    # Merge the ones that intersect each other and join stacked block properties
+    cursor.execute("""
+       DROP TABLE IF EXISTS {0}; 
+       CREATE TABLE {0}({1} SERIAL, {2} GEOMETRY, {4} INTEGER) 
+            AS SELECT NULL AS {1}, ST_NORMALIZE({2}) AS {2}, {4} 
+            FROM ST_EXPLODE ('(SELECT ST_LINEMERGE(ST_UNION(ST_ACCUM({2}))) AS {2}, {4} 
+                               FROM {3}
+                               GROUP BY {4})');
+       {5};{6};
+       DROP TABLE IF EXISTS {7};
+       CREATE TABLE {7}
+           AS SELECT a.{1}, a.{2}, a.{4}, b.{8}, b.{9}, b.{10}
+           FROM {0} AS a LEFT JOIN {11} AS b
+           ON a.{4} = b.{4}
+            """.format(tempoDownwindLines               , DOWNWIND_FACADE_FIELD,
+                        GEOM_FIELD                      , tempoDownwindSegments,
+                        ID_FIELD_STACKED_BLOCK          , DataUtil.createIndex(tableName=tempoDownwindLines, 
+                                                                               fieldName=ID_FIELD_STACKED_BLOCK,
+                                                                               isSpatial=False),
+                        DataUtil.createIndex(tableName=obstaclesTable, 
+                                             fieldName=ID_FIELD_STACKED_BLOCK,
+                                             isSpatial=False),
+                        downwindTable,
+                        CAVITY_LENGTH_FIELD             , WAKE_LENGTH_FIELD,
+                        HEIGHT_FIELD                    , obstaclesTable)) 
+    
+    if not DEBUG:
+        # Drop intermediate tables
+        cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([tempoDownwindSegments,
+                                                                   tempoDownwindLines])))
+            
+    return downwindTable
