@@ -1681,12 +1681,12 @@ def manageSuperimposition(cursor,
                           COALESCE(a.{7}*b.{7}, a.{7}) AS {7},
                           COALESCE(a.{8}*b.{8}, 0) AS {8},
                           COALESCE(b.{9}, {11}) AS {9}
-              FROM     {0} AS a LEFT JOIN {1} AS b
+              FROM     {0} AS a RIGHT JOIN {1} AS b
                        ON a.{2} = b.{2} AND a.{3} = b.{3}
-              WHERE    a.{5} = b.{5} AND a.{4} > b.{4}
+              WHERE    a.{5} > b.{5} OR (a.{5} = b.{5} AND a.{4} > b.{4})
               UNION ALL
               SELECT   a.{2}, a.{3}, a.{4}, NULL AS {6}, a.{7}, NULL AS {8}, {11} AS {9}
-              FROM     {0} AS a LEFT JOIN {20} AS b
+              FROM     {0} AS a LEFT JOIN {1} AS b
                        ON a.{2} = b.{2} AND a.{3} = b.{3}
               WHERE    b.{2} IS NULL AND b.{3} IS NULL
           """.format( upstreamWeightingTempoTable    , tempoPrioritiesAll,
@@ -1718,8 +1718,7 @@ def manageSuperimposition(cursor,
                                             isSpatial=False),
                       DataUtil.createIndex(tableName=tempoPrioritiesAll, 
                                             fieldName=Y_WALL,
-                                            isSpatial=False),
-                      upstreamPrioritiesTempoTable))
+                                            isSpatial=False)))
     
     # Join the upstream priority weigthted points to the upstream priority non-weighted ones
     cursor.execute("""
