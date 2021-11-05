@@ -108,7 +108,7 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
 
     # Coefficients such as defined in Pardyjak et Brown (2003) 
     alpha1 = 1.
-    alpha2 = 5.
+    alpha2 = 1.
     eta = alpha1 / alpha2
     A = dx ** 2 / dy ** 2
     B = eta ** 2 * dx ** 2 / dz ** 2
