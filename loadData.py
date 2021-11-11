@@ -184,7 +184,7 @@ def loadData(fromCad                        , prefix,
            SELECT ST_SRID({0}) AS SRID FROM {1} LIMIT 1
            """.format(GEOM_FIELD                , buildTablePreSrid))
     h2gisBuildSrid = cursor.fetchall()[0][0]
-    print(h2gisBuildSrid)
+    
     # If H2GIS does not identify any SRID for the tables, set the ones identied by GDAL
     if h2gisBuildSrid == 0:
         cursor.execute("""

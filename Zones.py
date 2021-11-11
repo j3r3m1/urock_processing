@@ -132,15 +132,14 @@ def displacementZones(cursor, upwindTable, zonePropertiesTable, srid,
     
     return displacementZonesTable, displacementVortexZonesTable
 
-def cavityAndWakeZones(cursor, zonePropertiesTable, srid,
+def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
                        prefix = PREFIX_NAME):
     """ Creates the cavity and wake zones for each of the stacked building
     based on Kaplan et Dinar (1996) for the equations of the ellipsoid 
     (Equation 3). When the building has a non rectangular shape or is not
-    perpendicular to the wind direction, use the principles of Figure 1
-    in Nelson et al. (2008): the extreme south of the geometry is used
-    as center of the ellipse and the ellipse is merged with the envelope 
-    of the geometry.
+    perpendicular to the wind direction, use the principles of Figure 1b
+    in Nelson et al. (2008): the half-ellipse is created from the downwind facade
+    coordinates.
     
     Obstacle length and width in the equations are given in an input table.
     Note that we strongly recommand to use the 'calculatesZoneLength' function
@@ -161,90 +160,112 @@ def cavityAndWakeZones(cursor, zonePropertiesTable, srid,
 
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
-            zonePropertiesTable: String
-                Name of the table stacked obstacle geometries and zone properties
+            downwindWithPropTable: String
+                Name of the table containing downwind facade geometries and 
+                its corresponding stacked block zone properties
             srid: int
                 SRID of the building data (useful for zone calculation)
+            ellipseResolution: float
+                "Kind of" horizontal resolution of the ellipse (in meter) 
             prefix: String, default PREFIX_NAME
                 Prefix to add to the output table name
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
 
-            cavityZonesTable: String
-                Name of the table containing the cavity zones
-            wakeZonesTable: String
-                Name of the table containing the wake zones"""
+            outputZoneTableNames: dictionary
+                Contains as key the name of the zone type ('CAVITY_NAME' and 'WAKE_NAME')
+                and as value the name of the table containing the zones"""
     print("Creates cavity and wake zones")
     
     # Output base name
-    outputBaseNameCavity = "CAVITY_ZONES"
-    outputBaseNameWake = "WAKE_ZONES"
+    outputZoneTableNames = {CAVITY_NAME: DataUtil.prefix("CAVITY_ZONES", prefix = prefix),
+                            WAKE_NAME: DataUtil.prefix("WAKE_ZONES", prefix = prefix)}
+
+    # Create temporary table names (for tables that will be removed at the end of the process)
+    densifiedLinePoints = DataUtil.postfix("DENSIFIED_LINE_POINTS")
+    ZonePoints = {CAVITY_NAME: CAVITY_NAME + DataUtil.postfix("_ZONE_POINTS"),
+                  WAKE_NAME: WAKE_NAME + DataUtil.postfix("_ZONE_POINTS")}
+    ZonePolygons = {CAVITY_NAME: CAVITY_NAME + DataUtil.postfix("_ZONE_POLYGONS"),
+                    WAKE_NAME: WAKE_NAME + DataUtil.postfix("_ZONE_POLYGONS")}
     
-    # Name of the output tables
-    cavityZonesTable = DataUtil.prefix(outputBaseNameCavity, prefix = prefix)
-    wakeZonesTable = DataUtil.prefix(outputBaseNameWake, prefix = prefix)
-        
+    # First densify the downwind facades
+    cursor.execute("""
+       DROP TABLE IF EXISTS {0};
+       CREATE TABLE {0}
+           AS SELECT EXPLOD_ID, {1}, X_MED, HALF_WIDTH, {2}, {3}, {4}
+           FROM ST_EXPLODE('(SELECT ST_TOMULTIPOINT(ST_DENSIFY({1}, {5})) AS {1},
+                                    {2}, {3}, {4},
+                                    (ST_XMAX({1}) + ST_XMIN({1})) / 2 AS X_MED,
+                                    (ST_XMAX({1}) - ST_XMIN({1})) / 2 AS HALF_WIDTH
+                           FROM {6})')
+       """.format( densifiedLinePoints               , GEOM_FIELD,
+                   CAVITY_LENGTH_FIELD               , WAKE_LENGTH_FIELD,
+                   DOWNWIND_FACADE_FIELD             , ellipseResolution,
+                   downwindWithPropTable))
+             
+    # Define the names of variables for cavity and wake zones
+    variablesNames = pd.DataFrame({"L": [CAVITY_LENGTH_FIELD, WAKE_LENGTH_FIELD]},
+                                  index = [CAVITY_NAME, WAKE_NAME])
     
-    # Queries for the cavity zones
-    queryCavity = """
+    # Create the half ellipse for cavity and wake zones from the densified upwind facade points
+    cursor.execute(";".join(["""
         DROP TABLE IF EXISTS {0};
         CREATE TABLE {0}
-            AS SELECT   {1},
-                        ST_SETSRID({2}, {7}) AS {2},
-                        {3}
-            FROM ST_EXPLODE('(SELECT ST_SPLIT(ST_SNAP(ST_UNION(ST_SETSRID(ST_MAKEELLIPSE(ST_MAKEPOINT((ST_XMIN(ST_ENVELOPE({2}))+
-                                                                                                        ST_XMAX(ST_ENVELOPE({2})))/2,
-                                                                                                        ST_YMIN(ST_ENVELOPE({2}))),
-                                                                                        ST_XMAX(ST_ENVELOPE({2}))-ST_XMIN(ST_ENVELOPE({2})),
-                                                                                        2*{4}),
-                                                                             {7}),
-                                                                 ST_ENVELOPE({2})),
-                                                     ST_ENVELOPE({2}),
-                                                     {6}),
-                                             ST_GeometryN(ST_TOMULTILINE({2}),1)) AS {2},
-                                     {1},
-                                     {3}
-                             FROM {5})')
-             WHERE EXPLOD_ID = 1
-                     
-           """.format(cavityZonesTable                  , ID_FIELD_STACKED_BLOCK,
-                       GEOM_FIELD                       , HEIGHT_FIELD,
-                       CAVITY_LENGTH_FIELD              , zonePropertiesTable,
-                       SNAPPING_TOLERANCE               , srid)
-    cursor.execute(queryCavity)
+            AS SELECT {1}, {2}, EXPLOD_ID
+            FROM {3}
+            UNION ALL
+            SELECT  ST_TRANSLATE({1}, 0, -{4}*SQRT(1-POWER((ST_X({1}) - X_MED) /
+                                                          HALF_WIDTH, 2))) AS {1},
+                    {2}, -EXPLOD_ID AS EXPLOD_ID
+            FROM {3}
+            ORDER BY EXPLOD_ID ASC
+        """.format(ZonePoints[z]                    , GEOM_FIELD, 
+                    DOWNWIND_FACADE_FIELD           , densifiedLinePoints,
+                    variablesNames.loc[z,"L"])
+        for z in variablesNames.index]))
     
-    # Queries for the wake zones
-    queryWake = """
-        DROP TABLE IF EXISTS {0};
+    # Create the zone from the half ellipse and the densified line and then join missing columns
+    cursor.execute(";".join(["""
+        {5}
+        DROP TABLE IF EXISTS {0}, {8};
         CREATE TABLE {0}
-            AS SELECT   {1},
-                        ST_SETSRID({2}, {7}) AS {2},
+            AS SELECT   ST_MAKEPOLYGON(ST_MAKELINE(ST_ACCUM({1}))) AS {1},
                         {3}
-            FROM ST_EXPLODE('(SELECT ST_SPLIT(ST_SNAP(ST_UNION(ST_SETSRID(ST_MAKEELLIPSE(ST_MAKEPOINT((ST_XMIN(ST_ENVELOPE({2}))+
-                                                                                                    ST_XMAX(ST_ENVELOPE({2})))/2,
-                                                                                                    ST_YMIN(ST_ENVELOPE({2}))),
-                                                                                        ST_XMAX(ST_ENVELOPE({2}))-ST_XMIN(ST_ENVELOPE({2})),
-                                                                                        2*{4}),
-                                                                            {7}),
-                                                                 ST_ENVELOPE({2})),
-                                                     ST_ENVELOPE({2}),
-                                                     {6}),
-                                             ST_GeometryN(ST_TOMULTILINE({2}),1)) AS {2},
-                                     {1},
-                                     {3}
-                             FROM {5})')
-             WHERE EXPLOD_ID = 1
-           """.format(wakeZonesTable                    , ID_FIELD_STACKED_BLOCK,
-                       GEOM_FIELD                       , HEIGHT_FIELD,
-                       WAKE_LENGTH_FIELD                , zonePropertiesTable,
-                       SNAPPING_TOLERANCE               , srid)
-    cursor.execute(queryWake)    
-    
-    return cavityZonesTable, wakeZonesTable
+            FROM {4}
+            GROUP BY {3};
+        {6}{7}
+        CREATE TABLE {8}
+            AS SELECT   a.{3}, a.{1}, b.{2}, b.{10}
+            FROM {0} AS a LEFT JOIN {9} AS b
+            ON a.{3} = b.{3}
+            WHERE ST_AREA(a.{1}) > 0;
+        """.format(ZonePolygons[z]                  , GEOM_FIELD,
+                    ID_FIELD_STACKED_BLOCK          , DOWNWIND_FACADE_FIELD,
+                    ZonePoints[z]                   , DataUtil.createIndex(tableName=ZonePoints[z], 
+                                                                           fieldName=DOWNWIND_FACADE_FIELD,
+                                                                           isSpatial=False),
+                    DataUtil.createIndex(tableName=ZonePolygons[z], 
+                                         fieldName=DOWNWIND_FACADE_FIELD,
+                                         isSpatial=False),
+                    DataUtil.createIndex(tableName=downwindWithPropTable, 
+                                         fieldName=DOWNWIND_FACADE_FIELD,
+                                         isSpatial=False),
+                    outputZoneTableNames[z]         , downwindWithPropTable,
+                    HEIGHT_FIELD)
+        for z in variablesNames.index]))
+                    
+    if not DEBUG:
+        # Drop intermediate tables
+        cursor.execute("""
+           DROP TABLE IF EXISTS {0}
+           """.format(",".join([densifiedLinePoints] + list(ZonePoints.values())\
+                               + list(ZonePolygons.values()))))
+
+    return outputZoneTableNames
 
 def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable,
-                      srid, prefix = PREFIX_NAME):
+                      downwindTable, srid, prefix = PREFIX_NAME):
     """ Creates the street canyon zones for each of the stacked building
     based on Nelson et al. (2008) Figure 8b. The method is slightly different
     since we use the cavity zone instead of the Lr buffer.
@@ -269,6 +290,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
             upwindTable: String
                 Name of the table containing upwind segment geometries
                 (and also the ID of each stacked obstacle)
+            downwindTable: String
+                Name of the table containing downwind line geometries and ID             
             srid: int
                 SRID of the building data (useful for zone calculation)
             prefix: String, default PREFIX_NAME
@@ -291,7 +314,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
     intersectTable = DataUtil.postfix("intersect_table")
     canyonExtendTable = DataUtil.postfix("canyon_extend_table")
     
-    # Identify upwind facades intersected by cavity zones
+    # Identify pieces of upwind facades intersected by cavity zones
     intersectionQuery = """
         {11};
         {12};
@@ -303,7 +326,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         a.{5},
                         a.{8},
                         ST_COLLECTIONEXTRACT(ST_INTERSECTION(a.{2}, b.{2}), 2) AS {2},
-                        a.{10}
+                        a.{10},
+                        b.{13}
             FROM {3} AS a, {4} AS b
             WHERE a.{2} && b.{2} AND ST_INTERSECTS(a.{2}, b.{2})
            """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
@@ -316,7 +340,9 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                                                                                 isSpatial=True),
                        DataUtil.createIndex(tableName=cavityZonesTable, 
                                             fieldName=GEOM_FIELD,
-                                            isSpatial=True))
+                                            isSpatial=True),
+                       DOWNWIND_FACADE_FIELD)
+                       
     cursor.execute(intersectionQuery)
     
     # Identify street canyon extend
@@ -340,7 +366,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                                                                             ST_YMAX(b.{4})-ST_YMIN(b.{4})+b.{5})),
                     								ST_TOMULTIPOINT(ST_REVERSE(a.{4})))),
                                    {16}) AS THE_GEOM,
-                        a.{13}
+                        a.{13},
+                        a.{17}
             FROM {0} AS a LEFT JOIN {2} AS b ON a.{1} = b.{10}
             WHERE NOT ST_ISEMPTY(a.{4})
            """.format( intersectTable                   , ID_UPSTREAM_STACKED_BLOCK,
@@ -356,7 +383,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        DataUtil.createIndex(tableName=zonePropertiesTable, 
                                             fieldName=ID_FIELD_STACKED_BLOCK,
                                             isSpatial=False),
-                       srid)
+                       srid                             , DOWNWIND_FACADE_FIELD)
     cursor.execute(canyonExtendQuery)
     
     # Creates street canyon zones
@@ -383,21 +410,20 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         {14}
             FROM ST_EXPLODE('(SELECT    a.{1},
                                         a.{8},
-                                        ST_SPLIT(ST_SNAP(a.{3}, b.{3}, {6}),
-                                                 ST_GeometryN(ST_TOMULTILINE(b.{3}),1)) AS {3},
+                                        ST_SPLIT(a.{3},
+                                                 b.{3}) AS {3},
                                         a.{4},
                                         a.{5},
                                         a.{11},
                                         a.{12},
                                         a.{14}
-                            FROM        {0} AS a LEFT JOIN {7} AS b ON a.{1}=b.{9})')
+                            FROM        {0} AS a LEFT JOIN {7} AS b ON a.{9}=b.{9})')
             WHERE EXPLOD_ID = 1
-                     
            """.format( canyonExtendTable                , ID_UPSTREAM_STACKED_BLOCK,
                        streetCanyonZoneTable            , GEOM_FIELD,
                        DOWNSTREAM_HEIGHT_FIELD          , UPSTREAM_HEIGHT_FIELD,
-                       SNAPPING_TOLERANCE               , zonePropertiesTable,
-                       ID_DOWNSTREAM_STACKED_BLOCK      , ID_FIELD_STACKED_BLOCK,
+                       SNAPPING_TOLERANCE               , downwindTable,
+                       ID_DOWNSTREAM_STACKED_BLOCK      , DOWNWIND_FACADE_FIELD,
                        MESH_SIZE                        , UPWIND_FACADE_ANGLE_FIELD,
                        BASE_HEIGHT_FIELD                , ID_FIELD_CANYON,
                        UPWIND_FACADE_FIELD              , DataUtil.createIndex( tableName=canyonExtendTable, 
