@@ -2072,14 +2072,25 @@ def identifyUpstreamer( cursor,
 def getVerticalProfile( cursor,
                         pointHeightList,
                         z0,
+                        profileType = "urban",
                         V_ref=V_REF,
                         z_ref=Z_REF,
-                        prefix = PREFIX_NAME):
+                        prefix = PREFIX_NAME,
+                        **kwargs):
     """ Get the horizontal wind speed of a set of point heights. The
-    wind speed profile used to set wind speed value is the power-law
-    equation proposed by Kuttler (2000) and used in QUIC-URB (Pardyjak et Brown, 2003).
-    Note that the exponent p of the power-law is calculated according to the
-    formulae p = 0.12*z0+0.18 (Matzarakis et al. 2009).
+    wind speed profile used to set wind speed value can be:
+        - power-law: proposed by Kuttler (2000) and initially
+        used in QUIC-URB (Pardyjak et Brown, 2003),
+        - urban: exponential below mean building height and log otherwise
+        (used in Nelson et al., 2007)
+        - logarithmic: classic logarithmic wind profile
+    
+    Note that:
+        - the exponent p of the power-law is calculated according to the
+    formulae p = 0.12*z0+0.18 (Matzarakis et al. 2009),
+        - the attenuation coefficient for the exponential wind profile is calculated according to 
+    A = 9.6 * lambda_f (ratio of frontal and plot area - Hanna and Britter, 2002)
+        - the stability is not taken into account yet
     
     References:
             Kuttler, Wilhelm. "Stadtklima." Umweltwissenschaften und
@@ -2088,8 +2099,12 @@ def getVerticalProfile( cursor,
         Temperature and Climate Change in Freiburg. Eighth Symposium on the 
         Urban Environment. American Meteorological Society, Phoenix/Arizona, 
         10. to 15. January 2009 4(2), 1–8.
+            Nelson, M. A., B. Addepalli, D. Boswell, M. J. Brown, et Los 
+        Alamos National Laboratory. « QUIC Start Guide (V.45). », 2007.
+        http://permalink.lanl.gov/object/tr?what=info:lanl-repo/lareport/LA-UR-07-2799.
             Pardyjak, Eric R, et Michael Brown. « QUIC-URB v. 1.1: Theory and
         User’s Guide ». Los Alamos National Laboratory, Los Alamos, NM, 2003.
+            
 
 
       		Parameters
@@ -2101,29 +2116,60 @@ def getVerticalProfile( cursor,
                 Height (in meter) of the points for which we want the wind speed
             z0: float
                 Value of the study area roughness height
+            profileType: String
+                Type of wind profile to use:
+                    - "urban": exponential below building mean height and log otherwise
+                    - "log": traditional log profile
+                    - "power": traditional power law profile
             V_ref: float, default V_REF
                 Wind speed (m/s) measured at measurement height z_ref
             z_ref: float, DEFAULT Z_REF
                 Height of the wind speed sensor used to set the reference wind speed V_ref
             prefix: String, default PREFIX_NAME
                 Prefix to add to the output table name
-            
+            (optional) d: float
+                Value of the study area displacement length
+            (optional) H: float
+                Value of the study area building geometric mean height
+            (optional) lambda_f: float
+                Value of the study area frontal density
         
     		Returns
     		_ _ _ _ _ _ _ _ _ _ 
     
             verticalWindProfile: pd.Series
                 Values of the wind speed for each vertical level"""
-    verticalWindProfile = pd.Series([V_ref*(z/z_ref)**(0.12*z0+0.18)
-                                                 for z in pointHeightList],
-                                    index = pointHeightList)
+        # Get kwargs arguments
+    d = kwargs.get('d', None)
+    H = kwargs.get('H', None)
+    lambda_f = kwargs.get('lambda_f', None)
+    if profileType == "power":
+        verticalWindProfile = pd.Series([V_ref * (z / z_ref) ** (0.12 * z0 + 0.18)
+                                                     for z in pointHeightList],
+                                        index = pointHeightList)
+    elif profileType == "log":
+        verticalWindProfile = pd.Series([V_ref * np.log((z - d) / z0) / np.log(z_ref / z0)
+                                                     for z in pointHeightList],
+                                        index = pointHeightList)
+    elif profileType == "urban":
+        A = 9.6 * lambda_f
+        pointHeightIndex = pd.Index(pointHeightList)
+        pointHeighCanopy = pointHeightIndex[pointHeightIndex<H]
+        pointHeighAbove = pointHeightIndex[pointHeightIndex>=H]
+        verticalWindProfile = pd.Series([V_ref*np.exp(A*(z / H - 1))
+                                                     for z in pointHeighCanopy],
+                                        index = pointHeighCanopy)\
+            .append(pd.Series([V_ref * np.log((z - d) / z0) / np.log(z_ref / z0)
+                                                     for z in pointHeighAbove],
+                                        index = pointHeighAbove))
     
     return verticalWindProfile
 
 def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
-                        df_gridBuil, z0, sketchHeight, meshSize = MESH_SIZE, 
-                        dz = DZ, z_ref = Z_REF, V_ref = V_REF, 
-                        tempoDirectory = TEMPO_DIRECTORY):
+                        df_gridBuil, z0, sketchHeight, profileType = "urban",
+                        meshSize = MESH_SIZE,  dz = DZ, z_ref = Z_REF, 
+                        V_ref = V_REF, tempoDirectory = TEMPO_DIRECTORY,
+                        **kwargs):
     """ Set the initial 3D wind speed according to the wind speed factor in
     the Röckle zones and to the initial vertical wind speed profile.
     
@@ -2143,6 +2189,11 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                 Value of the study area roughness height
             sketchHeight: float
                 Height of the sketch (m)
+            profileType: String
+                Type of wind profile to use:
+                    - "urban": exponential below building mean height and log otherwise
+                    - "log": traditional log profile
+                    - "power": traditional power law profile
             meshSize: float, default MESH_SIZE
                 Resolution (in meter) of the grid
             dz: float, default DZ
@@ -2155,6 +2206,13 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                 Path of the directory where will be stored the grid points
                 having Röckle initial wind speed values (in order to exchange
                                                          data between H2 to Python)
+            (optional) d: float
+                Value of the study area displacement length
+            (optional) H: float
+                Value of the study area building geometric mean height
+            (optional) lambda_f: float
+                Value of the study area frontal density
+            
             
         
     		Returns
@@ -2169,6 +2227,10 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                 Initial wind speed profile along a vertical axis z"""
     
     print("Set the initial 3D wind speed field")
+    # Get kwargs arguments
+    d = kwargs.get('d', None)
+    H = kwargs.get('H', None)
+    lambda_f = kwargs.get('lambda_f', None)
     
     # File name of the intermediate data saved on disk
     initRockleFilename = "INIT_WIND_ROCKLE_ZONES.csv"
@@ -2187,7 +2249,11 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                             pointHeightList = levelHeightList,
                             z0 = z0,
                             V_ref=V_ref,
-                            z_ref=z_ref)
+                            z_ref=z_ref,
+                            profileType = profileType,
+                            d = d,
+                            H = H,
+                            lambda_f = lambda_f)
     verticalWindSpeedProfile.index = [i for i in range(0, verticalWindSpeedProfile.size)]
     
     # Insert the initial vertical wind profile values into a table
@@ -2210,7 +2276,11 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                                 pointHeightList = buildingHeightList,
                                 z0 = z0,
                                 V_ref=V_ref,
-                                z_ref=z_ref)
+                                z_ref=z_ref,
+                                profileType = profileType,
+                                d = d,
+                                H = H,
+                                lambda_f = lambda_f)
             
     # ... and insert it into a table
     valuesForEachRowBuilding = [str(i)+","+str(j) for i, j in buildingHeightWindSpeed.iteritems()]

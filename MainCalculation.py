@@ -207,7 +207,7 @@ def main(javaEnvironmentPath,
                                             prefix = prefix)
     
     # Calculates roughness properties of the study area
-    z0, d = \
+    z0, d, Hr, lambda_f = \
         CalculatesIndicators.studyAreaProperties(cursor = cursor, 
                                                  upwindTable = upwindInitedTable, 
                                                  stackedBlockTable = rotatedStackedBlocks, 
@@ -524,11 +524,15 @@ def main(javaEnvironmentPath,
                                           df_gridBuil = df_gridBuil,
                                           z0 = z0,
                                           sketchHeight = sketchHeight,
+                                          profileType = "urban",
                                           meshSize = meshSize,
                                           dz = dz, 
                                           z_ref = z_ref,
                                           V_ref = v_ref, 
-                                          tempoDirectory = tempoDirectory)
+                                          tempoDirectory = tempoDirectory,
+                                          d = d,
+                                          H = Hr,
+                                          lambda_f = lambda_f)
     
     # -------------------------------------------------------------------
     # 9. "RASTERIZE" THE DATA - PREPARE MATRICES FOR WIND CALCULATION ---

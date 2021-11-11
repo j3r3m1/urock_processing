@@ -194,7 +194,11 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
             z0: float
                 Value of the study area roughness height
             d: float
-                Value of the study area displacement length"""
+                Value of the study area displacement length
+            Hr: float
+                Value of the study area geometric mean height
+            lambda_f: float
+                Value of the study area frontal density"""
     print("Calculates study area properties")
     
     # Calculate the area of the study area
@@ -270,7 +274,7 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
         z0 = 0.15*H_r
         d = 0.7+0.35*(lambda_f-0.15)
     
-    return z0, d
+    return z0, d, H_r, lambda_f
 
 def maxObstacleHeight(cursor, stackedBlockTable, vegetationTable):
     """ Calculates the maximum height of the obstacles within the study area.
