@@ -248,7 +248,7 @@ def main(javaEnvironmentPath,
         Zones.cavityAndWakeZones(cursor = cursor, 
                                 downwindWithPropTable = downwindTable,
                                 srid = srid,
-                                ellipseResolution = meshSize,
+                                ellipseResolution = meshSize/3,
                                 prefix = prefix).values()
     
     # Save the resulting displacement zones as geojson
@@ -265,6 +265,7 @@ def main(javaEnvironmentPath,
                                                   cavityZonesTable = cavityZonesTable,
                                                   zonePropertiesTable = zonePropertiesTable,
                                                   upwindTable = upwindTable,
+                                                  downwindTable = downwindTable,
                                                   srid = srid,
                                                   prefix = prefix)
     

@@ -55,7 +55,7 @@ VERT_WIND_SPEED = "VWS"
 WIND_SPEED = "WS"
 
 # Informations to set the DB used for geographical calculations
-INSTANCE_NAME = "myDbH2"
+INSTANCE_NAME = "myDbH2_8"
 INSTANCE_ID ="sa"
 INSTANCE_PASS = "sa"
 NEW_DB = True

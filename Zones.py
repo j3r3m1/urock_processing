@@ -239,6 +239,7 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
             AS SELECT   a.{3}, a.{1}, b.{2}, b.{10}
             FROM {0} AS a LEFT JOIN {9} AS b
             ON a.{3} = b.{3}
+            WHERE ST_AREA(a.{1}) > 0;
         """.format(ZonePolygons[z]                  , GEOM_FIELD,
                     ID_FIELD_STACKED_BLOCK          , DOWNWIND_FACADE_FIELD,
                     ZonePoints[z]                   , DataUtil.createIndex(tableName=ZonePoints[z], 
@@ -264,7 +265,7 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
     return outputZoneTableNames
 
 def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable,
-                      srid, prefix = PREFIX_NAME):
+                      downwindTable, srid, prefix = PREFIX_NAME):
     """ Creates the street canyon zones for each of the stacked building
     based on Nelson et al. (2008) Figure 8b. The method is slightly different
     since we use the cavity zone instead of the Lr buffer.
@@ -289,6 +290,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
             upwindTable: String
                 Name of the table containing upwind segment geometries
                 (and also the ID of each stacked obstacle)
+            downwindTable: String
+                Name of the table containing downwind line geometries and ID             
             srid: int
                 SRID of the building data (useful for zone calculation)
             prefix: String, default PREFIX_NAME
@@ -311,7 +314,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
     intersectTable = DataUtil.postfix("intersect_table")
     canyonExtendTable = DataUtil.postfix("canyon_extend_table")
     
-    # Identify upwind facades intersected by cavity zones
+    # Identify pieces of upwind facades intersected by cavity zones
     intersectionQuery = """
         {11};
         {12};
@@ -323,7 +326,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         a.{5},
                         a.{8},
                         ST_COLLECTIONEXTRACT(ST_INTERSECTION(a.{2}, b.{2}), 2) AS {2},
-                        a.{10}
+                        a.{10},
+                        b.{13}
             FROM {3} AS a, {4} AS b
             WHERE a.{2} && b.{2} AND ST_INTERSECTS(a.{2}, b.{2})
            """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
@@ -336,7 +340,9 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                                                                                 isSpatial=True),
                        DataUtil.createIndex(tableName=cavityZonesTable, 
                                             fieldName=GEOM_FIELD,
-                                            isSpatial=True))
+                                            isSpatial=True),
+                       DOWNWIND_FACADE_FIELD)
+                       
     cursor.execute(intersectionQuery)
     
     # Identify street canyon extend
@@ -360,7 +366,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                                                                             ST_YMAX(b.{4})-ST_YMIN(b.{4})+b.{5})),
                     								ST_TOMULTIPOINT(ST_REVERSE(a.{4})))),
                                    {16}) AS THE_GEOM,
-                        a.{13}
+                        a.{13},
+                        a.{17}
             FROM {0} AS a LEFT JOIN {2} AS b ON a.{1} = b.{10}
             WHERE NOT ST_ISEMPTY(a.{4})
            """.format( intersectTable                   , ID_UPSTREAM_STACKED_BLOCK,
@@ -376,7 +383,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        DataUtil.createIndex(tableName=zonePropertiesTable, 
                                             fieldName=ID_FIELD_STACKED_BLOCK,
                                             isSpatial=False),
-                       srid)
+                       srid                             , DOWNWIND_FACADE_FIELD)
     cursor.execute(canyonExtendQuery)
     
     # Creates street canyon zones
@@ -403,21 +410,20 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         {14}
             FROM ST_EXPLODE('(SELECT    a.{1},
                                         a.{8},
-                                        ST_SPLIT(ST_SNAP(a.{3}, b.{3}, {6}),
-                                                 ST_GeometryN(ST_TOMULTILINE(b.{3}),1)) AS {3},
+                                        ST_SPLIT(a.{3},
+                                                 b.{3}) AS {3},
                                         a.{4},
                                         a.{5},
                                         a.{11},
                                         a.{12},
                                         a.{14}
-                            FROM        {0} AS a LEFT JOIN {7} AS b ON a.{1}=b.{9})')
+                            FROM        {0} AS a LEFT JOIN {7} AS b ON a.{9}=b.{9})')
             WHERE EXPLOD_ID = 1
-                     
            """.format( canyonExtendTable                , ID_UPSTREAM_STACKED_BLOCK,
                        streetCanyonZoneTable            , GEOM_FIELD,
                        DOWNSTREAM_HEIGHT_FIELD          , UPSTREAM_HEIGHT_FIELD,
-                       SNAPPING_TOLERANCE               , zonePropertiesTable,
-                       ID_DOWNSTREAM_STACKED_BLOCK      , ID_FIELD_STACKED_BLOCK,
+                       SNAPPING_TOLERANCE               , downwindTable,
+                       ID_DOWNSTREAM_STACKED_BLOCK      , DOWNWIND_FACADE_FIELD,
                        MESH_SIZE                        , UPWIND_FACADE_ANGLE_FIELD,
                        BASE_HEIGHT_FIELD                , ID_FIELD_CANYON,
                        UPWIND_FACADE_FIELD              , DataUtil.createIndex( tableName=canyonExtendTable, 
