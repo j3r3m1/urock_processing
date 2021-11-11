@@ -118,6 +118,7 @@ def startH2gisInstance(dbDirectory, dbInstanceDir = TEMPO_DIRECTORY,
                 A cursor object, used to perform queries"""
     # DB extension
     dbExtension = ".mv.db"
+    dbTraceExtension = ".trace.db"
     
     # Define where are the jar of the DB and the H2GIS instance (in absolute paths)
     localH2JarDir = dbDirectory+os.sep+H2GIS_UNZIPPED_NAME
@@ -128,10 +129,16 @@ def startH2gisInstance(dbDirectory, dbInstanceDir = TEMPO_DIRECTORY,
     # print the connection string we will use to connect
     print("Connecting to database\n	->%s" % (localH2InstanceDir))
     print (localH2JarDir)
+
+    # If the DB already exists and if 'newDB' is set to True, delete all the DB files
+    if isDbExist & newDB:
+        os.remove(localH2InstanceDir+dbExtension)
+        if os.path.exists(localH2InstanceDir+dbTraceExtension):
+            os.remove(localH2InstanceDir+dbTraceExtension)
     
     # get a connection, if a connect cannot be made an exception will be raised here
     conn = jaydebeapi.connect(  "org.h2.Driver",
-                                "jdbc:h2:"+localH2InstanceDir+";AUTO_SERVER=TRUE",
+                                "jdbc:h2:"+localH2InstanceDir+";AUTO_SERVER=TRUE;",
                                 [instanceId, instancePass],
                                 localH2JarDir,)
 
