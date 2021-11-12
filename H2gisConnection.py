@@ -147,13 +147,13 @@ def startH2gisInstance(dbDirectory, dbInstanceDir = TEMPO_DIRECTORY,
     print("Connected!\n")
     
     # If the DB already exists and if 'newDB' is set to True, delete all 'public' tables 
-    if isDbExist & newDB:
-        cur.execute("""SELECT TABLE_NAME 
-                        FROM INFORMATION_SCHEMA.TABLES 
-                        WHERE TABLE_SCHEMA = 'PUBLIC'""")
-        tableNames = [i[0] for i in cur.fetchall()]
-        cur.execute("""
-            DROP TABLE IF EXISTS {0}""".format(",".join(tableNames)))
+    # if isDbExist & newDB:
+    #     cur.execute("""SELECT TABLE_NAME 
+    #                     FROM INFORMATION_SCHEMA.TABLES 
+    #                     WHERE TABLE_SCHEMA = 'PUBLIC'""")
+    #     tableNames = [i[0] for i in cur.fetchall()]
+    #     cur.execute("""
+    #         DROP TABLE IF EXISTS {0}""".format(",".join(tableNames)))
             
     # Init spatial features
     cur.execute("CREATE ALIAS IF NOT EXISTS H2GIS_SPATIAL FOR \"org.h2gis.functions.factory.H2GISFunctions.load\";")

@@ -215,8 +215,11 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
             AS SELECT {1}, {2}, EXPLOD_ID
             FROM {3}
             UNION ALL
-            SELECT  ST_TRANSLATE({1}, 0, -{4}*SQRT(1-POWER((ST_X({1}) - X_MED) /
-                                                          HALF_WIDTH, 2))) AS {1},
+            SELECT  CASE WHEN ST_X({1}) - X_MED < HALF_WIDTH AND ST_X({1}) - X_MED > - HALF_WIDTH
+                         THEN ST_TRANSLATE({1}, 0, -{4}*SQRT(1-POWER((ST_X({1}) - X_MED) /
+                                                          HALF_WIDTH, 2)))
+                         ELSE {1}
+                         END  AS {1},
                     {2}, -EXPLOD_ID AS EXPLOD_ID
             FROM {3}
             ORDER BY EXPLOD_ID ASC
@@ -230,7 +233,7 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
         {5}
         DROP TABLE IF EXISTS {0}, {8};
         CREATE TABLE {0}
-            AS SELECT   ST_MAKEPOLYGON(ST_MAKELINE(ST_ACCUM({1}))) AS {1},
+            AS SELECT   ST_MAKEPOLYGON(ST_MAKELINE(ST_ACCUM(ST_PRECISIONREDUCER({1},3)))) AS {1},
                         {3}
             FROM {4}
             GROUP BY {3};
