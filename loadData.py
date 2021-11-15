@@ -206,6 +206,7 @@ def loadData(fromCad                        , prefix,
                       VEGETATION_ATTENUATION_FACTOR , vegTablePreSrid))
     else:
         cursor.execute("""
+           DROP TABLE IF EXISTS {0}, {1};
            ALTER TABLE {2} RENAME TO {0};
            ALTER TABLE {3} RENAME TO {1};
            """.format(BUILDING_TABLE_NAME       , VEGETATION_TABLE_NAME,

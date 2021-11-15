@@ -60,7 +60,7 @@ def downloadH2gis(dbDirectory):
     localH2JarDir = (dbDirectory+os.sep+H2GIS_UNZIPPED_NAME).encode('utf-8')
     
     # Test whether the .jar already downloaded
-    if(os.path.exists(localH2ZipDir)):
+    if(os.path.exists(localH2ZipDir) or os.path.exists(localH2JarDir)):
         print("H2GIS version %s already downloaded" % (H2GIS_VERSION))
     else:
         print("Downloading H2GIS version %s at %s..." % (H2GIS_URL, H2GIS_VERSION))

@@ -108,6 +108,7 @@ def main(javaEnvironmentPath,
     if feedback:
         feedback.setProgressText('Creates an H2GIS Instance and load data')
     #Download H2GIS
+    print(pluginDirectory)
     H2gisConnection.downloadH2gis(dbDirectory = pluginDirectory)
     #Initialize a H2GIS database connection
     cursor = H2gisConnection.startH2gisInstance(dbDirectory = pluginDirectory,
@@ -534,7 +535,7 @@ def main(javaEnvironmentPath,
                                           df_gridBuil = df_gridBuil,
                                           z0 = z0,
                                           sketchHeight = sketchHeight,
-                                          profileType = "urban",
+                                          profileType = "power",
                                           meshSize = meshSize,
                                           dz = dz, 
                                           z_ref = z_ref,
