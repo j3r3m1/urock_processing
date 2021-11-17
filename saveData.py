@@ -8,6 +8,7 @@ Created on Mon Oct  4 13:59:31 2021
 import pandas as pd
 import numpy as np
 from .DataUtil import radToDeg, windDirectionFromXY, createIndex
+from .Obstacles import windRotation
 from osgeo.gdal import Grid, GridOptions
 from .GlobalVariables import HORIZ_WIND_DIRECTION, HORIZ_WIND_SPEED, WIND_SPEED,\
     ID_POINT, TEMPO_DIRECTORY, TEMPO_HORIZ_WIND_FILE, VERT_WIND_SPEED, GEOM_FIELD,\
@@ -64,11 +65,11 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                      verticalWindProfile = verticalWindProfile.values,
                      path = outputFilePathAndNameBase)
 
+    horizOutputUrock = {z_i : "HORIZ_OUTPUT_UROCK_{0}".format(str(z_i).replace(".","_")) for z_i in z_out}
     for z_i in z_out:
         # Keep only wind field for a single horizontal plan (and convert carthesian
         # wind speed into polar at least for horizontal)
         tempoTable = "TEMPO_HORIZ"
-        horizOutputUrock = "HORIZ_OUTPUT_UROCK"
         if z_i % dz % (dz / 2) == 0:
             n_lev = int(z_i / dz) + 1
             ufin = u[:,:,n_lev]
@@ -109,7 +110,7 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                         createIndex(tableName=tempoTable, 
                                              fieldName=ID_POINT,
                                              isSpatial=False),
-                        horizOutputUrock            , ID_POINT,
+                        horizOutputUrock[z_i]       , ID_POINT,
                         GEOM_FIELD                  , HORIZ_WIND_SPEED,
                         HORIZ_WIND_DIRECTION        , VERT_WIND_SPEED,
                         gridName                    , tempoTable,
@@ -122,7 +123,7 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
         # ------------------------------------------------------------------- 
         if saveVector or saveRaster:
             outputVectorFile = saveTable(cursor = cursor,
-                                         tableName = horizOutputUrock,
+                                         tableName = horizOutputUrock[z_i],
                                          filedir = outputFilePathAndNameBase +\
                                                    str(z_i).replace(".","_")+\
                                                    OUTPUT_VECTOR_EXTENSION,
@@ -160,7 +161,7 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                         SELECT  ST_XMIN({0}) AS XMIN, ST_XMAX({0}) AS XMAX,
                                 ST_YMIN({0}) AS YMIN, ST_YMAX({0}) AS YMAX
                         FROM    (SELECT ST_ACCUM({0}) AS {0} FROM {1})
-                        """.format(GEOM_FIELD            , horizOutputUrock))     
+                        """.format(GEOM_FIELD            , horizOutputUrock[z_i]))     
                     vectorBounds = cursor.fetchall()[0]
                     width = int((vectorBounds[1] - vectorBounds[0]) / meshSize) + 1
                     height = int((vectorBounds[3] - vectorBounds[2]) / meshSize) + 1
@@ -175,6 +176,7 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                                                                vectorBounds[0] + meshSize * (width - 0.5),
                                                                vectorBounds[3] - meshSize * (height + 0.5)],
                                                algorithm = "average:radius1={0}:radius2={0}".format(1.1*meshSize)))
+    return horizOutputUrock
     
 def saveToNetCDF(longitude,
                  latitude,
@@ -283,8 +285,9 @@ def saveToNetCDF(longitude,
     
     f.close()
     
-def saveTable(cursor, tableName, filedir, delete = False):
-    """ Save a table in .geojson or .shp
+def saveTable(cursor, tableName, filedir, delete = False, 
+              rotationCenterCoordinates = None, rotateAngle = None):
+    """ Save a table in .geojson or .shp (the table can be rotated before saving if needed).
     
     Parameters
 	_ _ _ _ _ _ _ _ _ _ 
@@ -297,6 +300,11 @@ def saveTable(cursor, tableName, filedir, delete = False):
             store the table
         delete: Boolean, default False
             Whether or not the file is delete if exist
+        rotationCenterCoordinates: tuple of float, default None
+            x and y values of the point used as center of rotation
+        rotateAngle: float, default None
+            Counter clock-wise rotation angle (in degree)
+
     
     Returns
 	_ _ _ _ _ _ _ _ _ _ 	
@@ -304,6 +312,13 @@ def saveTable(cursor, tableName, filedir, delete = False):
             Directory (including filename and extension) of the saved file
             (could be different from input 'filedir' since the file may 
              have been renamed if exists)"""
+    # Rotate the table if needed
+    if rotationCenterCoordinates is not None and rotateAngle is not None:
+        tableName = windRotation(cursor = cursor,
+                                 dicOfInputTables = {tableName: tableName},
+                                 rotateAngle = rotateAngle,
+                                 rotationCenterCoordinates = rotationCenterCoordinates)[0][tableName]
+    
     # Get extension
     extension = "." + filedir.split(".")[-1]
     filedirWithoutExt = ".".join(filedir.split(".")[0:-1])

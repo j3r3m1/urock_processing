@@ -100,11 +100,11 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
     lambdaN1[:, -1, :] = 0.
     lambdaN1[:, :, -1] = 0.
 
-    #Xi = ((np.cos(np.pi / nx) + (dx / dy) ** 2 * np.cos(np.pi / ny)) / (1 + (dx / dy) ** 2)) ** 2
+    Xi = ((np.cos(np.pi / nx) + (dx / dy) ** 2 * np.cos(np.pi / ny)) / (1 + (dx / dy) ** 2)) ** 2
 
-    omega = 1.78 #2. * ((1 - np.sqrt(1 - Xi)) / Xi)
-    # if (omega < 1) or (omega > 2):
-    #     omega = 1.78
+    omega = 2. * ((1 - np.sqrt(1 - Xi)) / Xi)
+    if (omega < 1) or (omega > 2):
+        omega = 1.78
 
     # Coefficients such as defined in Pardyjak et Brown (2003) 
     alpha1 = 1.

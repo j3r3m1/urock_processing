@@ -16,6 +16,7 @@ import os
 Z_REF = 10
 V_REF = 2.0
 WIND_DIRECTION = 270
+PROFILE_TYPE = "urban"
 
 # If the solver should go descending order along y (does not work yet...)
 DESCENDING_Y = False

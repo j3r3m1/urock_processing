@@ -31,7 +31,7 @@ from .GlobalVariables import ALONG_WIND_ZONE_EXTEND, CROSS_WIND_ZONE_EXTEND,\
     REF_HEIGHT_FIELD, REF_HEIGHT_DOWNSTREAM_WEIGHTING,PRIORITY_FIELD,\
     ID_3D_POINT, V_REF, TEMPO_DIRECTORY, Y_POINT, ID_UPSTREAM_STACKED_BLOCK,\
     GEOMETRY_MERGE_TOLERANCE, SNAPPING_TOLERANCE, GEOMETRY_SIMPLIFICATION_DISTANCE,\
-    ID_DOWNSTREAM_STACKED_BLOCK, DOWNWIND_FACADE_FIELD
+    ID_DOWNSTREAM_STACKED_BLOCK, DOWNWIND_FACADE_FIELD, PROFILE_TYPE
 import math
 import numpy as np
 import os
@@ -2029,7 +2029,7 @@ def identifyUpstreamer( cursor,
 def getVerticalProfile( cursor,
                         pointHeightList,
                         z0,
-                        profileType = "urban",
+                        profileType = PROFILE_TYPE,
                         V_ref=V_REF,
                         z_ref=Z_REF,
                         prefix = PREFIX_NAME,
@@ -2078,6 +2078,7 @@ def getVerticalProfile( cursor,
                     - "urban": exponential below building mean height and log otherwise
                     - "log": traditional log profile
                     - "power": traditional power law profile
+                    - "user": set by the user (in a text file)
             V_ref: float, default V_REF
                 Wind speed (m/s) measured at measurement height z_ref
             z_ref: float, DEFAULT Z_REF
@@ -2085,11 +2086,14 @@ def getVerticalProfile( cursor,
             prefix: String, default PREFIX_NAME
                 Prefix to add to the output table name
             (optional) d: float
-                Value of the study area displacement length
+                Value of the study area displacement length (only if profileType = "log" or "urban")
             (optional) H: float
-                Value of the study area building geometric mean height
+                Value of the study area building geometric mean height (only if profileType = "urban")
             (optional) lambda_f: float
-                Value of the study area frontal density
+                Value of the study area frontal density (only if profileType = "urban")
+            (optional) verticalProfileFile: string
+                Path of the file where is stored the vertical wind profile
+                (no header, comma separated, first column is the height, second column is the wind speed)
         
     		Returns
     		_ _ _ _ _ _ _ _ _ _ 
@@ -2100,6 +2104,7 @@ def getVerticalProfile( cursor,
     d = kwargs.get('d', None)
     H = kwargs.get('H', None)
     lambda_f = kwargs.get('lambda_f', None)
+    verticalProfileFile = kwargs.get('verticalProfileFile', None)
     if profileType == "power":
         verticalWindProfile = pd.Series([V_ref * (z / z_ref) ** (0.12 * z0 + 0.18)
                                                      for z in pointHeightList],
@@ -2119,11 +2124,18 @@ def getVerticalProfile( cursor,
             .append(pd.Series([V_ref * np.log((z - d) / z0) / np.log(z_ref / z0)
                                                      for z in pointHeighAbove],
                                         index = pointHeighAbove))
+    elif profileType == "user":
+        pointHeightIndex = pd.Index(pointHeightList)
+        verticalWindProfile = pd.read_csv(verticalProfileFile, header = None, 
+                                          index_col = 0, names = ["z", "v"])["v"]
+        verticalWindProfile = verticalWindProfile.reindex(pointHeightIndex\
+                                                          .union(verticalWindProfile.index))
+        verticalWindProfile = verticalWindProfile.interpolate(method = "cubic").reindex(pointHeightIndex)
     
     return verticalWindProfile
 
 def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
-                        df_gridBuil, z0, sketchHeight, profileType = "urban",
+                        df_gridBuil, z0, sketchHeight, profileType = PROFILE_TYPE,
                         meshSize = MESH_SIZE,  dz = DZ, z_ref = Z_REF, 
                         V_ref = V_REF, tempoDirectory = TEMPO_DIRECTORY,
                         **kwargs):
@@ -2151,6 +2163,7 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                     - "urban": exponential below building mean height and log otherwise
                     - "log": traditional log profile
                     - "power": traditional power law profile
+                    - "user": set by the user (in a text file)
             meshSize: float, default MESH_SIZE
                 Resolution (in meter) of the grid
             dz: float, default DZ
@@ -2164,11 +2177,15 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                 having Röckle initial wind speed values (in order to exchange
                                                          data between H2 to Python)
             (optional) d: float
-                Value of the study area displacement length
+                Value of the study area displacement length (only if profileType = "log" or "urban")
             (optional) H: float
-                Value of the study area building geometric mean height
+                Value of the study area building geometric mean height (only if profileType = "urban")
             (optional) lambda_f: float
-                Value of the study area frontal density
+                Value of the study area frontal density (only if profileType = "urban")
+            (optional) verticalProfileFile: string
+                Path of the file where is stored the vertical wind profile
+                (no header, comma separated, first column is the height, 
+                 second column is the wind speed)
             
             
         
@@ -2188,6 +2205,7 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
     d = kwargs.get('d', None)
     H = kwargs.get('H', None)
     lambda_f = kwargs.get('lambda_f', None)
+    verticalProfileFile = kwargs.get('verticalProfileFile', None)
     
     # File name of the intermediate data saved on disk
     initRockleFilename = "INIT_WIND_ROCKLE_ZONES.csv"
@@ -2210,8 +2228,9 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                             profileType = profileType,
                             d = d,
                             H = H,
-                            lambda_f = lambda_f)
-    verticalWindSpeedProfile.index = [i for i in range(0, verticalWindSpeedProfile.size)]
+                            lambda_f = lambda_f,
+                            verticalProfileFile = verticalProfileFile)
+    verticalWindSpeedProfile.index = [i for i in range(1, verticalWindSpeedProfile.size + 1)]
     
     # Insert the initial vertical wind profile values into a table
     valuesForEachRowProfile = [str(i)+","+str(j) for i, j in verticalWindSpeedProfile.iteritems()]
@@ -2237,7 +2256,8 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                                 profileType = profileType,
                                 d = d,
                                 H = H,
-                                lambda_f = lambda_f)
+                                lambda_f = lambda_f,
+                                verticalProfileFile = verticalProfileFile)
             
     # ... and insert it into a table
     valuesForEachRowBuilding = [str(i)+","+str(j) for i, j in buildingHeightWindSpeed.iteritems()]

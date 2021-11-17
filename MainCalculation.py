@@ -59,7 +59,9 @@ def main(javaEnvironmentPath,
          saveRaster = True,
          saveVector = True,
          saveNetcdf = True,
-         debug = DEBUG):
+         debug = DEBUG,
+         profileType = PROFILE_TYPE,
+         verticalProfileFile = None):
     # If the function is called within QGIS, a feedback is sent into the QGIS interface
     if feedback:
         feedback.setProgressText('Initiating algorithm')
@@ -108,7 +110,6 @@ def main(javaEnvironmentPath,
     if feedback:
         feedback.setProgressText('Creates an H2GIS Instance and load data')
     #Download H2GIS
-    print(pluginDirectory)
     H2gisConnection.downloadH2gis(dbDirectory = pluginDirectory)
     #Initialize a H2GIS database connection
     cursor = H2gisConnection.startH2gisInstance(dbDirectory = pluginDirectory,
@@ -160,10 +161,10 @@ def main(javaEnvironmentPath,
     # Rotate obstacles
     dicRotatedTables, rotationCenterCoordinates = \
         Obstacles.windRotation(cursor = cursor,
-                                                 dicOfInputTables = dicOfObstacles,
-                                                 rotateAngle = windDirection,
-                                                 rotationCenterCoordinates = None,
-                                                 prefix = prefix)
+                               dicOfInputTables = dicOfObstacles,
+                               rotateAngle = windDirection,
+                               rotationCenterCoordinates = None,
+                               prefix = prefix)
     
     # Get the rotated block and vegetation table names
     rotatedStackedBlocks = dicRotatedTables[BUILDING_TABLE_NAME]
@@ -213,14 +214,22 @@ def main(javaEnvironmentPath,
 
     # Save the rotated obstacles and facades as geojson
     if debug or saveRockleZones:
-        saveData.saveTable(cursor = cursor                          , tableName = rotatedPropStackedBlocks,
-                  filedir = outputDataAbs["rotated_stacked_blocks"] , delete = True)
+        saveData.saveTable(cursor = cursor                                  , tableName = rotatedPropStackedBlocks,
+                           filedir = outputDataAbs["rotated_stacked_blocks"], delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
         saveData.saveTable(cursor = cursor                         , tableName = rotatedVegetation,
-                  filedir = outputDataAbs["rotated_vegetation"]    , delete = True)
+                           filedir = outputDataAbs["rotated_vegetation"]    , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
         saveData.saveTable(cursor = cursor                      , tableName = upwindTable,
-                           filedir = outputDataAbs["upwind_facades"]   , delete = True)
+                           filedir = outputDataAbs["upwind_facades"]   , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
         saveData.saveTable(cursor = cursor                      , tableName = downwindTable,
-                           filedir = outputDataAbs["downwind_facades"]   , delete = True)
+                           filedir = outputDataAbs["downwind_facades"]   , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
     
     
     # -----------------------------------------------------------------------------------
@@ -240,9 +249,13 @@ def main(javaEnvironmentPath,
     # Save the resulting displacement zones as geojson
     if debug or saveRockleZones:
         saveData.saveTable(cursor = cursor                      , tableName = displacementZonesTable,
-                  filedir = outputDataAbs["displacement"]       , delete = True)
+                  filedir = outputDataAbs["displacement"]       , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
         saveData.saveTable(cursor = cursor                          , tableName = displacementVortexZonesTable,
-                  filedir = outputDataAbs["displacement_vortex"]    , delete = True)
+                  filedir = outputDataAbs["displacement_vortex"]    , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
     
     # Creates the cavity and wake zones
     cavityZonesTable, wakeZonesTable = \
@@ -255,9 +268,13 @@ def main(javaEnvironmentPath,
     # Save the resulting displacement zones as geojson
     if debug or saveRockleZones:
         saveData.saveTable(cursor = cursor             , tableName = cavityZonesTable,
-                  filedir = outputDataAbs["cavity"]    , delete = True)
+                  filedir = outputDataAbs["cavity"]    , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
         saveData.saveTable(cursor = cursor           , tableName = wakeZonesTable,
-                  filedir = outputDataAbs["wake"]    , delete = True)
+                  filedir = outputDataAbs["wake"]    , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
     
     
     # Creates the street canyon zones
@@ -273,7 +290,9 @@ def main(javaEnvironmentPath,
     # Save the resulting street canyon zones as geojson
     if debug or saveRockleZones:
         saveData.saveTable(cursor = cursor                    , tableName = streetCanyonTable,
-                  filedir = outputDataAbs["street_canyon"]    , delete = True)
+                  filedir = outputDataAbs["street_canyon"]    , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
     
     # Creates the rooftop zones
     rooftopPerpendicularZoneTable, rooftopCornerZoneTable = \
@@ -284,9 +303,13 @@ def main(javaEnvironmentPath,
     # Save the resulting rooftop zones as geojson
     if debug or saveRockleZones:
         saveData.saveTable(cursor = cursor                              , tableName = rooftopPerpendicularZoneTable,
-                  filedir = outputDataAbs["rooftop_perpendicular"]      , delete = True)
+                  filedir = outputDataAbs["rooftop_perpendicular"]      , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
         saveData.saveTable(cursor = cursor                      , tableName = rooftopCornerZoneTable,
-                  filedir = outputDataAbs["rooftop_corner"]     , delete = True)
+                  filedir = outputDataAbs["rooftop_corner"]     , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
     
     # Creates the vegetation zones
     vegetationBuiltZoneTable, vegetationOpenZoneTable = \
@@ -296,9 +319,13 @@ def main(javaEnvironmentPath,
                                                 prefix = prefix)
     if debug or saveRockleZones:
         saveData.saveTable(cursor = cursor                      , tableName = vegetationBuiltZoneTable,
-                  filedir = outputDataAbs["vegetation_built"]   , delete = True)
+                  filedir = outputDataAbs["vegetation_built"]   , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
         saveData.saveTable(cursor = cursor                      , tableName = vegetationOpenZoneTable,
-                  filedir = outputDataAbs["vegetation_open"]    , delete = True)
+                  filedir = outputDataAbs["vegetation_open"]    , delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
     
     # Define a dictionary of all building Rockle zones and same for veg
     dicOfBuildRockleZoneTable = {DISPLACEMENT_NAME       : displacementZonesTable,
@@ -401,7 +428,9 @@ def main(javaEnvironmentPath,
             saveData.saveTable(cursor = cursor,
                                tableName = "point_Buildzone_"+t,
                                filedir = outputDataAbs["point_BuildZone"]+t+".geojson",
-                               delete = True)
+                               delete = True,
+                               rotationCenterCoordinates = rotationCenterCoordinates,
+                               rotateAngle = - windDirection)
     
     # -----------------------------------------------------------------------------------
     # 6. INITIALIZE THE 3D WIND FIELD IN THE ROCKLE ZONES -------------------------------
@@ -436,7 +465,9 @@ def main(javaEnvironmentPath,
             saveData.saveTable(cursor = cursor,
                                tableName = "point3D_Buildzone_"+t,
                                filedir = outputDataAbs["point3D_BuildZone"]+t+".geojson",
-                               delete = True)
+                               delete = True,
+                               rotationCenterCoordinates = rotationCenterCoordinates,
+                               rotateAngle = - windDirection)
         
     # Calculates the 3D wind speed factors of the vegetation (considering all zone types)
     # after calculation of the top of the "sketch"
@@ -470,7 +501,9 @@ def main(javaEnvironmentPath,
         saveData.saveTable(cursor = cursor,
                            tableName = "point3D_AllVegZone",
                            filedir = outputDataAbs["point3D_VegZone"]+".geojson",
-                           delete = True)
+                           delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)
     
     
     # ----------------------------------------------------------------
@@ -511,7 +544,9 @@ def main(javaEnvironmentPath,
         saveData.saveTable(cursor = cursor,
                            tableName = "point3D_All",
                            filedir = outputDataAbs["point3D_All"]+".geojson",
-                           delete = True)        
+                           delete = True,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection)    
     
     
     # -------------------------------------------------------------------
@@ -535,7 +570,7 @@ def main(javaEnvironmentPath,
                                           df_gridBuil = df_gridBuil,
                                           z0 = z0,
                                           sketchHeight = sketchHeight,
-                                          profileType = "power",
+                                          profileType = profileType,
                                           meshSize = meshSize,
                                           dz = dz, 
                                           z_ref = z_ref,
@@ -543,7 +578,8 @@ def main(javaEnvironmentPath,
                                           tempoDirectory = tempoDirectory,
                                           d = d,
                                           H = Hr,
-                                          lambda_f = lambda_f)
+                                          lambda_f = lambda_f,
+                                          verticalProfileFile = verticalProfileFile)
     
     # -------------------------------------------------------------------
     # 9. "RASTERIZE" THE DATA - PREPARE MATRICES FOR WIND CALCULATION ---
@@ -677,15 +713,15 @@ def main(javaEnvironmentPath,
     # -------------------------------------------------------------------
     # 12. SAVE EACH OF THE UROCK OUTPUT ---------------------------------
     # ------------------------------------------------------------------- 
-    saveData.saveBasicOutputs(cursor = cursor                , z_out = z_out,
-                              dz = dz                        , u = u_rot,
-                              v = v_rot                      , w = w, 
-                              gridName = gridPoint           , rotationCenterCoordinates = rotationCenterCoordinates,
-                              windDirection = windDirection  , verticalWindProfile = verticalWindProfile,
-                              outputFilePathAndNameBase = outputFilePathAndNameBase,
-                              meshSize = meshSize            , outputRaster = outputRaster,
-                              saveRaster = saveRaster        , saveVector = saveVector,
-                              saveNetcdf = saveNetcdf)
+    dicVectorTables = saveData.saveBasicOutputs(  cursor = cursor                , z_out = z_out,
+                                                  dz = dz                        , u = u_rot,
+                                                  v = v_rot                      , w = w, 
+                                                  gridName = gridPoint           , rotationCenterCoordinates = rotationCenterCoordinates,
+                                                  windDirection = windDirection  , verticalWindProfile = verticalWindProfile,
+                                                  outputFilePathAndNameBase = outputFilePathAndNameBase,
+                                                  meshSize = meshSize            , outputRaster = outputRaster,
+                                                  saveRaster = saveRaster        , saveVector = saveVector,
+                                                  saveNetcdf = saveNetcdf)
 
     if debug:
         saveData.saveBasicOutputs(cursor = cursor                , z_out = z_out,
@@ -700,7 +736,7 @@ def main(javaEnvironmentPath,
 
     return  u_rot, v_rot, w, u0_rot, v0_rot, w0, x_rot, y_rot, z,\
             buildingCoordinates, cursor, gridPoint, rotationCenterCoordinates,\
-            verticalWindProfile
+            verticalWindProfile, dicVectorTables
 
 @jit(nopython=True)
 def rotateData(theta, nx, ny, nz, x, y, x_rot, y_rot, u, v):
