@@ -596,10 +596,6 @@ def main(javaEnvironmentPath,
     buildGrid3D = pd.Series(1, index = df_wind0.index, dtype = np.int32)
     buildGrid3D.loc[df_gridBuil.index] = 0
     
-    # To go descending order along y in the solver
-    if DESCENDING_Y:
-        buildGrid3D.sort_index(level = 1, ascending=False, inplace=True)
-    
     # Convert building coordinates and wind speeds to numpy matrix...
     # (note that v axis direction is changed since we first use Röckle schemes
     # considering wind speed coming from North thus axis facing South)
@@ -618,7 +614,7 @@ def main(javaEnvironmentPath,
     cells4Solver = cells4Solver[cells4Solver[:, 0] < nx - 1]
     cells4Solver = cells4Solver[cells4Solver[:, 1] < ny - 1]
     cells4Solver = cells4Solver[cells4Solver[:, 2] < nz - 1]
-    cells4Solver = cells4Solver.astype(np.int32)
+    cells4Solver = cells4Solver.astype(np.int32)   
     
     # Identify building 3D coordinates
     buildingCoordinates = np.stack(np.where(buildGrid3D==0)).astype(np.int32)

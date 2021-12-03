@@ -203,7 +203,7 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
     
     # Calculate the area of the study area
     cursor.execute("""
-           SELECT ST_AREA(ST_EXTENT({0}))
+           SELECT ST_AREA(ST_BUFFER(ST_EXTENT({0}), 15))
            FROM   (SELECT    {0}
                   FROM {1}
                   UNION ALL

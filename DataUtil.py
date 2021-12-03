@@ -157,6 +157,8 @@ def readFunction(extension):
         return "SHPREAD"
     elif extension.lower() == "geojson":
         return "GEOJSONREAD"
+    elif extension.lower() == "csv":
+        return "CSVREAD"
     
 def createIndex(tableName, fieldName, isSpatial):
     """ Return the SQL query needed to create an index on a given field of a

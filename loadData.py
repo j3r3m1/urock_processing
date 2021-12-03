@@ -239,11 +239,17 @@ def loadFile(cursor, filePath, tableName):
     fileExtension = filePath.split(".")[-1]
     readFunction = DataUtil.readFunction(fileExtension)
     
-    #Load buildings into H2GIS DB and rename fields to generic names
-    cursor.execute("""
-       DROP TABLE IF EXISTS {0};
-        CALL {2}('{1}','{0}');
-        """.format( tableName, filePath,readFunction))
+    if readFunction == "CSVREAD":
+        cursor.execute("""
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0} 
+               AS SELECT * FROM {2}('{1}');
+            """.format( tableName, filePath, readFunction))
+    else:
+        cursor.execute("""
+           DROP TABLE IF EXISTS {0};
+            CALL {2}('{1}','{0}');
+            """.format( tableName, filePath, readFunction))
 
 def fromShp3dTo2_5(cursor, triangles3d, TreesZone, buildTableName,
                    vegTableName, prefix = PREFIX_NAME, save = True):

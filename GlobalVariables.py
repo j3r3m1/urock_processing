@@ -19,7 +19,7 @@ WIND_DIRECTION = 270
 PROFILE_TYPE = "urban"
 
 # If the solver should go descending order along y (does not work yet...)
-DESCENDING_Y = False
+DESCENDING_Y = True
 
 # Temporary directory where are saved database and specific files exchanged between
 # the H2Database and Python

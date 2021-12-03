@@ -1650,7 +1650,7 @@ def manageSuperimposition(cursor,
               AS SELECT   {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}
               FROM        {1}
               UNION ALL   
-              SELECT    a.{2}, a.{3}, a.{5}, a.{4}, NULL AS {6}, a.{7},
+              SELECT    a.{2}, a.{3}, a.{4}, a.{5}, NULL AS {6}, a.{7},
                           NULL AS {8},
                           {11} AS {9}
               FROM     {0} AS a LEFT JOIN {1} AS b
@@ -1694,7 +1694,7 @@ def manageSuperimposition(cursor,
                           COALESCE(b.{9}, {11}) AS {9}
               FROM     {0} AS a RIGHT JOIN {1} AS b
                        ON a.{2} = b.{2} AND a.{3} = b.{3}
-              WHERE    a.{5} > b.{5} OR (a.{5} = b.{5} AND a.{4} > b.{4})
+              WHERE    (a.{5} >= b.{5} AND a.{4} > b.{4})
               UNION ALL
               SELECT   a.{2}, a.{3}, a.{4}, NULL AS {6}, a.{7}, NULL AS {8}, {11} AS {9}
               FROM     {0} AS a LEFT JOIN {1} AS b
@@ -1744,17 +1744,17 @@ def manageSuperimposition(cursor,
                        ON a.{2} = b.{2} AND a.{3} = b.{3}
               WHERE    b.{2} IS NULL
               UNION ALL
-              SELECT    c.{2}, c.{3}, c.{4}, c.{5}, c.{6}, c.{7}, c.{8}
-              FROM     {1} AS c
-          """.format( upstreamPrioritiesTempoTable   , tempoPrioritiesWeighted,
+              SELECT    {2}, {3}, {4}, {5}, {6}, {7}, {8}
+              FROM     {1}
+          """.format( tempoPrioritiesAll             , tempoPrioritiesWeighted,
                       ID_POINT                       , ID_POINT_Z,
                       HEIGHT_FIELD                   , U,
                       V                              , W,
                       REF_HEIGHT_FIELD               , tempoPrioritiesWeightedAll,
-                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                      DataUtil.createIndex(tableName=tempoPrioritiesAll, 
                                             fieldName=ID_POINT,
                                             isSpatial=False),
-                      DataUtil.createIndex(tableName=upstreamPrioritiesTempoTable, 
+                      DataUtil.createIndex(tableName=tempoPrioritiesAll, 
                                             fieldName=ID_POINT_Z,
                                             isSpatial=False),
                       DataUtil.createIndex(tableName=tempoPrioritiesWeighted, 
