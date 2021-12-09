@@ -196,13 +196,14 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
            AS SELECT EXPLOD_ID, {1}, X_MED, HALF_WIDTH, {2}, {3}, {4}
            FROM ST_EXPLODE('(SELECT ST_TOMULTIPOINT(ST_DENSIFY({1}, {5})) AS {1},
                                     {2}, {3}, {4},
-                                    (ST_XMAX({1}) + ST_XMIN({1})) / 2 AS X_MED,
-                                    (ST_XMAX({1}) - ST_XMIN({1})) / 2 AS HALF_WIDTH
+                                    {7} AS X_MED,
+                                    {8} / 2 AS HALF_WIDTH
                            FROM {6})')
        """.format( densifiedLinePoints               , GEOM_FIELD,
                    CAVITY_LENGTH_FIELD               , WAKE_LENGTH_FIELD,
                    DOWNWIND_FACADE_FIELD             , ellipseResolution,
-                   downwindWithPropTable))
+                   downwindWithPropTable             , STACKED_BLOCK_X_MED,
+                   STACKED_BLOCK_WIDTH))
              
     # Define the names of variables for cavity and wake zones
     variablesNames = pd.DataFrame({"L": [CAVITY_LENGTH_FIELD, WAKE_LENGTH_FIELD]},
@@ -220,8 +221,12 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
                                                           HALF_WIDTH, 2)))
                          ELSE {1}
                          END  AS {1},
-                    {2}, -EXPLOD_ID AS EXPLOD_ID
+                    {2}, -EXPLOD_ID + 1000 AS EXPLOD_ID
             FROM {3}
+            UNION ALL
+            SELECT {1}, {2}, 10000 AS EXPLOD_ID
+            FROM {3}
+            WHERE EXPLOD_ID = 1
             ORDER BY EXPLOD_ID ASC
         """.format(ZonePoints[z]                    , GEOM_FIELD, 
                     DOWNWIND_FACADE_FIELD           , densifiedLinePoints,
@@ -233,7 +238,7 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
         {5}
         DROP TABLE IF EXISTS {0}, {8};
         CREATE TABLE {0}
-            AS SELECT   ST_MAKEPOLYGON(ST_MAKELINE(ST_ACCUM(ST_PRECISIONREDUCER({1},3)))) AS {1},
+            AS SELECT   ST_MAKEVALID(ST_MAKEPOLYGON(ST_MAKELINE(ST_ACCUM(ST_PRECISIONREDUCER({1},2))))) AS {1},
                         {3}
             FROM {4}
             GROUP BY {3};
@@ -414,7 +419,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
             FROM ST_EXPLODE('(SELECT    a.{1},
                                         a.{8},
                                         ST_SPLIT(a.{3},
-                                                 b.{3}) AS {3},
+                                                 ST_SNAP(b.{3}, a.{3}, 0.01)) AS {3},
                                         a.{4},
                                         a.{5},
                                         a.{11},

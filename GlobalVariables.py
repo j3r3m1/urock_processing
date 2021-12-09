@@ -19,7 +19,7 @@ WIND_DIRECTION = 270
 PROFILE_TYPE = "urban"
 
 # If the solver should go descending order along y (does not work yet...)
-DESCENDING_Y = True
+DESCENDING_Y = False
 
 # Temporary directory where are saved database and specific files exchanged between
 # the H2Database and Python
@@ -56,7 +56,7 @@ VERT_WIND_SPEED = "VWS"
 WIND_SPEED = "WS"
 
 # Informations to set the DB used for geographical calculations
-INSTANCE_NAME = "myDbH2"
+INSTANCE_NAME = "myDbH2_5"
 INSTANCE_ID ="sa"
 INSTANCE_PASS = "sa"
 NEW_DB = True
@@ -80,8 +80,8 @@ THRESHOLD_ITERATIONS = 1e-6 # Based on Pardyjak et Brown  (2003)
 NPOINTS_ELLIPSE = 100
 MESH_SIZE = 2
 DZ = 2
-ALONG_WIND_ZONE_EXTEND = 30
-CROSS_WIND_ZONE_EXTEND = 25
+ALONG_WIND_ZONE_EXTEND = 60
+CROSS_WIND_ZONE_EXTEND = 40
 VERTICAL_EXTEND = 20
 
 # The "perpendicular vortex scheme" for rooftop and displacement zones is activated
@@ -125,6 +125,8 @@ MAX_CANYON_HEIGHT_FIELD = "Hc"
 UPWIND_FACADE_ANGLE_FIELD = "THETA_WIND"
 UPWIND_FACADE_FIELD = "UPWIND_FACADE_ID"
 DOWNWIND_FACADE_FIELD = "DOWNWIND_FACADE_ID"
+STACKED_BLOCK_WIDTH = "BLOCK_WIDTH"
+STACKED_BLOCK_X_MED = "STACKED_BLOCK_X_MED"
 EFFECTIVE_LENGTH_FIELD = "L_EFF"
 EFFECTIVE_WIDTH_FIELD = "W_EFF"
 DISPLACEMENT_LENGTH_FIELD = "Lf"
