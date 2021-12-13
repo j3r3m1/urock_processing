@@ -22,7 +22,7 @@ try:
     subprocess.check_call([str(path_pybin), "-m", "pip", "install", "jaydebeapi"])
     import jaydebeapi
 except ImportError:
-    print("Module jaydebeapi is missing, cannot connect to H2 Driver")
+    print("'jaydebeapi' Python package is missing, cannot connect to H2 Driver")
     exit(1)
 
 # Global variables

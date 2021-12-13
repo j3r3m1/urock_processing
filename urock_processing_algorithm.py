@@ -46,12 +46,24 @@ from qgis.core import (QgsProcessing,
                        QgsVectorLayer,
                        QgsProject,
                        QgsProcessingContext)
+from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.utils import iface
 from pathlib import Path
+import subprocess
+
+from . import DataUtil
+try:
+    path_pybin = DataUtil.locate_py()
+    subprocess.check_call([str(path_pybin), "-m", "pip", "install", "jaydebeapi"])
+    import jaydebeapi
+except Exception:
+    QMessageBox.critical(None, 'Error', "'jaydebeapi' Python package is missing, cannot connect to H2 Driver")
+    pass
 
 from . import MainCalculation
 from .GlobalVariables import *
 from .H2gisConnection import getJavaDir, setJavaDir, saveJavaDir
+
 
 
 class URockAlgorithm(QgsProcessingAlgorithm):
