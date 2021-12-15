@@ -1375,7 +1375,19 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
 
 def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                               z0, d, dz = DZ, prefix = PREFIX_NAME):
-    """ Calculates the 3D wind speed factors for each zone.
+    """ Calculates the 3D wind speed factors for each zone according to 
+    Nelson et al. (2009) method. Note that for vegetation located in 
+    open areas (Equations 8 and 9), the displacement height is defined by
+    Equation 18a from Hanna and Britter (2002), considering that lambda_f=0.05
+    and Hr being the height of the vegetation at this specific location.
+    
+    References: 
+        Hanna, SR, et RE Britter. « Wind flow and vapor cloud dispersion at 
+    industrial sites. Am. Inst ». Chem Eng, New York, 2002.
+
+        Nelson, Matthew, Michael Williams, Dragan Zajic, Michael Brown, et 
+    Eric Pardyjak. Evaluation of an urban vegetative canopy scheme and 
+    impact on plume dispersion, 2009.
 
 		Parameters
 		_ _ _ _ _ _ _ _ _ _ 
@@ -1432,26 +1444,26 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                             Z))
     
     # Calculation of the wind speed depending on vegetation location (open or building zone)
+    # d is actually calculated by Equation 18a from Hanna and Britter (2002)
     calcQuery = {
         VEGETATION_OPEN_NAME:
             """ CASE WHEN   a.{0}>b.{3}
-                    THEN    LOG((a.{0}-{1})/{2})/LOG(a.{0}/{2})
-                    ELSE    CASE WHEN   a.{0}>b.{4} OR a.{0}< b.{5}
-                            THEN        LOG((b.{3}-{1})/{2})/LOG(a.{0}/{2})
-                            ELSE        LOG((b.{3}-{1})/{2})/LOG(a.{0}/{2})*EXP(b.{6}*(a.{0}/b.{3}-1))
+                    THEN    LOG((a.{0} - 3 * 0.05 * {2}) / {1}) / LOG(a.{0} / {1})
+                    ELSE    CASE WHEN   a.{0} > b.{3} OR a.{0} < b.{4}
+                            THEN        LOG((b.{2} - 3 * 0.05 * {2}) / {1}) / LOG(a.{0} / {1})
+                            ELSE        LOG((b.{3} - 3 * 0.05 * {2}) / {1}) / LOG(a.{0} / {1}) * EXP(b.{5} * (a.{0} / b.{2} - 1))
                     END
                 END
             """.format( Z,
-                        d,
                         z0,
                         TOP_CANOPY_HEIGHT_POINT,
                         VEGETATION_CROWN_TOP_HEIGHT,
                         VEGETATION_CROWN_BASE_HEIGHT,
                         VEGETATION_ATTENUATION_FACTOR),
         VEGETATION_BUILT_NAME:
-            """ CASE WHEN   a.{0}>b.{3} OR a.{0}< b.{4}
-                    THEN    LOG(b.{2}/{1})/LOG(a.{0}/{1})
-                    ELSE    LOG((b.{2})/{1})/LOG(a.{0}/{1})*EXP(b.{5}*(a.{0}/b.{2}-1))
+            """ CASE WHEN   a.{0} > b.{3} OR a.{0} < b.{4}
+                    THEN    LOG(b.{2} / {1}) / LOG(a.{0} / {1})
+                    ELSE    LOG(b.{2} / {1}) / LOG(a.{0} / {1}) * EXP(b.{5} * (a.{0} / b.{2} - 1))
                 END
             """.format( Z,
                         z0,
@@ -1460,8 +1472,8 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
                         VEGETATION_CROWN_BASE_HEIGHT,
                         VEGETATION_ATTENUATION_FACTOR)}
             
-    whereQuery = {VEGETATION_OPEN_NAME: "WHERE a.{0}>0".format(Z),
-                  VEGETATION_BUILT_NAME: """ WHERE a.{0}<b.{1} AND a.{0}>0
+    whereQuery = {VEGETATION_OPEN_NAME: "WHERE a.{0} > 0".format(Z),
+                  VEGETATION_BUILT_NAME: """ WHERE a.{0} < b.{1} AND a.{0} > 0
                                           """.format( Z,
                                                       TOP_CANOPY_HEIGHT_POINT)}
     
@@ -2116,21 +2128,25 @@ def getVerticalProfile( cursor,
     elif profileType == "urban":
         A = 9.6 * lambda_f
         pointHeightIndex = pd.Index(pointHeightList)
-        pointHeighCanopy = pointHeightIndex[pointHeightIndex<H]
-        pointHeighAbove = pointHeightIndex[pointHeightIndex>=H]
-        verticalWindProfile = pd.Series([V_ref * np.exp(A * (z / H - 1))
+        pointHeighCanopy = pointHeightIndex[pointHeightIndex < H]
+        pointHeighAbove = pointHeightIndex[pointHeightIndex >= H]
+        speedAtCanopyHeight = V_ref * np.log((H - d) / z0) / np.log(z_ref / z0)
+        verticalProfileWithin = pd.Series([speedAtCanopyHeight * np.exp(A * (z / H - 1))
                                                      for z in pointHeighCanopy],
-                                        index = pointHeighCanopy)\
-            .append(pd.Series([V_ref * np.log((z - d) / z0) / np.log(z_ref / z0)
+                                          index = pointHeighCanopy)
+        verticalProfileAbove = pd.Series([V_ref * np.log((z - d) / z0) / np.log(z_ref / z0)
                                                      for z in pointHeighAbove],
-                                        index = pointHeighAbove))
+                                          index = pointHeighAbove)
+        verticalWindProfile = verticalProfileWithin\
+            .append(verticalProfileAbove[verticalProfileAbove > verticalProfileWithin.max()])\
+                .reindex(pointHeightIndex).interpolate(method = "index")
     elif profileType == "user":
         pointHeightIndex = pd.Index(pointHeightList)
         verticalWindProfile = pd.read_csv(verticalProfileFile, header = None, 
                                           index_col = 0, names = ["z", "v"])["v"]
         verticalWindProfile = verticalWindProfile.reindex(pointHeightIndex\
                                                           .union(verticalWindProfile.index))
-        verticalWindProfile = verticalWindProfile.interpolate(method = "cubic").reindex(pointHeightIndex)
+        verticalWindProfile = verticalWindProfile.interpolate(method = "slinear").reindex(pointHeightIndex)
     
     return verticalWindProfile
 
