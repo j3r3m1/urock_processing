@@ -2118,7 +2118,7 @@ def getVerticalProfile( cursor,
         pointHeightIndex = pd.Index(pointHeightList)
         pointHeighCanopy = pointHeightIndex[pointHeightIndex<H]
         pointHeighAbove = pointHeightIndex[pointHeightIndex>=H]
-        verticalWindProfile = pd.Series([V_ref*np.exp(A*(z / H - 1))
+        verticalWindProfile = pd.Series([V_ref * np.exp(A * (z / H - 1))
                                                      for z in pointHeighCanopy],
                                         index = pointHeighCanopy)\
             .append(pd.Series([V_ref * np.log((z - d) / z0) / np.log(z_ref / z0)

@@ -196,7 +196,7 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
             d: float
                 Value of the study area displacement length
             Hr: float
-                Value of the study area geometric mean height
+                Value of the study area geometric mean height (weighted by area)
             lambda_f: float
                 Value of the study area frontal density"""
     print("Calculates study area properties")
@@ -215,25 +215,29 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
     area = cursor.fetchall()[0][0]
     
     # Calculates the obstacle (stacked blocks and vegetation) 
-    # geometric mean height (H_r)
+    # geometric mean height weighted by the area (H_r)
     cursor.execute("""
            {0};
            """.format(DataUtil.createIndex(  tableName=stackedBlockTable, 
                                              fieldName=ID_FIELD_BLOCK,
                                              isSpatial=False)))
     cursor.execute("""
-           SELECT   EXP(1.0/COUNT(OBSTACLE_HEIGHT_TAB.*)*
-                        SUM(LOG(OBSTACLE_HEIGHT_TAB.HEIGHT))) AS H_r,
-            FROM (SELECT MAX({0}) AS HEIGHT
+           SELECT   EXP(1.0 / SUM(OBSTACLE_HEIGHT_TAB.AREA) * 
+                        SUM(OBSTACLE_HEIGHT_TAB.AREA * LOG(OBSTACLE_HEIGHT_TAB.HEIGHT))) AS H_r,
+            FROM (SELECT    MAX({0}) AS HEIGHT,
+                            ST_AREA(ST_UNION(ST_ACCUM({5}))) AS AREA
                   FROM {1}
                   GROUP BY {4}
                   UNION ALL
-                  SELECT {2} AS HEIGHT
-                  FROM {3}) AS OBSTACLE_HEIGHT_TAB;""".format(HEIGHT_FIELD, 
-                    stackedBlockTable,
-                    VEGETATION_CROWN_TOP_HEIGHT,
-                    vegetationTable,
-                    ID_FIELD_BLOCK))
+                  SELECT    {2} AS HEIGHT,
+                            ST_AREA({5}) AS AREA
+                  FROM {3}) AS OBSTACLE_HEIGHT_TAB;
+            """.format(HEIGHT_FIELD, 
+                        stackedBlockTable,
+                        VEGETATION_CROWN_TOP_HEIGHT,
+                        vegetationTable,
+                        ID_FIELD_BLOCK,
+                        GEOM_FIELD))
     H_r = cursor.fetchall()[0][0]
     
     # Calculates the obstacle (stacked blocks and vegetation) 
@@ -262,17 +266,17 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
     # Calculates z0 and d according to Hanna and Britter (2002) Equations 16-17
     z0 = 0
     d = 0
-    if lambda_f<=0.15:
-        z0 = lambda_f*H_r
-        if lambda_f<=0.05:
-            d = 3*lambda_f*H_r
+    if lambda_f <= 0.15:
+        z0 = lambda_f * H_r
+        if lambda_f <= 0.05:
+            d = 3 * lambda_f * H_r
         else:
-            d = 0.15+5.5*(lambda_f-0.05)
-    elif lambda_f>0.15:
-        if lambda_f>1:
+            d = (0.15 + 5.5 * (lambda_f - 0.05)) * H_r
+    elif lambda_f > 0.15:
+        if lambda_f > 1:
             lambda_f = 1
-        z0 = 0.15*H_r
-        d = 0.7+0.35*(lambda_f-0.15)
+        z0 = 0.15 * H_r
+        d = (0.7 + 0.35 * (lambda_f - 0.15)) * H_r
     
     return z0, d, H_r, lambda_f
 
