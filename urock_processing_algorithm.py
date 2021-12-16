@@ -45,7 +45,9 @@ from qgis.core import (QgsProcessing,
                        QgsRasterLayer,
                        QgsVectorLayer,
                        QgsProject,
-                       QgsProcessingContext)
+                       QgsProcessingContext,
+                       QgsProcessingParameterEnum,
+                       QgsProcessingParameterFile)
 from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.utils import iface
 from pathlib import Path
@@ -102,6 +104,8 @@ class URockAlgorithm(QgsProcessingAlgorithm):
     PREFIX = "PREFIX"
     WIND_HEIGHT = "WIND_HEIGHT"
     RASTER_OUTPUT = "RASTER_OUTPUT"
+    INPUT_PROFILE_TYPE = "INPUT_PROFILE_TYPE"
+    INPUT_PROFILE_FILE = "INPUT_PROFILE_FILE"
 
     # Output variables    
     OUTPUT_DIRECTORY = "UROCK_OUTPUT"
@@ -143,14 +147,15 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterField(
                 self.ID_FIELD_BUILD,
                 self.tr('Building ID field'),
-                '',
+                None,
                 self.BUILDING_TABLE_NAME,
-                QgsProcessingParameterField.Numeric))
+                QgsProcessingParameterField.Numeric,
+                optional=True))
         self.addParameter(
             QgsProcessingParameterField(
                 self.HEIGHT_FIELD_BUILD,
                 self.tr('Building height field'),
-                '',
+                None,
                 self.BUILDING_TABLE_NAME,
                 QgsProcessingParameterField.Numeric))
         self.addParameter(
@@ -163,7 +168,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterField(
                 self.ID_FIELD_VEG,
                 self.tr('Vegetation ID field'),
-                '',
+                None,
                 self.VEGETATION_TABLE_NAME,
                 QgsProcessingParameterField.Numeric,
                 optional = True))
@@ -171,7 +176,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterField(
                 self.VEGETATION_CROWN_BASE_HEIGHT,
                 self.tr('Vegetation crown base height field'),
-                '',
+                None,
                 self.VEGETATION_TABLE_NAME,
                 QgsProcessingParameterField.Numeric,
                 optional = True))
@@ -179,7 +184,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterField(
                 self.VEGETATION_CROWN_TOP_HEIGHT,
                 self.tr('Vegetation crown top height field'),
-                '',
+                None,
                 self.VEGETATION_TABLE_NAME,
                 QgsProcessingParameterField.Numeric,
                 optional = True))
@@ -187,7 +192,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterField(
                 self.ATTENUATION_FIELD,
                 self.tr('Vegetation wind attenuation factor'),
-                '',
+                None,
                 self.VEGETATION_TABLE_NAME,
                 QgsProcessingParameterField.Numeric,
                 optional = True))
@@ -200,6 +205,19 @@ class URockAlgorithm(QgsProcessingAlgorithm):
 
 
         # Then the informations related to calculation
+        self.addParameter(
+           QgsProcessingParameterEnum(
+               self.INPUT_PROFILE_TYPE, 
+               self.tr('Vertical wind profile type'),
+               ['log', 'power', 'urban', 'user'],
+               defaultValue=0))
+        self.addParameter(
+            QgsProcessingParameterFile(
+                self.INPUT_PROFILE_FILE,
+                self.tr('Input wind profile file (.csv)'),
+                defaultValue = '',
+                extension='csv',
+                optional = True))
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.INPUT_WIND_HEIGHT,
@@ -305,6 +323,8 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         windDirection = self.parameterAsDouble(parameters, self.INPUT_WIND_DIRECTION, context)
         meshSize = self.parameterAsInt(parameters, self.HORIZONTAL_RESOLUTION, context)
         dz = self.parameterAsInt(parameters, self.VERTICAL_RESOLUTION, context)
+        profileType = self.parameterAsString(parameters, self.PROFILE_TYPE, context)
+        profileFile = self.parameterAsString(parameters, self.PROFILE_FILE, context)
         
         # Get building layer and then file directory
         inputBuildinglayer = self.parameterAsVectorLayer(parameters, self.BUILDING_TABLE_NAME, context)
@@ -360,7 +380,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         elif not meshSize:
             feedback.pushInfo('You should either specify an output raster or a horizontal mesh size')
  
-        
+        print(idBuild)
         # Make the calculations
         u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName,\
         rotationCenterCoordinates, verticalWindProfile = \
@@ -398,7 +418,9 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                                  saveVector = saveVector,
                                  saveNetcdf = saveNetcdf,
                                  z_out = z_out,
-                                 debug = DEBUG)
+                                 debug = DEBUG,
+                                 profileType = profileType,
+                                 verticalProfileFile = profileFile)
 
         if loadOutput:
             for z_i in z_out:

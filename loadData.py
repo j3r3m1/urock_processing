@@ -118,7 +118,7 @@ def loadData(fromCad                        , prefix,
                  tableName = buildTablePreSrid)
         
         # If the id field is None, set the primary key "PK" as id
-        if idFieldBuild is None:
+        if idFieldBuild is None or idFieldBuild == "":
             idFieldBuild = "PK"
         
         # Rename building fields to generic names
@@ -136,11 +136,11 @@ def loadData(fromCad                        , prefix,
                      filePath = os.path.abspath(vegetationFilePath),
                      tableName = vegTablePreSrid)
             # Create an ID FIELD if None.
-            if idVegetation is None:
+            if idVegetation is None or idVegetation == "":
                 idVegetation = "PK"
             # Create an attenuation attribute with default 'DEFAULT_VEG_ATTEN_FACT'
             # if no column
-            if vegetationAttenuationFactor is None:
+            if vegetationAttenuationFactor is None or vegetationAttenuationFactor == "":
                 cursor.execute(""" 
                    ALTER TABLE {0} ADD COLUMN {1} DOUBLE DEFAULT {2};
                    """.format( vegTablePreSrid     , VEGETATION_ATTENUATION_FACTOR,
@@ -148,7 +148,7 @@ def loadData(fromCad                        , prefix,
                 vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR
             # Create a base height attribute with default 'DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC'
             # if no column
-            if vegetationBaseHeight is None:
+            if vegetationBaseHeight is None or vegetationBaseHeight == "":
                 cursor.execute(""" 
                    ALTER TABLE {0} ADD COLUMN {1} DOUBLE DEFAULT {2};
                    """.format( vegTablePreSrid,
