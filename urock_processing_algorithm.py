@@ -385,7 +385,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         print(idBuild)
         # Make the calculations
         u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName,\
-        rotationCenterCoordinates, verticalWindProfile = \
+        rotationCenterCoordinates, verticalWindProfile, dicVectorTables = \
             MainCalculation.main(javaEnvironmentPath = javaEnvVar,
                                  pluginDirectory = plugin_directory,
                                  outputFilePathAndNameBase = outputDirectory + os.sep + outputFilename,
