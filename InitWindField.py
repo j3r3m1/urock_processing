@@ -2085,7 +2085,7 @@ def getVerticalProfile( cursor,
                 Height (in meter) of the points for which we want the wind speed
             z0: float
                 Value of the study area roughness height
-            profileType: String
+            profileType: String, default PROFILE_TYPE
                 Type of wind profile to use:
                     - "urban": exponential below building mean height and log otherwise
                     - "log": traditional log profile

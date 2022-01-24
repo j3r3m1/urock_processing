@@ -13,7 +13,9 @@ from osgeo.gdal import Grid, GridOptions
 from .GlobalVariables import HORIZ_WIND_DIRECTION, HORIZ_WIND_SPEED, WIND_SPEED,\
     ID_POINT, TEMPO_DIRECTORY, TEMPO_HORIZ_WIND_FILE, VERT_WIND_SPEED, GEOM_FIELD,\
     OUTPUT_DIRECTORY, MESH_SIZE, OUTPUT_FILENAME, DELETE_OUTPUT_IF_EXISTS,\
-    OUTPUT_RASTER_EXTENSION, OUTPUT_VECTOR_EXTENSION, OUTPUT_NETCDF_EXTENSION
+    OUTPUT_RASTER_EXTENSION, OUTPUT_VECTOR_EXTENSION, OUTPUT_NETCDF_EXTENSION,\
+    WIND_GROUP, WINDSPEED_PROFILE, RLON, RLAT, LON, LAT, LEVELS, WINDSPEED_X,\
+    WINDSPEED_Y, WINDSPEED_Z, VERT_WIND
 from datetime import datetime
 import netCDF4 as nc4
 import os
@@ -222,7 +224,7 @@ def saveToNetCDF(longitude,
     
     # 3D WIND SPEED DATA
     # Creates a group within this file for the 3D wind speed
-    wind3dGrp = f.createGroup('3D_wind')
+    wind3dGrp = f.createGroup(WIND_GROUP)
     
     # Creates dimensions within this group
     wind3dGrp.createDimension('rlon', len(x))
@@ -233,14 +235,14 @@ def saveToNetCDF(longitude,
     wind3dGrp.createDimension('w', None)
     
     # Build the variables
-    rlon = wind3dGrp.createVariable('rlon', 'i4', 'rlon')
-    rlat = wind3dGrp.createVariable('rlat', 'i4', 'rlat')
-    lon = wind3dGrp.createVariable('lon', 'f4', ('rlon', 'rlat'))
-    lat = wind3dGrp.createVariable('lat', 'f4', ('rlon', 'rlat'))
-    levels = wind3dGrp.createVariable('Levels', 'i4', 'z')
-    windSpeed_x = wind3dGrp.createVariable('windSpeed_x', 'f4', ('rlon', 'rlat', 'z'))
-    windSpeed_y = wind3dGrp.createVariable('windSpeed_y', 'f4', ('rlon', 'rlat', 'z'))  
-    windSpeed_z = wind3dGrp.createVariable('windSpeed_z', 'f4', ('rlon', 'rlat', 'z'))
+    rlon = wind3dGrp.createVariable(RLON, 'i4', 'rlon')
+    rlat = wind3dGrp.createVariable(RLAT, 'i4', 'rlat')
+    lon = wind3dGrp.createVariable(LON, 'f4', ('rlon', 'rlat'))
+    lat = wind3dGrp.createVariable(LAT, 'f4', ('rlon', 'rlat'))
+    levels = wind3dGrp.createVariable(LEVELS, 'i4', 'z')
+    windSpeed_x = wind3dGrp.createVariable(WINDSPEED_X, 'f4', ('rlon', 'rlat', 'z'))
+    windSpeed_y = wind3dGrp.createVariable(WINDSPEED_Y, 'f4', ('rlon', 'rlat', 'z'))  
+    windSpeed_z = wind3dGrp.createVariable(WINDSPEED_Z, 'f4', ('rlon', 'rlat', 'z'))
     
     # Fill the variables
     rlon[:] = x
@@ -254,14 +256,14 @@ def saveToNetCDF(longitude,
     
     # VERTICAL WIND PROFILE DATA
     # Creates a group within this file for the vertical wind profile
-    vertWindProfGrp = f.createGroup('vertWind')
+    vertWindProfGrp = f.createGroup(VERT_WIND)
     
     # Creates dimensions within this group
     vertWindProfGrp.createDimension('z', len(z))
     
     # Build the variables 
-    profileLevels = vertWindProfGrp.createVariable('profileLevels', 'i4', 'z')
-    WindSpeed = vertWindProfGrp.createVariable('WindSpeed', 'f4', ('z'))
+    profileLevels = vertWindProfGrp.createVariable(LEVELS, 'i4', 'z')
+    WindSpeed = vertWindProfGrp.createVariable(WINDSPEED_PROFILE, 'f4', ('z'))
     
     # Fill the variables
     profileLevels[:] = z

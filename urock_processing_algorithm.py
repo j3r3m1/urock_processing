@@ -52,6 +52,7 @@ from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.utils import iface
 from pathlib import Path
 import subprocess
+import pandas as pd
 
 from . import DataUtil
 try:
@@ -106,6 +107,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
     RASTER_OUTPUT = "RASTER_OUTPUT"
     INPUT_PROFILE_TYPE = "INPUT_PROFILE_TYPE"
     INPUT_PROFILE_FILE = "INPUT_PROFILE_FILE"
+    LIST_OF_PROFILES = pd.Series(['power', 'log', 'urban', 'user'])
 
     # Output variables    
     OUTPUT_DIRECTORY = "UROCK_OUTPUT"
@@ -209,7 +211,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
            QgsProcessingParameterEnum(
                self.INPUT_PROFILE_TYPE, 
                self.tr('Vertical wind profile type'),
-               ['log', 'power', 'urban', 'user'],
+               self.LIST_OF_PROFILES.values,
                defaultValue=0))
         self.addParameter(
             QgsProcessingParameterFile(
@@ -323,8 +325,8 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         windDirection = self.parameterAsDouble(parameters, self.INPUT_WIND_DIRECTION, context)
         meshSize = self.parameterAsInt(parameters, self.HORIZONTAL_RESOLUTION, context)
         dz = self.parameterAsInt(parameters, self.VERTICAL_RESOLUTION, context)
-        profileType = self.parameterAsString(parameters, self.PROFILE_TYPE, context)
-        profileFile = self.parameterAsString(parameters, self.PROFILE_FILE, context)
+        profileType = self.LIST_OF_PROFILES.loc[self.parameterAsInt(parameters, self.INPUT_PROFILE_TYPE, context)]
+        profileFile = self.parameterAsString(parameters, self.INPUT_PROFILE_FILE, context)
         
         # Get building layer and then file directory
         inputBuildinglayer = self.parameterAsVectorLayer(parameters, self.BUILDING_TABLE_NAME, context)

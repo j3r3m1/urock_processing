@@ -322,7 +322,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
     intersectTable = DataUtil.postfix("intersect_table")
     canyonExtendTable = DataUtil.postfix("canyon_extend_table")
     
-    # Identify pieces of upwind facades intersected by cavity zones
+    # Identify pieces of upwind facades intersected by cavity zones (only when street canyon angle < 45°)
     intersectionQuery = """
         {11};
         {12};
@@ -337,7 +337,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         a.{10},
                         b.{13}
             FROM {3} AS a, {4} AS b
-            WHERE a.{2} && b.{2} AND ST_INTERSECTS(a.{2}, b.{2})
+            WHERE   a.{2} && b.{2} AND ST_INTERSECTS(a.{2}, b.{2})
+                    AND a.{8} > RADIANS(45) AND a.{8} < RADIANS(135)
            """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD                       , upwindTable,
                        cavityZonesTable                 , HEIGHT_FIELD,

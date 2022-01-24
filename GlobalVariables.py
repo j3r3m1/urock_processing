@@ -16,7 +16,7 @@ import os
 Z_REF = 10
 V_REF = 2.0
 WIND_DIRECTION = 270
-PROFILE_TYPE = "log"
+PROFILE_TYPE = "power"
 
 # If the solver should go descending order along y (does not work yet...)
 DESCENDING_Y = False
@@ -24,8 +24,8 @@ DESCENDING_Y = False
 # Temporary directory where are saved database and specific files exchanged between
 # the H2Database and Python
 TEMPO_DIRECTORY = tempfile.gettempdir()
-INPUT_DIRECTORY = os.path.join("./Ressources","Inputs")
-OUTPUT_DIRECTORY = os.path.join("./Ressources","Outputs")
+INPUT_DIRECTORY = os.path.join("./Resources","Inputs")
+OUTPUT_DIRECTORY = os.path.join("./Resources","Outputs")
 BUILDING_TABLE_NAME = "BUILDINGS"
 VEGETATION_TABLE_NAME = "VEGETATION"
 CAD_TRIANGLE_NAME = "ALL_TRIANGLES"
@@ -56,7 +56,7 @@ VERT_WIND_SPEED = "VWS"
 WIND_SPEED = "WS"
 
 # Informations to set the DB used for geographical calculations
-INSTANCE_NAME = "myDbH2_5"
+INSTANCE_NAME = "myDbH2"
 INSTANCE_ID ="sa"
 INSTANCE_PASS = "sa"
 NEW_DB = True
@@ -69,8 +69,8 @@ JAVA_PATH_FILENAME = "JavaPath.csv"
 DEBUG = False
 ONLY_INITIALIZATION = False
 SAVE_ROCKLE_ZONES = False
-MAX_ITERATIONS = 10000      # Based on Pardyjak et Brown  (2003)
-THRESHOLD_ITERATIONS = 1e-6 # Based on Pardyjak et Brown  (2003)
+MAX_ITERATIONS = 500      # Based on QUIC-URB default values (2021)
+THRESHOLD_ITERATIONS = 1e-4 # Based on QUIC-URB default values (2021)
 
 # Note that the number of points of an ellipse is only used to identify whether
 # the upper or lower part of an ellipse should be used (fro displacement zones),
@@ -206,3 +206,16 @@ DOWNSTREAM_WEIGTHING_TABLE = ALL_VEGETATION_NAME
 
 ID_3D_POINT = "ID"
 SELECTED_SUFFIX = "_SELECTION"
+
+# Informations about the netcdf file
+WIND_GROUP = "3D_wind"
+VERT_WIND = "vertWind"
+RLAT = "rlat"
+RLON = "rlon"
+LAT = "lat"
+LON = "lon"
+WINDSPEED_X = "windSpeed_x"
+WINDSPEED_Y = "windSpeed_y"
+WINDSPEED_Z = "windSpeed_z"
+LEVELS = "Levels"
+WINDSPEED_PROFILE = "windSpeed"

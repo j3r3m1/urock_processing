@@ -297,9 +297,9 @@ def main(javaEnvironmentPath,
     # Creates the rooftop zones
     rooftopPerpendicularZoneTable, rooftopCornerZoneTable = \
         Zones.rooftopZones(cursor = cursor,
-                                             upwindTable = upwindTable,
-                                             zonePropertiesTable = zonePropertiesTable,
-                                             prefix = prefix)
+                           upwindTable = upwindTable,
+                           zonePropertiesTable = zonePropertiesTable,
+                           prefix = prefix)
     # Save the resulting rooftop zones as geojson
     if debug or saveRockleZones:
         saveData.saveTable(cursor = cursor                              , tableName = rooftopPerpendicularZoneTable,
@@ -642,7 +642,7 @@ def main(javaEnvironmentPath,
     z = np.linspace(0, Lz, nz)
     
     print("Time spent for wind speed initialization: {0} s".format(time.time()-timeStartCalculation))
-    
+    print("Shape: " + str(u0.shape) + " - " + "Nb cells: " + str(u0.shape[0] * u0.shape[1] * u0.shape[2]))
     # -------------------------------------------------------------------
     # 10. WIND SOLVER APPLICATION ----------------------------------------
     # ------------------------------------------------------------------- 
