@@ -46,8 +46,8 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
         # Convert to a 2D (X, Y) array
         nx = u.shape[0]
         ny = u.shape[1]
-        longitude = np.array([[coord[i*ny+j,0] for j in range(ny)] for i in range(nx)])
-        latitude = np.array([[coord[i*ny+j,1] for j in range(ny)] for i in range(nx)])
+        longitude = np.array([[coord[i * nx + j, 0] for i in range(ny)] for j in range(nx)])
+        latitude = np.array([[coord[i * nx + j, 1] for i in range(ny)] for j in range(nx)])
         
     
         # Save the data into a NetCDF file
@@ -217,7 +217,7 @@ def saveToNetCDF(longitude,
     
     Returns
     -------
-        pd.Series containing the wind direction from East counterclockwise.
+        None
     """
      # Opens a netCDF file in writing mode ('w')
     f = nc4.Dataset(path + OUTPUT_NETCDF_EXTENSION,'w', format='NETCDF4')
