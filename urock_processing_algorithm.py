@@ -381,14 +381,13 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                 meshSize = float(xres + yres) / 2
         elif not meshSize:
             feedback.pushInfo('You should either specify an output raster or a horizontal mesh size')
- 
-        print(idBuild)
+            
         # Make the calculations
         u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName,\
         rotationCenterCoordinates, verticalWindProfile, dicVectorTables = \
             MainCalculation.main(javaEnvironmentPath = javaEnvVar,
                                  pluginDirectory = plugin_directory,
-                                 outputFilePathAndNameBase = outputDirectory + os.sep + outputFilename,
+                                 outputFilePathAndNameBase = outputDirectory + os.sep + prefix + outputFilename,
                                  buildingFilePath = build_file,
                                  vegetationFilePath = veg_file,
                                  srid = srid_build,

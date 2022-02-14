@@ -696,12 +696,12 @@ def main(javaEnvironmentPath,
                                             x = x                           , y = y,
                                             x_rot = x_rot                   , y_rot = y_rot,
                                             u = u                           , v = v)
-
-    x_rot, y_rot, u0_rot, v0_rot = rotateData(theta = -windDirection*np.pi/180  , nx = nx, 
-                                              ny = ny                           , nz = nz, 
-                                              x = x                             , y = y,
-                                              x_rot = x_rot                     , y_rot = y_rot,
-                                              u = u0                            , v = v0)
+    if debug:
+        x_rot, y_rot, u0_rot, v0_rot = rotateData(theta = -windDirection*np.pi/180  , nx = nx, 
+                                                  ny = ny                           , nz = nz, 
+                                                  x = x                             , y = y,
+                                                  x_rot = x_rot                     , y_rot = y_rot,
+                                                  u = u0                            , v = v0)
     # Set the real (x,y) grid coordinates
     x_rot += rotationCenterCoordinates[0]
     y_rot += rotationCenterCoordinates[1]
@@ -718,14 +718,15 @@ def main(javaEnvironmentPath,
                                                   meshSize = meshSize            , outputRaster = outputRaster,
                                                   saveRaster = saveRaster        , saveVector = saveVector,
                                                   saveNetcdf = saveNetcdf)
-
+    
+    # Save also the initialisation field if needed
     if debug:
         saveData.saveBasicOutputs(cursor = cursor                , z_out = z_out,
                                   dz = dz                        , u = u0_rot,
                                   v = v0_rot                     , w = w, 
                                   gridName = gridPoint           , rotationCenterCoordinates = rotationCenterCoordinates,
                                   windDirection = windDirection  , verticalWindProfile = verticalWindProfile,
-                                  outputFilePathAndNameBase = os.path.join(tempoDirectory, "wind_initiatlisation"),
+                                  outputFilePathAndNameBase = os.path.join(tempoDirectory, prefix + "wind_initiatlisation"),
                                   meshSize = meshSize            , outputRaster = outputRaster,
                                   saveRaster = saveRaster        , saveVector = saveVector,
                                   saveNetcdf = saveNetcdf)        

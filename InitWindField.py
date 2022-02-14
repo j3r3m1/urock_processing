@@ -23,7 +23,7 @@ from .GlobalVariables import ALONG_WIND_ZONE_EXTEND, CROSS_WIND_ZONE_EXTEND,\
     WAKE_RELATIVE_POSITION_FIELD, ROOFTOP_CORNER_VAR_HEIGHT, DEBUG,\
     VEGETATION_CROWN_TOP_HEIGHT, ID_VEGETATION, TOP_CANOPY_HEIGHT_POINT,\
     VEGETATION_ATTENUATION_FACTOR, VEGETATION_CROWN_BASE_HEIGHT,\
-    VEGETATION_CROWN_TOP_HEIGHT, PREFIX_NAME, DZ, ID_POINT_Z, C_DZ, P_DZ, Z, X, Y,\
+    DZ, ID_POINT_Z, C_DZ, P_DZ, Z, X, Y,\
     Z_REF, P_RTP, VEGETATION_OPEN_NAME, VEGETATION_BUILT_NAME,\
     VEGETATION_FACTOR, UPSTREAM_PRIORITY_TABLES, UPSTREAM_WEIGHTING_TABLES,\
     UPSTREAM_WEIGHTING_INTER_RULES, UPSTREAM_WEIGHTING_INTRA_RULES,\
@@ -31,7 +31,8 @@ from .GlobalVariables import ALONG_WIND_ZONE_EXTEND, CROSS_WIND_ZONE_EXTEND,\
     REF_HEIGHT_FIELD, REF_HEIGHT_DOWNSTREAM_WEIGHTING,PRIORITY_FIELD,\
     ID_3D_POINT, V_REF, TEMPO_DIRECTORY, Y_POINT, ID_UPSTREAM_STACKED_BLOCK,\
     GEOMETRY_MERGE_TOLERANCE, SNAPPING_TOLERANCE, GEOMETRY_SIMPLIFICATION_DISTANCE,\
-    ID_DOWNSTREAM_STACKED_BLOCK, DOWNWIND_FACADE_FIELD, PROFILE_TYPE
+    ID_DOWNSTREAM_STACKED_BLOCK, DOWNWIND_FACADE_FIELD, PROFILE_TYPE,\
+    HORIZ_WIND_SPEED
 import math
 import numpy as np
 import os
@@ -2110,8 +2111,8 @@ def getVerticalProfile( cursor,
     		Returns
     		_ _ _ _ _ _ _ _ _ _ 
     
-            verticalWindProfile: pd.Series
-                Values of the wind speed for each vertical level"""
+            verticalWindProfile: pd.DataFrame
+                Values of the wind speed and height from ground for each vertical level"""
         # Get kwargs arguments
     d = kwargs.get('d', None)
     H = kwargs.get('H', None)
@@ -2147,6 +2148,12 @@ def getVerticalProfile( cursor,
         verticalWindProfile = verticalWindProfile.reindex(pointHeightIndex\
                                                           .union(verticalWindProfile.index))
         verticalWindProfile = verticalWindProfile.interpolate(method = "slinear").reindex(pointHeightIndex)
+    
+    # Add the height from ground as column instead of index
+    verticalWindProfile.sort_index(inplace = True)
+    verticalWindProfile = pd.DataFrame({HORIZ_WIND_SPEED : verticalWindProfile.values,
+                                        Z: verticalWindProfile.index},
+                                       index = range(1, verticalWindProfile.size + 1))
     
     return verticalWindProfile
 
@@ -2246,10 +2253,9 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                             H = H,
                             lambda_f = lambda_f,
                             verticalProfileFile = verticalProfileFile)
-    verticalWindSpeedProfile.index = [i for i in range(1, verticalWindSpeedProfile.size + 1)]
     
     # Insert the initial vertical wind profile values into a table
-    valuesForEachRowProfile = [str(i)+","+str(j) for i, j in verticalWindSpeedProfile.iteritems()]
+    valuesForEachRowProfile = [str(i)+","+str(j) for i, j in verticalWindSpeedProfile[HORIZ_WIND_SPEED].iteritems()]
     cursor.execute("""
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
@@ -2276,7 +2282,7 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                                 verticalProfileFile = verticalProfileFile)
             
     # ... and insert it into a table
-    valuesForEachRowBuilding = [str(i)+","+str(j) for i, j in buildingHeightWindSpeed.iteritems()]
+    valuesForEachRowBuilding = [str(i)+","+str(j) for i, j in buildingHeightWindSpeed.set_index(Z)[HORIZ_WIND_SPEED].iteritems()]
     cursor.execute("""
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
@@ -2364,11 +2370,12 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                Z: verticalWindSpeedProfile.index.max()+1}
     
     # Initialize the 3D wind speed field considering no obstacles
-    verticalWindSpeedProfile[0] = 0
+    verticalWindSpeedProfile.loc[0] = [0, 0]
+    verticalWindSpeedProfile.sort_index(inplace = True)
     df_wind0 = pd.DataFrame({U: np.zeros(nPoints[X]*nPoints[Y]*nPoints[Z]),
                              V: [val for j in range(nPoints[Y])
                                      for i in range(nPoints[X])
-                                     for val in verticalWindSpeedProfile.sort_index()],
+                                     for val in verticalWindSpeedProfile[HORIZ_WIND_SPEED]],
                              W: np.zeros(nPoints[X] * nPoints[Y] * nPoints[Z])},
                             index=pd.MultiIndex.from_product([[i for i in range(0, nPoints[X])],
                                                               [j for j in range(0, nPoints[Y])],

@@ -15,7 +15,7 @@ from .GlobalVariables import HORIZ_WIND_DIRECTION, HORIZ_WIND_SPEED, WIND_SPEED,
     OUTPUT_DIRECTORY, MESH_SIZE, OUTPUT_FILENAME, DELETE_OUTPUT_IF_EXISTS,\
     OUTPUT_RASTER_EXTENSION, OUTPUT_VECTOR_EXTENSION, OUTPUT_NETCDF_EXTENSION,\
     WIND_GROUP, WINDSPEED_PROFILE, RLON, RLAT, LON, LAT, LEVELS, WINDSPEED_X,\
-    WINDSPEED_Y, WINDSPEED_Z, VERT_WIND
+    WINDSPEED_Y, WINDSPEED_Z, VERT_WIND, Z
 from datetime import datetime
 import netCDF4 as nc4
 import os
@@ -35,7 +35,8 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                        """.format( GEOM_FIELD,
                                    gridName))
         srid = cursor.fetchall()[0][0]
-        # Get the coordinate in lat/lon of each point
+        # Get the coordinate in lat/lon of each point 
+        # WARNING : for now keep the data in local coordinates)
         cursor.execute(""" 
            SELECT ST_X({0}) AS LON, ST_Y({0}) AS LAT FROM 
            (SELECT ST_TRANSFORM(ST_SETSRID({0},{2}), 4326) AS {0} FROM {1})
@@ -60,11 +61,10 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                      latitude = latitude,
                      x = range(nx),
                      y = range(ny),
-                     z = verticalWindProfile.index,
                      u = u,
                      v = v,
                      w = w,
-                     verticalWindProfile = verticalWindProfile.values,
+                     verticalWindProfile = verticalWindProfile,
                      path = outputFilePathAndNameBase)
 
     horizOutputUrock = {z_i : "HORIZ_OUTPUT_UROCK_{0}".format(str(z_i).replace(".","_")) for z_i in z_out}
@@ -184,7 +184,6 @@ def saveToNetCDF(longitude,
                  latitude,
                  x,
                  y,
-                 z,
                  u,
                  v,
                  w,
@@ -210,8 +209,8 @@ def saveToNetCDF(longitude,
             Wind speed along North axis
         w: 2D (X, Y) array
             Wind speed along vertical axis
-        verticalWindSpeedProfile: pd.Series
-            Initial wind speed profile along a vertical axis z
+        verticalWindProfile: pd.DataFrame
+            Initial wind speed profile for each each z from ground (2 columns)
         path: String
             Path and filename to save NetCDF file
     
@@ -229,17 +228,14 @@ def saveToNetCDF(longitude,
     # Creates dimensions within this group
     wind3dGrp.createDimension('rlon', len(x))
     wind3dGrp.createDimension('rlat', len(y))
-    wind3dGrp.createDimension('z', len(z))
-    wind3dGrp.createDimension('u', None)
-    wind3dGrp.createDimension('v', None)
-    wind3dGrp.createDimension('w', None)
+    wind3dGrp.createDimension('z', verticalWindProfile.index.size)
     
     # Build the variables
     rlon = wind3dGrp.createVariable(RLON, 'i4', 'rlon')
     rlat = wind3dGrp.createVariable(RLAT, 'i4', 'rlat')
-    lon = wind3dGrp.createVariable(LON, 'f4', ('rlon', 'rlat'))
-    lat = wind3dGrp.createVariable(LAT, 'f4', ('rlon', 'rlat'))
-    levels = wind3dGrp.createVariable(LEVELS, 'i4', 'z')
+    z = wind3dGrp.createVariable(Z, 'i4', 'z')
+    lon = wind3dGrp.createVariable(LON, 'f8', ('rlon', 'rlat'))
+    lat = wind3dGrp.createVariable(LAT, 'f8', ('rlon', 'rlat'))
     windSpeed_x = wind3dGrp.createVariable(WINDSPEED_X, 'f4', ('rlon', 'rlat', 'z'))
     windSpeed_y = wind3dGrp.createVariable(WINDSPEED_Y, 'f4', ('rlon', 'rlat', 'z'))  
     windSpeed_z = wind3dGrp.createVariable(WINDSPEED_Z, 'f4', ('rlon', 'rlat', 'z'))
@@ -247,9 +243,9 @@ def saveToNetCDF(longitude,
     # Fill the variables
     rlon[:] = x
     rlat[:] = y
+    z[:] = verticalWindProfile[Z].values
     lon[:,:] = longitude
     lat[:,:] = latitude
-    levels[:] = z
     windSpeed_x[:,:,:] = u
     windSpeed_y[:,:,:] = v
     windSpeed_z[:,:,:] = w
@@ -259,15 +255,15 @@ def saveToNetCDF(longitude,
     vertWindProfGrp = f.createGroup(VERT_WIND)
     
     # Creates dimensions within this group
-    vertWindProfGrp.createDimension('z', len(z))
+    vertWindProfGrp.createDimension('z', verticalWindProfile.index.size)
     
     # Build the variables 
-    profileLevels = vertWindProfGrp.createVariable(LEVELS, 'i4', 'z')
+    z_profile = vertWindProfGrp.createVariable(Z, 'i4', 'z')
     WindSpeed = vertWindProfGrp.createVariable(WINDSPEED_PROFILE, 'f4', ('z'))
     
     # Fill the variables
-    profileLevels[:] = z
-    WindSpeed[:] = verticalWindProfile
+    z_profile[:] = verticalWindProfile[Z].values
+    WindSpeed[:] = verticalWindProfile[HORIZ_WIND_SPEED].values
     
     
     # ADD METADATA
@@ -277,9 +273,9 @@ def saveToNetCDF(longitude,
     windSpeed_x.units = 'meter per second'
     windSpeed_y.units = 'meter per second'
     windSpeed_z.units = 'meter per second'
-    levels.units = 'meters'
+    z.units = 'meters'
     WindSpeed.units = 'meter per second'
-    profileLevels.units = 'meters'
+    z_profile.units = 'meters'
 
     #Add global attributes
     f.description = "URock dataset containing one group of 3D wind field value and one group of input vertical wind speed profile"
