@@ -32,7 +32,7 @@ from .GlobalVariables import ALONG_WIND_ZONE_EXTEND, CROSS_WIND_ZONE_EXTEND,\
     ID_3D_POINT, V_REF, TEMPO_DIRECTORY, Y_POINT, ID_UPSTREAM_STACKED_BLOCK,\
     GEOMETRY_MERGE_TOLERANCE, SNAPPING_TOLERANCE, GEOMETRY_SIMPLIFICATION_DISTANCE,\
     ID_DOWNSTREAM_STACKED_BLOCK, DOWNWIND_FACADE_FIELD, PROFILE_TYPE,\
-    HORIZ_WIND_SPEED
+    HORIZ_WIND_SPEED, CAVITY_BACKWARD_NAME, WAKE_BACKWARD_NAME
 import math
 import numpy as np
 import os
@@ -137,7 +137,10 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
 
             dicOfOutputTables: dictionary of table name
                 Dictionary having as key the type of Rockle zone and as value
-                the name of the table containing points corresponding to the zone"""
+                the name of the table containing points corresponding to the zone
+            verticalLineTable: String
+                Vertical lines (not along z but along the grid "north-south")
+                useful for future calculations"""
     print("""Affects each grid point to a building Rockle zone and calculates needed 
           variables for 3D wind speed""")
     
@@ -145,9 +148,10 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     dicOfOutputTables = {t: DataUtil.postfix(tableName = DataUtil.prefix(tableName = t, 
                                                                          prefix = prefix),
                                             suffix = "INIT_POINTS") for t in dicOfBuildRockleZoneTable}
+    verticalLineTable = DataUtil.prefix(tableName = "VERTICAL_LINES", 
+                                        prefix = prefix)
                                         
     # Temporary tables (and prefix for temporary tables)
-    verticalLineTable = "VERTICAL_LINES"
     tempoPrefix = "TEMPO"
     prefixZoneLimits = "ZONE_LIMITS"
     tempoCavity = DataUtil.postfix("TEMPO_CAVITY")
@@ -356,7 +360,9 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                           )
                                               ) AS {7},
                                     b.{10},
-                                    b.{11}
+                                    b.{11},
+                                    a.{12},
+                                    b.{13}
                                     """.format( idZone[STREET_CANYON_NAME],
                                                 UPSTREAM_HEIGHT_FIELD,
                                                 ID_POINT_X,
@@ -368,7 +374,9 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 BASE_HEIGHT_FIELD,
                                                 Y_WALL,
                                                 UPWIND_FACADE_FIELD,
-                                                ID_UPSTREAM_STACKED_BLOCK),
+                                                ID_UPSTREAM_STACKED_BLOCK,
+                                                ID_POINT_Y,
+                                                DOWNWIND_FACADE_FIELD),
         ROOFTOP_PERP_NAME       : """b.{0},
                                     b.{1},
                                     a.{2},
@@ -451,34 +459,37 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     b.{3},
                                     a.{4},
                                     b.{6},
-                                    CAST(a.{7} AS INTEGER) AS {7}""".format(ID_POINT,
-                                                    UPPER_VERTICAL_THRESHOLD,
-                                                    LENGTH_ZONE_FIELD+WAKE_NAME[0],
-                                                    idZone[WAKE_NAME],
-                                                    HEIGHT_FIELD,
-                                                    DISTANCE_BUILD_TO_POINT_FIELD,
-                                                    ID_POINT_X,
-                                                    Y_WALL,
-                                                    Y_POINT,
-                                                    ID_FIELD_STACKED_BLOCK),
+                                    CAST(a.{7} AS INTEGER) AS {7}
+                                    """.format(ID_POINT,
+                                                UPPER_VERTICAL_THRESHOLD,
+                                                LENGTH_ZONE_FIELD+WAKE_NAME[0],
+                                                idZone[WAKE_NAME],
+                                                HEIGHT_FIELD,
+                                                DISTANCE_BUILD_TO_POINT_FIELD,
+                                                ID_POINT_X,
+                                                Y_WALL,
+                                                Y_POINT,
+                                                ID_FIELD_STACKED_BLOCK),
         STREET_CANYON_NAME      : """b.{0},
-                                    SIN(2*(a.{1}-PI()/2))*(0.5+(a.{10}-b.{14})*
-                                    (a.{2}-(a.{10}-b.{14}))/
+                                    SIN(2*(a.{1}-PI()/2))*(0.5+(a.{9}-b.{13})*
+                                    (a.{2}-(a.{9}-b.{13}))/
                                     (0.5*POWER(a.{2},2))) AS {3},
-                                    1-POWER(COS(a.{1}-PI()/2),2)*(1+(a.{10}-b.{14})*
-                                    (a.{2}-(a.{10}-b.{14}))/(POWER(0.5*a.{2},2))) AS {4},
-                                    -ABS(0.5*(1-(a.{10}-b.{14})/(0.5*a.{2})))*
-                                    (1-(a.{2}-(a.{10}-b.{14}))/(0.5*a.{2})) AS {5},
+                                    1-POWER(COS(a.{1}-PI()/2),2)*(1+(a.{9}-b.{13})*
+                                    (a.{2}-(a.{9}-b.{13}))/(POWER(0.5*a.{2},2))) AS {4},
+                                    -ABS(0.5*(1-(a.{9}-b.{13})/(0.5*a.{2})))*
+                                    (1-(a.{2}-(a.{9}-b.{13}))/(0.5*a.{2})) AS {5},
                                     a.{6},
                                     a.{7},
-                                    a.{7}*SQRT(1-POWER((a.{10}-b.{14})/
-                                                                 a.{2}, 2)) AS {8},
-                                    a.{9},
+                                    a.{8},
+                                    a.{10},
+                                    CAST(a.{9} AS INTEGER) AS {9},
                                     a.{11},
-                                    CAST(a.{10} AS INTEGER) AS {10},
                                     a.{12},
-                                    a.{13},
-                                    a.{15}
+                                    a.{14},
+                                    b.{15},
+                                    a.{16},
+                                    b.{13},
+                                    a.{2}
                                     """.format( ID_POINT,
                                                 UPWIND_FACADE_ANGLE_FIELD,
                                                 LENGTH_ZONE_FIELD+STREET_CANYON_NAME[0],
@@ -487,14 +498,15 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 W,
                                                 idZone[STREET_CANYON_NAME],
                                                 UPSTREAM_HEIGHT_FIELD,
-                                                UPPER_VERTICAL_THRESHOLD,
                                                 BASE_HEIGHT_FIELD,
                                                 Y_WALL,
                                                 ID_POINT_X,
                                                 UPWIND_FACADE_FIELD,
                                                 MAX_CANYON_HEIGHT_FIELD,
                                                 Y_POINT,
-                                                ID_UPSTREAM_STACKED_BLOCK),
+                                                ID_UPSTREAM_STACKED_BLOCK,
+                                                ID_POINT_Y,
+                                                DOWNWIND_FACADE_FIELD),
         ROOFTOP_PERP_NAME       : """b.{0},
                                     a.{3}*SQRT(1-POWER(((a.{6}-b.{8})-a.{4}/2)/
                                                                      a.{4}, 2)) AS {5},
@@ -566,19 +578,29 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     cursor.execute(";".join(query))
     
     # The cavity zone length is needed for the wind speed calculation of
-    # wake zone points
+    # wake zone points and for the upper height limit of the street canyon
     cursor.execute("""
-       {12};
-       {13};
+       {14}{15}{12}{31}
+       DROP TABLE IF EXISTS TEMPO_WAKE0;
+       CREATE TABLE TEMPO_WAKE0 
+           AS SELECT   a.{1}, 
+                       COALESCE(b.{9}, 0) AS {16},
+                       a.{4},
+                       a.{5},
+                       a.{6},
+                       a.{9},
+                       a.{10},
+                       a.{7},
+                       a.{21}
+           FROM     {0} AS a LEFT JOIN {2} AS b 
+                    ON a.{1} = b.{1} AND a.{6} = b.{6};
+       {12}{13}
        DROP TABLE IF EXISTS {11};
        CREATE TABLE {11}
-           AS SELECT MIN({3}) AS {3}, {7}, {6}
+           AS SELECT MIN({3}) AS {3}, {7}, {6}, {21}
            FROM {2}
            GROUP BY {6}, {7};
-       {14};
-       {15};
-       {16};
-       {17};
+       {17}{18}{19}{20}
        DROP TABLE IF EXISTS TEMPO_WAKE;
        CREATE TABLE TEMPO_WAKE 
            AS SELECT   a.{1}, 
@@ -587,13 +609,23 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                        a.{5},
                        a.{6},
                        a.{9},
+                       a.{16},
                        a.{10},
                        a.{7},
-                       a.{18}
-           FROM     {0} AS a LEFT JOIN {11} AS b 
+                       a.{21}
+           FROM     TEMPO_WAKE0 AS a LEFT JOIN {11} AS b 
                     ON a.{6} = b.{6} AND a.{7} = b.{7};
        DROP TABLE IF EXISTS {0};
        ALTER TABLE TEMPO_WAKE RENAME TO {0};
+       {30}{23}{24}{25}   
+       DROP TABLE IF EXISTS TEMPO_STREET_CANYON;
+       CREATE TABLE TEMPO_STREET_CANYON 
+           AS SELECT   a.*, 
+                       a.{27}*SQRT(1-POWER((a.{28}-a.{29})/b.{3}, 2)) AS {9},
+           FROM     {22} AS a LEFT JOIN {11} AS b 
+                    ON a.{6} = b.{6} AND a.{7} = b.{7} AND a.{26} = b.{21};
+       DROP TABLE IF EXISTS {22};
+       ALTER TABLE TEMPO_STREET_CANYON RENAME TO {22};
        """.format(  dicOfOutputTables[WAKE_NAME]    , ID_POINT,
                     dicOfOutputTables[CAVITY_NAME]  , LENGTH_ZONE_FIELD+CAVITY_NAME[0],
                     DISTANCE_BUILD_TO_POINT_FIELD   , HEIGHT_FIELD,                   
@@ -606,10 +638,17 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                     DataUtil.createIndex(   dicOfOutputTables[CAVITY_NAME], 
                                             fieldName=ID_POINT_X,
                                             isSpatial=False),
-                    DataUtil.createIndex(   dicOfOutputTables[WAKE_NAME], 
-                                            fieldName=DOWNWIND_FACADE_FIELD,
+                    DataUtil.createIndex(   dicOfOutputTables[CAVITY_NAME], 
+                                            fieldName=ID_POINT,
                                             isSpatial=False),
                     DataUtil.createIndex(   dicOfOutputTables[WAKE_NAME], 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                    UPPER_VERTICAL_THRESHOLD + CAVITY_NAME[0],
+                    DataUtil.createIndex(   "TEMPO_WAKE0", 
+                                            fieldName=DOWNWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   "TEMPO_WAKE0", 
                                             fieldName=ID_POINT_X,
                                             isSpatial=False),
                     DataUtil.createIndex(   tempoCavity, 
@@ -618,7 +657,24 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                     DataUtil.createIndex(   tempoCavity, 
                                             fieldName=ID_POINT_X,
                                             isSpatial=False),
-                    ID_FIELD_STACKED_BLOCK))
+                    ID_FIELD_STACKED_BLOCK          , dicOfOutputTables[STREET_CANYON_NAME],
+                    DataUtil.createIndex(   dicOfOutputTables[STREET_CANYON_NAME], 
+                                            fieldName=DOWNWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfOutputTables[STREET_CANYON_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfOutputTables[STREET_CANYON_NAME], 
+                                            fieldName=ID_UPSTREAM_STACKED_BLOCK,
+                                            isSpatial=False),
+                    ID_UPSTREAM_STACKED_BLOCK       , UPSTREAM_HEIGHT_FIELD,
+                    Y_WALL                          , Y_POINT,
+                    DataUtil.createIndex(   tempoCavity, 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfOutputTables[WAKE_NAME], 
+                                            fieldName=DOWNWIND_FACADE_FIELD,
+                                            isSpatial=False)))
     
     # Special treatment for rooftop corners which have not been calculated previously
     cursor.execute("""DROP TABLE IF EXISTS {8};
@@ -657,18 +713,17 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     if not DEBUG:
         # Remove intermediate tables
         cursor.execute("""
-            DROP TABLE IF EXISTS {0},{1},{2}
+            DROP TABLE IF EXISTS TEMPO_WAKE0, TEMPO_WAKE, {0},{1},{2}
                       """.format(",".join([DataUtil.prefix( tableName = dicOfOutputTables[t],
                                                             prefix = tempoPrefix)
                                                  for t in listTabYvalues]),
                                   ",".join([DataUtil.prefix(tableName = t,
                                                             prefix = prefixZoneLimits)
                                                  for t in listTabYvalues]),
-                                 verticalLineTable,
                                  tempoCavity))
         
      
-    return dicOfOutputTables
+    return dicOfOutputTables, verticalLineTable
 
 
 def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable,
@@ -758,14 +813,12 @@ def affectsPointToVegZone(cursor, gridTable, dicOfVegRockleZoneTable,
 def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                           prefix = PREFIX_NAME):
     """ Remove some of the Röckle zone points when there are specific
-    zone overlapping. Currently, two major deletion are implemented:
+    zone overlapping. Currently, one major deletions is implemented:
         1. downwind building zone deletion: if a part of a building is entirely 
         located within the vertical extend of an upward building cavity zone,
         its corresponding cavity, wake and street canyon zone are deleted
-        (only the part corresponding to the part of building is deleted)
-        2. rooftop recirculation zone deletion: if the downward building of a street canyon
-        is smaller or equal in size as the upward one, its rooftop recirculation
-        zone is deleted.
+        (only the cavity part corresponding to the part of building covered by 
+         an other cavity is deleted)
 
 		Parameters
 		_ _ _ _ _ _ _ _ _ _ 
@@ -805,8 +858,8 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
     dicPointsToRemoveStreetCanyon = {ROOFTOP_PERP_NAME: "TEMPO_POINTS_TO_REMOVE_"+ROOFTOP_PERP_NAME,
                                      ROOFTOP_CORN_NAME: "TEMPO_POINTS_TO_REMOVE_"+ROOFTOP_CORN_NAME}
     
-    #1. IDENTIFY BUILDINGS HAVING THEIR DOWNSTREAM FACADE INCLUDED WITHIN AN
-    #   UPSTREAM CAVITY ZONE
+    # 1. IDENTIFY BUILDINGS PARTS (X POSITION) HAVING THEIR DOWNSTREAM FACADE INCLUDED WITHIN AN
+    #    UPSTREAM CAVITY ZONE
     # First identify the coordinate of the upstreamer point for each X coordinate to each cavity zone
     cursor.execute("""
            {5}{6}
@@ -825,7 +878,7 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                                             fieldName=ID_POINT_X,
                                             isSpatial=False)))
                
-    # Then identify the maximum height of each of these points
+    # Then identify the maximum height of the cavity zone for each of these points
     cursor.execute("""
            {9}{10}{11}{12}{13}{14}
            DROP TABLE IF EXISTS {0};
@@ -990,7 +1043,7 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                                             fieldName=ID_POINT_X,
                                             isSpatial=False)))
 
-    #2. REMOVE ANY ZONE CORRESPONDING TO THESE BUILDINGS
+    #2. REMOVE ANY ZONE CORRESPONDING TO THESE PARTS OF BUILDINGS
     cavityJoinFields = {STREET_CANYON_NAME: [ID_UPSTREAM_STACKED_BLOCK, ID_POINT_X],
                         WAKE_NAME: [ID_FIELD_STACKED_BLOCK, ID_POINT_X],
                         CAVITY_NAME: [ID_UPSTREAM_STACKED_BLOCK, ID_POINT_X]}                             
@@ -1003,6 +1056,7 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
              AS SELECT a.*
              FROM {1} AS a RIGHT JOIN {2} AS b
              ON a.{5} = b.{4} AND a.{3} = b.{3}
+             WHERE a.{10} IS NOT NULL
          """.format(dicOfBuildZoneGridPoint[t]               , dicOfInitBuildZoneGridPoint[t],
                     cavityWithoutDown                        , ID_POINT_X,
                     ID_UPSTREAM_STACKED_BLOCK                , cavityJoinFields[t][0],
@@ -1017,7 +1071,8 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                                          isSpatial=False),
                     DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
                                          fieldName=cavityJoinFields[t][1],
-                                         isSpatial=False))
+                                         isSpatial=False),
+                    ID_POINT)
            for t in cavityJoinFields.keys()]))
 
     # For each point, several zones may overlay, we need to identify those
@@ -1059,75 +1114,10 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
                        DataUtil.createIndex(cavityPointsMinYwall, 
                                             fieldName=Y_WALL,
                                             isSpatial=False)))                                  
-
-    # 3. REMOVE ROOFTOP ZONES WHICH ARE DOWNSTREAM A CANYON IF THE CANYON
-    # IS AS HIGH AS THE BUILDING WHERE THE ROOFTOP ZONE SHOULD APPEAR 
-    # (note that street canyon have been previously updated)
-    streetCanyonJoinFields = {ROOFTOP_PERP_NAME: [UPWIND_FACADE_FIELD, ID_POINT_X],
-                              ROOFTOP_CORN_NAME: [UPWIND_FACADE_FIELD, ID_POINT_X]}
-    # Identify the rooftop zones to remove
-    cursor.execute(";".join(
-        [""" 
-           {8};
-           {9};
-           {10};
-           {11};
-           DROP TABLE IF EXISTS {0};
-           CREATE TABLE {0}
-               AS SELECT MIN(b.{1}) AS {1}, MIN(b.{2}) AS {2}, MIN(b.{3}) AS {3}
-               FROM {4} AS a RIGHT JOIN {5} AS b ON a.{2} = b.{2} AND a.{3} = b.{3}
-               WHERE b.{6} <= a.{7}
-               GROUP BY b.{3}
-           """.format( dicPointsToRemoveStreetCanyon[t]                 , ID_POINT,
-                       UPWIND_FACADE_FIELD                              , ID_POINT_X,
-                       dicOfBuildZoneGridPoint[STREET_CANYON_NAME]      , dicOfInitBuildZoneGridPoint[t],
-                       HEIGHT_FIELD                                     , MAX_CANYON_HEIGHT_FIELD,
-                       DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
-                                            fieldName=UPWIND_FACADE_FIELD,
-                                            isSpatial=False),
-                       DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
-                                            fieldName=ID_POINT_X,
-                                            isSpatial=False),
-                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
-                                            fieldName=UPWIND_FACADE_FIELD,
-                                            isSpatial=False),
-                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
-                                            fieldName=ID_POINT_X,
-                                            isSpatial=False))
-           for t in streetCanyonJoinFields.keys()]))
-    
-    # Remove points in rooftop zones
-    cursor.execute(";".join(
-        [""" 
-           {5};
-           {6};
-           {7};
-           {8};
-           DROP TABLE IF EXISTS {0};
-           CREATE TABLE {0}
-               AS SELECT a.*
-               FROM {1} AS a LEFT JOIN {2} AS b ON a.{3} = b.{3} AND a.{4} = b.{4}
-               WHERE b.{3} IS NULL AND b.{4} IS NULL
-           """.format( dicOfBuildZoneGridPoint[t]               , dicOfInitBuildZoneGridPoint[t],
-                       dicPointsToRemoveStreetCanyon[t]         , streetCanyonJoinFields[t][0],
-                       streetCanyonJoinFields[t][1]             , DataUtil.createIndex( dicOfInitBuildZoneGridPoint[t], 
-                                                                                        fieldName=streetCanyonJoinFields[t][0],
-                                                                                        isSpatial=False),
-                       DataUtil.createIndex(dicOfInitBuildZoneGridPoint[t], 
-                                            fieldName=streetCanyonJoinFields[t][1],
-                                            isSpatial=False),
-                       DataUtil.createIndex(dicPointsToRemoveStreetCanyon[t], 
-                                            fieldName=streetCanyonJoinFields[t][0],
-                                            isSpatial=False),
-                       DataUtil.createIndex(dicPointsToRemoveStreetCanyon[t], 
-                                            fieldName=streetCanyonJoinFields[t][1],
-                                            isSpatial=False))
-           for t in streetCanyonJoinFields.keys()]))
          
     # Rename tables which has not been modified to the "updated" name
     nonModifiedTables = set(dicOfInitBuildZoneGridPoint.keys())\
-                            -set(cavityJoinFields.keys())\
-                                -set(streetCanyonJoinFields.keys())
+                            -set(cavityJoinFields.keys())
     cursor.execute(";".join(
         [""" 
            DROP TABLE IF EXISTS {0};
@@ -1141,6 +1131,260 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
             [cavityFirstPointCoord, cavityFirstPoint, cavityRelations,
              cavityRelationsAll, cavityUpAndDown, cavityWithoutUpAndDown,
              cavityWithoutDown, cavityPointsMinYwall, cavityFinalPoints]
+        cursor.execute("""
+            DROP TABLE IF EXISTS {0}
+                      """.format(",".join(listToRemove)))
+    
+    return dicOfBuildZoneGridPoint
+
+
+def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
+                        wake2dInitPoints, streetCanyonTable, gridTable, 
+                        prefix, meshSize = MESH_SIZE):
+    """ A building having a horizontal piece its upwind facade entirely (vertically)
+    located within the cavity zone of an upwind taller building will create:
+        -> a backward zone system within the 2 buildings (ie. the downwind building 
+                                                          cavity and wake zones will go 
+                                                          upstream - also downstream
+                                                          if the building not entirely 
+                                                          in the cavity zone of upstream building),
+        -> the removal of the street canyon at these locations (upstream the facade within cavity)
+        -> the removal of the rooftop zones at these locations (downstream the facade within cavity)
+
+		Parameters
+		_ _ _ _ _ _ _ _ _ _ 
+
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            dicOfBuildZoneGridPoint: Dictionary of table name
+                Dictionary containing as key the building Rockle zone name and
+                as value the corresponding points
+            cavity2dInitPoints: String
+                Cavity zone points before any zone removing
+            wake2dInitPoints: String
+                Wake zone points before any zone removing
+            streetCanyonTable: String
+                Name of the table containing the street canyon zones
+            gridTable: String
+                Name of the grid point table
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
+            meshSize: float, default MESH_SIZE
+                Resolution (in meter) of the grid 
+            
+		Returns
+		_ _ _ _ _ _ _ _ _ _ 
+
+            dicOfBuildZoneGridPoint: dictionary of table name
+                Dictionary having as key the type of Rockle zone and as value
+                the name of the table containing updated street canyon zones and 
+                new backward zone points"""
+    print("""Creates backward zones""")
+    
+    # Name of the output tables
+    tables2calculate = [CAVITY_BACKWARD_NAME, WAKE_BACKWARD_NAME]
+    for t in tables2calculate:
+        dicOfBuildZoneGridPoint[t] = DataUtil.postfix(tableName = DataUtil.prefix(tableName = t, 
+                                                                                  prefix = prefix),
+                                                      suffix = "POINTS")
+                                        
+    # Temporary tables (and prefix for temporary tables)
+    canyonLastPointCoord = DataUtil.postfix("CANYON_LAST_POINT_COORD")
+    facadeWithinCavity = DataUtil.postfix("FACADE_WITHIN_CAVITY")
+    impactedStackedBlocs = DataUtil.postfix("IMPACTED_STACKED_BLOCKS")
+    rooftop_tables = [ROOFTOP_PERP_NAME, ROOFTOP_CORN_NAME]
+    tempoZoneTables = tables2calculate + rooftop_tables + [STREET_CANYON_NAME]
+    dicOfTempoBackPoints = {t: DataUtil.postfix(tableName = DataUtil.prefix(tableName = t, 
+                                                                           prefix = "TEMPO"),
+                                               suffix = "POINTS") \
+                                  for t in tempoZoneTables}     
+    
+    # 1. IDENTIFY BUILDINGS PARTS (X POSITION) HAVING THEIR UPSTREAM FACADE 
+    # INCLUDED WITHIN AN UPSTREAM CAVITY ZONE AND CREATE BACKWARD ZONES
+    # First identify the coordinate of the downstreamer point for each X 
+    # coordinate of each street canyon zone and keep only those having the
+    # cavity zone being higher than the downwind building height
+    cursor.execute("""
+           {6}{7}
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0}
+               AS SELECT    {1}, {2}, {3}, MIN({4}) AS {4}, MAX({17}) AS {17}, 
+                           MIN({18}) AS {18}, MIN({19}) AS {19}
+               FROM {5}
+               GROUP BY {1}, {3};
+           {8}{9}{10}{11}{12}{13}
+           DROP TABLE IF EXISTS {14};
+           CREATE TABLE {14}
+               AS SELECT a.{1}, a.{2}, a.{3}, a.{4}, a.{17}, a.{18}, a.{19}
+               FROM {0} AS a LEFT JOIN {5} AS b
+               ON a.{1} = b.{1} AND a.{3} = b.{3} AND a.{4} = b.{4}
+               WHERE b.{15} > b.{16}
+           """.format(canyonLastPointCoord              , ID_POINT_X,
+                       ID_FIELD_STACKED_BLOCK           , ID_FIELD_CANYON,
+                       ID_POINT_Y                       , dicOfBuildZoneGridPoint[STREET_CANYON_NAME],
+                       DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                            fieldName=ID_FIELD_CANYON,
+                                            isSpatial=False),
+                       DataUtil.createIndex(canyonLastPointCoord, 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                       DataUtil.createIndex(canyonLastPointCoord, 
+                                            fieldName=ID_POINT_Y,
+                                            isSpatial=False),   
+                       DataUtil.createIndex(canyonLastPointCoord, 
+                                            fieldName=ID_FIELD_CANYON,
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                            fieldName=ID_POINT_Y,
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                            fieldName=ID_FIELD_CANYON,
+                                            isSpatial=False),  
+                       facadeWithinCavity               , UPPER_VERTICAL_THRESHOLD,
+                       MAX_CANYON_HEIGHT_FIELD          , Y_WALL,
+                       LENGTH_ZONE_FIELD+STREET_CANYON_NAME[0],
+                       UPWIND_FACADE_FIELD))
+            
+    # Then get the stacked blocks concerned by the backward cavity and wake zones
+    # and revert the cavity and wake wind speed factors from downwind to upwind stacked block
+    # and finally join the ID_POINT of each of the ID_X / ID_Y point
+    var2keepSpe = {CAVITY_BACKWARD_NAME: """a.{0}, a.{1}
+                                         """.format(LENGTH_ZONE_FIELD + CAVITY_NAME[0],
+                                                     POINT_RELATIVE_POSITION_FIELD + CAVITY_NAME[0]),
+                   WAKE_BACKWARD_NAME: """a.{0}, a.{1}
+                                       """.format(WAKE_RELATIVE_POSITION_FIELD,
+                                                   UPPER_VERTICAL_THRESHOLD + CAVITY_NAME[0])}
+    tab2revert = {CAVITY_BACKWARD_NAME: cavity2dInitPoints,
+                  WAKE_BACKWARD_NAME: wake2dInitPoints}
+    cursor.execute(";".join(["""
+           {0}{1}
+           DROP TABLE IF EXISTS {2};
+           CREATE TABLE {2}
+               AS SELECT a.{3}, a.{4}, a.{5}, a.{6}, b.{7}, a.{8}
+               FROM {9} AS a LEFT JOIN {10} AS b
+               ON a.{11} = b.{11};
+           {12}{13}{14}{15}
+           DROP TABLE IF EXISTS {16};
+           CREATE TABLE {16}
+               AS SELECT b.{4}, a.{17}, {18}, a.{19}, a.{20}, b.{3}, b.{6},
+                         b.{5} + TRUNC(a.{19}/{21}) AS {5}  
+               FROM {22} AS a LEFT JOIN {2} AS b
+               ON a.{4} = b.{7} AND a.{3} = b.{3}
+               WHERE a.{19} < b.{8} + {21};
+           {23}{24}{25}{26}
+           DROP TABLE IF EXISTS {27};
+           CREATE TABLE {27}
+               AS SELECT a.*, b.{28}
+               FROM {16} AS a LEFT JOIN {29} AS b
+               ON a.{3} = b.{3} AND a.{5} = b.{5}
+           """.format( DataUtil.createIndex(facadeWithinCavity, 
+                                            fieldName=ID_FIELD_CANYON,
+                                            isSpatial=False),
+                       DataUtil.createIndex(streetCanyonTable, 
+                                            fieldName=ID_FIELD_CANYON,
+                                            isSpatial=False),
+                       impactedStackedBlocs                         , ID_POINT_X,
+                       ID_FIELD_STACKED_BLOCK                       , ID_POINT_Y,
+                       Y_WALL                                       , ID_DOWNSTREAM_STACKED_BLOCK,
+                       LENGTH_ZONE_FIELD + STREET_CANYON_NAME[0]    , facadeWithinCavity,
+                       streetCanyonTable                            , ID_FIELD_CANYON,
+                       DataUtil.createIndex(tab2revert[t], 
+                                            fieldName=ID_FIELD_STACKED_BLOCK,
+                                            isSpatial=False),
+                       DataUtil.createIndex(tab2revert[t], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                       DataUtil.createIndex(impactedStackedBlocs, 
+                                            fieldName=ID_DOWNSTREAM_STACKED_BLOCK,
+                                            isSpatial=False),
+                       DataUtil.createIndex(impactedStackedBlocs, 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                       dicOfTempoBackPoints[t]                      , UPPER_VERTICAL_THRESHOLD,
+                       var2keepSpe[t]                               , DISTANCE_BUILD_TO_POINT_FIELD,
+                       HEIGHT_FIELD                                 , meshSize,
+                       tab2revert[t],
+                       DataUtil.createIndex(dicOfTempoBackPoints[t], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                       DataUtil.createIndex(dicOfTempoBackPoints[t], 
+                                            fieldName=ID_POINT_Y,
+                                            isSpatial=False),
+                       DataUtil.createIndex(gridTable, 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                       DataUtil.createIndex(gridTable, 
+                                            fieldName=ID_POINT_Y,
+                                            isSpatial=False),
+                       dicOfBuildZoneGridPoint[t]                , ID_POINT,
+                       gridTable) for t in tables2calculate]))
+    
+    # 2. REMOVE STREET CANYON POINTS WHERE THE DOWNWIND FACADE OF THE CANYON IS
+    # ENTIRELY IN THE CAVITY ZONE OF THE UPSTREAM BUILDING
+    cursor.execute("""
+           {0}{1}{2}{3}
+           DROP TABLE IF EXISTS {4};
+           CREATE TABLE {4}
+               AS SELECT a.*
+               FROM {5} AS a LEFT JOIN {6} AS b
+               ON a.{7} = b.{7} AND a.{8} = b.{8}
+               WHERE b.{7} IS NULL AND b.{8} IS NULL;
+           DROP TABLE IF EXISTS {5};
+           ALTER TABLE {4} RENAME TO {5};
+       """.format( DataUtil.createIndex(facadeWithinCavity, 
+                                         fieldName=ID_FIELD_CANYON,
+                                         isSpatial=False),
+                    DataUtil.createIndex(facadeWithinCavity, 
+                                         fieldName=ID_POINT_X,
+                                         isSpatial = False),
+                    DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                         fieldName=ID_FIELD_CANYON,
+                                         isSpatial = False),
+                    DataUtil.createIndex(dicOfBuildZoneGridPoint[STREET_CANYON_NAME], 
+                                         fieldName=ID_POINT_X,
+                                         isSpatial = False),
+                    dicOfTempoBackPoints[STREET_CANYON_NAME]    , dicOfBuildZoneGridPoint[STREET_CANYON_NAME],
+                    facadeWithinCavity                          , ID_FIELD_CANYON,
+                    ID_POINT_X))
+                             
+    # 3. REMOVE ROOFTOP POINTS WHERE THE DOWNWIND FACADE OF THE CANYON IS
+    # ENTIRELY IN THE CAVITY ZONE OF THE UPSTREAM BUILDING
+    cursor.execute(";".join(["""
+           {0}{1}{2}{3}
+           DROP TABLE IF EXISTS {4};
+           CREATE TABLE {4}
+               AS SELECT a.*
+               FROM {5} AS a LEFT JOIN {6} AS b
+               ON a.{7} = b.{7} AND a.{8} = b.{8}
+               WHERE b.{7} IS NULL AND b.{8} IS NULL;
+           DROP TABLE IF EXISTS {5};
+           ALTER TABLE {4} RENAME TO {5};
+       """.format( DataUtil.createIndex(facadeWithinCavity, 
+                                         fieldName=UPWIND_FACADE_FIELD,
+                                         isSpatial=False),
+                    DataUtil.createIndex(facadeWithinCavity, 
+                                         fieldName=ID_POINT_X,
+                                         isSpatial = False),
+                    DataUtil.createIndex(dicOfBuildZoneGridPoint[t], 
+                                         fieldName=UPWIND_FACADE_FIELD,
+                                         isSpatial = False),
+                    DataUtil.createIndex(dicOfBuildZoneGridPoint[t], 
+                                         fieldName=ID_POINT_X,
+                                         isSpatial = False),
+                    dicOfTempoBackPoints[t]                     , dicOfBuildZoneGridPoint[t],
+                    facadeWithinCavity                          , UPWIND_FACADE_FIELD,
+                    ID_POINT_X) for t in rooftop_tables]))    
+                       
+    if not DEBUG:
+        # Remove intermediate tables
+        listToRemove = list(dicOfTempoBackPoints.values())+\
+            [canyonLastPointCoord, facadeWithinCavity, impactedStackedBlocs]
         cursor.execute("""
             DROP TABLE IF EXISTS {0}
                       """.format(",".join(listToRemove)))
@@ -1195,11 +1439,13 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
             ROOFTOP_PERP_NAME       : "MAX({0}+{1}) AS MAX_HEIGHT".format(ROOFTOP_PERP_VAR_HEIGHT,
                                                                           HEIGHT_FIELD),
             ROOFTOP_CORN_NAME       : "MAX({0}+{1}) AS MAX_HEIGHT".format(ROOFTOP_CORNER_VAR_HEIGHT,
-                                                                          HEIGHT_FIELD)}
+                                                                          HEIGHT_FIELD),
+            CAVITY_BACKWARD_NAME    : "MAX({0}) AS MAX_HEIGHT".format(UPPER_VERTICAL_THRESHOLD),
+            WAKE_BACKWARD_NAME      : "MAX({0}) AS MAX_HEIGHT".format(UPPER_VERTICAL_THRESHOLD)}
     cursor.execute(""" SELECT MAX(MAX_HEIGHT) AS MAX_HEIGHT
                        FROM (SELECT {0})
                        """.format(" UNION ALL SELECT ".join([maxHeightQuery[t]+" FROM "+dicOfBuildZoneGridPoint[t]
-                                                              for t in maxHeightQuery])))
+                                                              for t in dicOfBuildZoneGridPoint])))
     maxHeight = cursor.fetchall()[0][0]
     
     # Creates the table of z levels impacted by obstacles (start at dz/2)
@@ -1257,18 +1503,9 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                              ID_POINT),
             WAKE_NAME       : """
                  b.{0},
-                 CASE WHEN   {1} <= 1
-                             THEN 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)
-                             ELSE 0
-                             END AS {4},
-                 CASE WHEN   {1} <= 1
-                             THEN 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)
-                             ELSE 0
-                             END AS {6},
-                 CASE WHEN   {1} <= 1
-                             THEN 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)
-                             ELSE 0
-                             END AS {7},
+                 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {4},
+                 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {6},
+                 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {7},
                  a.{5},
                  a.{3}
                  """.format( ID_POINT_Z,
@@ -1324,7 +1561,33 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                             ID_POINT,
                             ROOFTOP_WIND_FACTOR,
                             UPWIND_FACADE_ANGLE_FIELD,
-                            V)
+                            V),
+            CAVITY_BACKWARD_NAME: """
+                 b.{0},
+                 POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2) AS {4},
+                 a.{5},
+                 a.{3}
+                 """.format( ID_POINT_Z,
+                             POINT_RELATIVE_POSITION_FIELD+CAVITY_NAME[0],
+                             Z,
+                             HEIGHT_FIELD,
+                             V,
+                             ID_POINT),
+            WAKE_BACKWARD_NAME: """
+                 b.{0},
+                 -1+POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {4},
+                 -1+POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {6},
+                 -1+POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {7},
+                 a.{5},
+                 a.{3}
+                 """.format( ID_POINT_Z,
+                             WAKE_RELATIVE_POSITION_FIELD,
+                             Z,
+                             HEIGHT_FIELD,
+                             V,
+                             ID_POINT,
+                             U,
+                             W)
          }
 
     # Defines the WHERE clause (on z-axis values) for each point of each zone
@@ -1335,8 +1598,9 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                                                              UPPER_VERTICAL_THRESHOLD),
             CAVITY_NAME             : "b.{0} < a.{1}".format(Z,
                                                              UPPER_VERTICAL_THRESHOLD),
-            WAKE_NAME               : "b.{0} < a.{1}".format(Z,
-                                                             UPPER_VERTICAL_THRESHOLD),
+            WAKE_NAME               : "b.{0} < a.{1} AND b.{0} > a.{2}".format(Z,
+                                                                          UPPER_VERTICAL_THRESHOLD,
+                                                                          UPPER_VERTICAL_THRESHOLD + CAVITY_NAME[0]),
             STREET_CANYON_NAME      : """b.{0} < a.{1} 
                                         AND b.{0} < a.{2}""".format( Z,
                                                                      UPPER_VERTICAL_THRESHOLD,
@@ -1348,7 +1612,12 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
             ROOFTOP_CORN_NAME       : """b.{0} < a.{1}+a.{2} 
                                         AND b.{0} > a.{1}""".format( Z,
                                                                      HEIGHT_FIELD,
-                                                                     ROOFTOP_CORNER_VAR_HEIGHT)
+                                                                     ROOFTOP_CORNER_VAR_HEIGHT),
+            CAVITY_BACKWARD_NAME    : "b.{0} < a.{1}".format(Z,
+                                                             UPPER_VERTICAL_THRESHOLD),
+            WAKE_BACKWARD_NAME               : "b.{0} < a.{1} AND b.{0} > a.{2}".format(Z,
+                                                                          UPPER_VERTICAL_THRESHOLD,
+                                                                          UPPER_VERTICAL_THRESHOLD + CAVITY_NAME[0]),
          }
     # Execute the calculation
     cursor.execute(";".join([
@@ -1363,7 +1632,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                             zValueTable,
                             whereQuery[t],
                             Y_WALL)
-                for t in calcQuery]))
+                for t in dicOfBuildZoneGridPoint]))
     
     if not DEBUG:
         # Remove intermediate tables

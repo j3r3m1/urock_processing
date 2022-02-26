@@ -407,7 +407,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                          {5} INTEGER,
                          {11} DOUBLE,
                          {12} INTEGER,
-                         {14} INTEGER)
+                         {14} INTEGER,
+                         {9} INTEGER)
             AS SELECT   NULL AS {13},
                         {1},
                         {8},
@@ -416,7 +417,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         {5},
                         {11},
                         {12},
-                        {14}
+                        {14},
+                        {9}
             FROM ST_EXPLODE('(SELECT    a.{1},
                                         a.{8},
                                         ST_SPLIT(a.{3},
@@ -425,7 +427,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                                         a.{5},
                                         a.{11},
                                         a.{12},
-                                        a.{14}
+                                        a.{14},
+                                        a.{9}
                             FROM        {0} AS a LEFT JOIN {7} AS b ON a.{9}=b.{9})')
             WHERE EXPLOD_ID = 1
            """.format( canyonExtendTable                , ID_UPSTREAM_STACKED_BLOCK,

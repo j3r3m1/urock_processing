@@ -280,12 +280,12 @@ def main(javaEnvironmentPath,
     # Creates the street canyon zones
     streetCanyonTable = \
         Zones.streetCanyonZones(cursor = cursor,
-                                                  cavityZonesTable = cavityZonesTable,
-                                                  zonePropertiesTable = zonePropertiesTable,
-                                                  upwindTable = upwindTable,
-                                                  downwindTable = downwindTable,
-                                                  srid = srid,
-                                                  prefix = prefix)
+                                cavityZonesTable = cavityZonesTable,
+                                zonePropertiesTable = zonePropertiesTable,
+                                upwindTable = upwindTable,
+                                downwindTable = downwindTable,
+                                srid = srid,
+                                prefix = prefix)
     
     # Save the resulting street canyon zones as geojson
     if debug or saveRockleZones:
@@ -388,7 +388,7 @@ def main(javaEnvironmentPath,
                                          prefix = prefix)
     
     # Affects each 2D point to a build Rockle zone and calculates needed variables for 3D wind speed factors
-    dicOfInitBuildZoneGridPoint = \
+    dicOfInitBuildZoneGridPoint, verticalLineTable = \
         InitWindField.affectsPointToBuildZone(  cursor = cursor, 
                                                 gridTable = gridPoint,
                                                 dicOfBuildRockleZoneTable = dicOfBuildRockleZoneTable,
@@ -406,6 +406,18 @@ def main(javaEnvironmentPath,
         InitWindField.removeBuildZonePoints(cursor = cursor, 
                                             dicOfInitBuildZoneGridPoint = dicOfInitBuildZoneGridPoint,
                                             prefix = prefix)
+    
+    # Manage backward cavity and wake zones in the leeward zone of tall buildings
+    dicOfBuildZoneGridPoint =\
+        InitWindField.manageBackwardZones(cursor = cursor, 
+                                          dicOfBuildZoneGridPoint = dicOfBuildZoneGridPoint,
+                                          cavity2dInitPoints = dicOfInitBuildZoneGridPoint[CAVITY_NAME],
+                                          wake2dInitPoints = dicOfInitBuildZoneGridPoint[WAKE_NAME],
+                                          streetCanyonTable = streetCanyonTable,
+                                          gridTable = gridPoint,
+                                          meshSize = meshSize,
+                                          prefix = prefix)
+    
     if debug or saveRockleZones:
         for t in dicOfBuildZoneGridPoint:
             cursor.execute("""
@@ -433,7 +445,7 @@ def main(javaEnvironmentPath,
                                rotateAngle = - windDirection)
     
     # -----------------------------------------------------------------------------------
-    # 6. INITIALIZE THE 3D WIND FIELD IN THE ROCKLE ZONES -------------------------------
+    # 6. INITIALIZE THE 3D WIND FACTORS IN THE ROCKLE ZONES -------------------------------
     # -----------------------------------------------------------------------------------   
     if feedback:
         feedback.setProgressText('Initializes the 3D grid within Röckle zones')
