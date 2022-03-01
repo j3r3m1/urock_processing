@@ -408,7 +408,7 @@ def main(javaEnvironmentPath,
                                             prefix = prefix)
     
     # Manage backward cavity and wake zones in the leeward zone of tall buildings
-    dicOfBuildZoneGridPoint =\
+    dicOfBuildZoneGridPoint, facadeWithinCavity =\
         InitWindField.manageBackwardZones(cursor = cursor, 
                                           dicOfBuildZoneGridPoint = dicOfBuildZoneGridPoint,
                                           cavity2dInitPoints = dicOfInitBuildZoneGridPoint[CAVITY_NAME],
@@ -416,6 +416,7 @@ def main(javaEnvironmentPath,
                                           streetCanyonTable = streetCanyonTable,
                                           gridTable = gridPoint,
                                           meshSize = meshSize,
+                                          dz = dz,
                                           prefix = prefix)
     
     if debug or saveRockleZones:
@@ -529,6 +530,7 @@ def main(javaEnvironmentPath,
     allZonesPointFactor = \
         InitWindField.manageSuperimposition(cursor = cursor,
                                             dicAllWeightFactorsTables = dicAllWeightFactorsTables,
+                                            facadeWithinCavity = facadeWithinCavity,
                                             upstreamPriorityTables = UPSTREAM_PRIORITY_TABLES,
                                             upstreamWeightingTables = UPSTREAM_WEIGHTING_TABLES,
                                             upstreamWeightingInterRules = UPSTREAM_WEIGHTING_INTER_RULES,

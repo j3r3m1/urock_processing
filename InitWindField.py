@@ -32,7 +32,8 @@ from .GlobalVariables import ALONG_WIND_ZONE_EXTEND, CROSS_WIND_ZONE_EXTEND,\
     ID_3D_POINT, V_REF, TEMPO_DIRECTORY, Y_POINT, ID_UPSTREAM_STACKED_BLOCK,\
     GEOMETRY_MERGE_TOLERANCE, SNAPPING_TOLERANCE, GEOMETRY_SIMPLIFICATION_DISTANCE,\
     ID_DOWNSTREAM_STACKED_BLOCK, DOWNWIND_FACADE_FIELD, PROFILE_TYPE,\
-    HORIZ_WIND_SPEED, CAVITY_BACKWARD_NAME, WAKE_BACKWARD_NAME
+    HORIZ_WIND_SPEED, CAVITY_BACKWARD_NAME, WAKE_BACKWARD_NAME,\
+    UPSTREAM_BACKWARD_PRIORITY_TABLES, UPSTREAM_BACKWARD_WEIGHTING_TABLES
 import math
 import numpy as np
 import os
@@ -1140,7 +1141,7 @@ def removeBuildZonePoints(cursor, dicOfInitBuildZoneGridPoint,
 
 def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
                         wake2dInitPoints, streetCanyonTable, gridTable, 
-                        prefix, meshSize = MESH_SIZE):
+                        prefix, meshSize = MESH_SIZE, dz = DZ):
     """ A building having a horizontal piece its upwind facade entirely (vertically)
     located within the cavity zone of an upwind taller building will create:
         -> a backward zone system within the 2 buildings (ie. the downwind building 
@@ -1171,6 +1172,8 @@ def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
                 Prefix to add to the output table name
             meshSize: float, default MESH_SIZE
                 Resolution (in meter) of the grid 
+            dz: float, default DZ
+                Resolution (in meter) of the grid in the vertical direction
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -1178,7 +1181,10 @@ def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
             dicOfBuildZoneGridPoint: dictionary of table name
                 Dictionary having as key the type of Rockle zone and as value
                 the name of the table containing updated street canyon zones and 
-                new backward zone points"""
+                new backward zone points
+            facadeWithinCavity: string
+                Name of the table containing the "facade" ID_POINT and height
+                which will be useful for assigning a weighting to backward zones"""
     print("""Creates backward zones""")
     
     # Name of the output tables
@@ -1187,10 +1193,11 @@ def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
         dicOfBuildZoneGridPoint[t] = DataUtil.postfix(tableName = DataUtil.prefix(tableName = t, 
                                                                                   prefix = prefix),
                                                       suffix = "POINTS")
+    facadeWithinCavity = DataUtil.prefix(tableName = "FACADE_WITHIN_CAVITY", 
+                                         prefix = prefix)
                                         
     # Temporary tables (and prefix for temporary tables)
     canyonLastPointCoord = DataUtil.postfix("CANYON_LAST_POINT_COORD")
-    facadeWithinCavity = DataUtil.postfix("FACADE_WITHIN_CAVITY")
     impactedStackedBlocs = DataUtil.postfix("IMPACTED_STACKED_BLOCKS")
     rooftop_tables = [ROOFTOP_PERP_NAME, ROOFTOP_CORN_NAME]
     tempoZoneTables = tables2calculate + rooftop_tables + [STREET_CANYON_NAME]
@@ -1208,14 +1215,14 @@ def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
            {6}{7}
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
-               AS SELECT    {1}, {2}, {3}, MIN({4}) AS {4}, MAX({17}) AS {17}, 
-                           MIN({18}) AS {18}, MIN({19}) AS {19}
+               AS SELECT    {1}, {2}, {3}, MIN({4}) AS {4}
                FROM {5}
                GROUP BY {1}, {3};
            {8}{9}{10}{11}{12}{13}
            DROP TABLE IF EXISTS {14};
            CREATE TABLE {14}
-               AS SELECT a.{1}, a.{2}, a.{3}, a.{4}, a.{17}, a.{18}, a.{19}
+               AS SELECT   a.{1}, a.{2}, a.{3}, a.{4}, b.{17}-b.{18} AS {17}, b.{18}, b.{19}, 
+                           TRUNC(b.{16} / {21}) + 1 AS {22}, b.{20}
                FROM {0} AS a LEFT JOIN {5} AS b
                ON a.{1} = b.{1} AND a.{3} = b.{3} AND a.{4} = b.{4}
                WHERE b.{15} > b.{16}
@@ -1249,7 +1256,8 @@ def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
                        facadeWithinCavity               , UPPER_VERTICAL_THRESHOLD,
                        MAX_CANYON_HEIGHT_FIELD          , Y_WALL,
                        LENGTH_ZONE_FIELD+STREET_CANYON_NAME[0],
-                       UPWIND_FACADE_FIELD))
+                       UPWIND_FACADE_FIELD              , ID_POINT,
+                       dz                               , ID_POINT_Z))
             
     # Then get the stacked blocks concerned by the backward cavity and wake zones
     # and revert the cavity and wake wind speed factors from downwind to upwind stacked block
@@ -1266,14 +1274,14 @@ def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
            {0}{1}
            DROP TABLE IF EXISTS {2};
            CREATE TABLE {2}
-               AS SELECT a.{3}, a.{4}, a.{5}, a.{6}, b.{7}, a.{8}
+               AS SELECT a.{3}, a.{4}, a.{5}, a.{6}, b.{7}, a.{8}, a.{30}
                FROM {9} AS a LEFT JOIN {10} AS b
                ON a.{11} = b.{11};
            {12}{13}{14}{15}
            DROP TABLE IF EXISTS {16};
            CREATE TABLE {16}
                AS SELECT b.{4}, a.{17}, {18}, a.{19}, a.{20}, b.{3}, b.{6},
-                         b.{5} + TRUNC(a.{19}/{21}) AS {5}  
+                         b.{5} + TRUNC(a.{19}/{21}) AS {5}, b.{30}
                FROM {22} AS a LEFT JOIN {2} AS b
                ON a.{4} = b.{7} AND a.{3} = b.{3}
                WHERE a.{19} < b.{8} + {21};
@@ -1323,7 +1331,8 @@ def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
                                             fieldName=ID_POINT_Y,
                                             isSpatial=False),
                        dicOfBuildZoneGridPoint[t]                , ID_POINT,
-                       gridTable) for t in tables2calculate]))
+                       gridTable                                 , UPWIND_FACADE_FIELD)
+                             for t in tables2calculate]))
     
     # 2. REMOVE STREET CANYON POINTS WHERE THE DOWNWIND FACADE OF THE CANYON IS
     # ENTIRELY IN THE CAVITY ZONE OF THE UPSTREAM BUILDING
@@ -1384,12 +1393,12 @@ def manageBackwardZones(cursor, dicOfBuildZoneGridPoint, cavity2dInitPoints,
     if not DEBUG:
         # Remove intermediate tables
         listToRemove = list(dicOfTempoBackPoints.values())+\
-            [canyonLastPointCoord, facadeWithinCavity, impactedStackedBlocs]
+            [canyonLastPointCoord, impactedStackedBlocs]
         cursor.execute("""
             DROP TABLE IF EXISTS {0}
                       """.format(",".join(listToRemove)))
     
-    return dicOfBuildZoneGridPoint
+    return dicOfBuildZoneGridPoint, facadeWithinCavity
 
 
 def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
@@ -1566,20 +1575,26 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                  b.{0},
                  POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2) AS {4},
                  a.{5},
-                 a.{3}
+                 a.{3},
+                 a.{6},
+                 a.{7}
                  """.format( ID_POINT_Z,
                              POINT_RELATIVE_POSITION_FIELD+CAVITY_NAME[0],
                              Z,
                              HEIGHT_FIELD,
                              V,
-                             ID_POINT),
+                             ID_POINT,
+                             ID_POINT_X,
+                             UPWIND_FACADE_FIELD),
             WAKE_BACKWARD_NAME: """
                  b.{0},
                  -1+POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {4},
                  -1+POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {6},
                  -1+POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {7},
                  a.{5},
-                 a.{3}
+                 a.{3},
+                 a.{8},
+                 a.{9}
                  """.format( ID_POINT_Z,
                              WAKE_RELATIVE_POSITION_FIELD,
                              Z,
@@ -1587,7 +1602,9 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                              V,
                              ID_POINT,
                              U,
-                             W)
+                             W,
+                             ID_POINT_X,
+                             UPWIND_FACADE_FIELD)
          }
 
     # Defines the WHERE clause (on z-axis values) for each point of each zone
@@ -1822,10 +1839,12 @@ def calculates3dVegWindFactor(cursor, dicOfVegZoneGridPoint, sketchHeight,
 
 def manageSuperimposition(cursor,
                           dicAllWeightFactorsTables, 
+                          facadeWithinCavity,
                           upstreamPriorityTables = UPSTREAM_PRIORITY_TABLES,
                           upstreamWeightingTables = UPSTREAM_WEIGHTING_TABLES,
                           upstreamWeightingInterRules = UPSTREAM_WEIGHTING_INTER_RULES,
                           upstreamWeightingIntraRules = UPSTREAM_WEIGHTING_INTRA_RULES,
+                          upstreamBackPriorityTables = UPSTREAM_BACKWARD_PRIORITY_TABLES,
                           downstreamWeightingTable = DOWNSTREAM_WEIGTHING_TABLE,
                           prefix = PREFIX_NAME):
     """ Keep only one value per 3D point, dealing with superimposition from
@@ -1836,6 +1855,7 @@ def manageSuperimposition(cursor,
             2. the upper obstacle (if equal, use the next priority)
             3. a zone priority order (set in 'upstreamPriorityTables')
         - apply a weighting due to some upstream zones (such as wake zones)
+        - add the backward zones weighted by cavity and wake zones
         - apply a weighting due to some downstream zones (such as vegetation)
 
     		Parameters
@@ -1843,12 +1863,24 @@ def manageSuperimposition(cursor,
     
             cursor: conn.cursor
                 A cursor object, used to perform spatial SQL queries
-            dicAllWeightFactorsTables: Dictionary of vegetation Rockle zone tables
-                Dictionary having as key the type of vegetation Rockle zone and as value
+            dicAllWeightFactorsTables: Dictionary of Rockle zone tables
+                Dictionary having as key the type of Rockle zone and as value
                 the name of the table containing points corresponding to the zone
+            facadeWithinCavity: string
+                Name of the table containing the "facade" ID_POINT and height
+                which will be useful for assigning a weighting to backward zones
             upstreamPriorityTables: pd.DataFrame, default UPSTREAM_PRIORITY_TABLES
                 Defines which zones should be used in the priority algorithm and
                 set priorities (column "priority") when the zone comes from a same 
+                upstream obstacle of same height. Also contains a column "ref_height" to
+                set by which wind speed height the weigthing factor should be
+                multiplied. The following values are possible:
+                    -> 1: "upstream building height", 
+                    -> 2: "Reference wind speed measurement height Z_REF",
+                    -> 3: "building height")
+            upstreamBackPriorityTables: pd.DataFrame, default UPSTREAM_BACKWARD_PRIORITY_TABLES
+                Defines which zones should be used in the priority algorithm and
+                set priorities (column "priority") when the backward zone comes from a same 
                 upstream obstacle of same height. Also contains a column "ref_height" to
                 set by which wind speed height the weigthing factor should be
                 multiplied. The following values are possible:
@@ -1887,38 +1919,342 @@ def manageSuperimposition(cursor,
     # Name of the output table
     initializedWindFactorTable = DataUtil.prefix(outputBaseName, 
                                                  prefix = prefix)
+
+    # name of the bacward weight field
+    backWeightField = "BACK_WEIGHT"
+
+    # Backward zone names
+    backwardZoneName = [CAVITY_BACKWARD_NAME, WAKE_BACKWARD_NAME]
         
     # Temporary tables (and prefix for temporary tables)
     tempoPrioritiesAll = DataUtil.postfix("TEMPO_PRIORITY_ALL")
     tempoPrioritiesWeighted = DataUtil.postfix("TEMPO_PRIORITY_WEIGHTED")
     tempoPrioritiesWeightedAll = DataUtil.postfix("TEMPO_PRIORITY_WEIGHTED_ALL")
+    tempoBackwardWeights = DataUtil.postfix("TEMPO_BACWARD_WEIGHTS")
+    dicBackwardWeighted = {t: DataUtil.postfix(DataUtil.prefix(t, prefix = "TEMPO_WEIGHTED"))
+                                for t in backwardZoneName}
+    tempoPrioritiesWeightedAllPlusBack = DataUtil.postfix("TEMPO_PRIORITY_WEIGHTED_ALL_PLUS_BACK")    
     tempoUpstreamAndDownstream = DataUtil.postfix("TEMPO_UPSTREAM_AND_DOWNSTREAM")
     
+    # Deal with superimposition when duplicated points in non backward zones
+    tempoPrioritiesWeightedAll = \
+        manageUpstreamSuperimposition(cursor,
+                                      dicAllWeightFactorsTables = dicAllWeightFactorsTables, 
+                                      upstreamPriorityTables = upstreamPriorityTables,
+                                      upstreamWeightingTables = upstreamWeightingTables,
+                                      upstreamWeightingInterRules = UPSTREAM_WEIGHTING_INTER_RULES,
+                                      upstreamWeightingIntraRules = UPSTREAM_WEIGHTING_INTRA_RULES,
+                                      backward = False,
+                                      prefix = PREFIX_NAME)
+
+    # MANAGE THE BACKWARD ZONES
+    # Get the weighting factor for the backward zones
+    cursor.execute("""
+          {0}{1}{2}{3}
+          DROP TABLE IF EXISTS {4};
+          CREATE TABLE {4}
+              AS SELECT   a.{5}, a.{6}, ABS(b.{7}) AS {8}, b.{13}
+              FROM     {9} AS a LEFT JOIN {10} AS b
+                       ON a.{11} = b.{11} AND a.{12} = b.{12}
+          """.format( DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
+                                           fieldName=ID_POINT,
+                                           isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
+                                           fieldName=ID_POINT_Z,
+                                           isSpatial=False), 
+                      DataUtil.createIndex(tableName=facadeWithinCavity, 
+                                           fieldName=ID_POINT,
+                                           isSpatial=False), 
+                      DataUtil.createIndex(tableName=facadeWithinCavity, 
+                                           fieldName=ID_POINT_Z,
+                                           isSpatial=False), 
+                      tempoBackwardWeights           , ID_POINT_X,
+                      UPWIND_FACADE_FIELD            , V,
+                      backWeightField                , facadeWithinCavity, 
+                      tempoPrioritiesWeightedAll     , ID_POINT,
+                      ID_POINT_Z                     , HEIGHT_FIELD))
+    
+    # Apply the weighting factor to the backward zones
+    backwardZoneQuery = {CAVITY_BACKWARD_NAME: 
+                         """ a.{0}, a.{1}, b.{2}, NULL AS {3}, a.{5}*b.{4} AS {5},
+                             NULL AS {6}, {7} AS {8}, a.{9}
+                         """.format(ID_POINT                , ID_POINT_Z, 
+                                    HEIGHT_FIELD            , U,
+                                    backWeightField         , V,
+                                    W                       , UPSTREAM_PRIORITY_TABLES.loc[CAVITY_NAME, REF_HEIGHT_FIELD],
+                                    REF_HEIGHT_FIELD        , Y_WALL),
+                         WAKE_BACKWARD_NAME: 
+                         """ a.{0}, a.{1}, b.{2}, NULL AS {3}, a.{5}*b.{4} AS {5},
+                             NULL AS {6}, {7} AS {8}, a.{9}
+                         """.format(ID_POINT                , ID_POINT_Z, 
+                                    HEIGHT_FIELD            , U,
+                                    backWeightField         , V,
+                                    W                       , UPSTREAM_PRIORITY_TABLES.loc[CAVITY_NAME, REF_HEIGHT_FIELD],
+                                    REF_HEIGHT_FIELD        , Y_WALL)}    
+     
+    cursor.execute(";".join(["""
+          {0}{1}{2}{3}
+          DROP TABLE IF EXISTS {4};
+          CREATE TABLE {4}
+              AS SELECT {5}
+              FROM     {6} AS a LEFT JOIN {7} AS b
+                       ON a.{8} = b.{8} AND a.{9} = b.{9}
+          """.format( DataUtil.createIndex(tableName=tempoBackwardWeights, 
+                                           fieldName=ID_POINT_X,
+                                           isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoBackwardWeights, 
+                                           fieldName=UPWIND_FACADE_FIELD,
+                                           isSpatial=False), 
+                      DataUtil.createIndex(tableName=dicAllWeightFactorsTables[t], 
+                                           fieldName=ID_POINT_X,
+                                           isSpatial=False), 
+                      DataUtil.createIndex(tableName=dicAllWeightFactorsTables[t], 
+                                           fieldName=UPWIND_FACADE_FIELD,
+                                           isSpatial=False),
+                      dicBackwardWeighted[t]            , backwardZoneQuery[t],
+                      dicAllWeightFactorsTables[t]      , tempoBackwardWeights,
+                      ID_POINT_X                        , UPWIND_FACADE_FIELD)
+                             for t in backwardZoneQuery]))  
+    
+    # Deal with superimposition when duplicated points between backward cavity and wake zones
+    upstreamBackPrioritiesTempoTable = \
+        manageUpstreamSuperimposition(cursor,
+                                      dicAllWeightFactorsTables = dicBackwardWeighted, 
+                                      upstreamPriorityTables = upstreamBackPriorityTables,
+                                      upstreamWeightingTables = UPSTREAM_BACKWARD_WEIGHTING_TABLES,
+                                      upstreamWeightingInterRules = UPSTREAM_WEIGHTING_INTER_RULES,
+                                      upstreamWeightingIntraRules = UPSTREAM_WEIGHTING_INTRA_RULES,
+                                      backward = True,
+                                      prefix = PREFIX_NAME)
+                         
+    # Add backward zone points to the final table (replace points if exist)
+    cursor.execute("""
+          {0}{1}{2}{3}
+          DROP TABLE IF EXISTS {4};
+          CREATE TABLE {4}
+              AS SELECT   a.* 
+              FROM     {5} AS a LEFT JOIN {6} AS b
+                       ON a.{7} = b.{7} AND a.{8} = b.{8}
+              WHERE b.{7} IS NOT NULL AND b.{8} IS NOT NULL
+              UNION ALL
+              SELECT  a.*
+              FROM     {6} AS a LEFT JOIN {5} AS b
+                       ON a.{7} = b.{7} AND a.{8} = b.{8}
+              WHERE b.{7} IS NULL AND b.{8} IS NULL
+          """.format( DataUtil.createIndex(tableName=upstreamBackPrioritiesTempoTable, 
+                                           fieldName=ID_POINT,
+                                           isSpatial=False),
+                      DataUtil.createIndex(tableName=upstreamBackPrioritiesTempoTable, 
+                                           fieldName=ID_POINT_Z,
+                                           isSpatial=False), 
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
+                                           fieldName=ID_POINT,
+                                           isSpatial=False), 
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
+                                           fieldName=ID_POINT_Z,
+                                           isSpatial=False), 
+                      tempoPrioritiesWeightedAllPlusBack, upstreamBackPrioritiesTempoTable,
+                      tempoPrioritiesWeightedAll        , ID_POINT,
+                      ID_POINT_Z))
+
+    # MANAGE THE DOWNSTREAM WEIGHTING ZONES
+    # Weight the wind speeds factors by the downstream weights (vegetation)
+    cursor.execute("""
+          {12};
+          {13};
+          {14};
+          {15};
+          DROP TABLE IF EXISTS {10};
+          CREATE TABLE {10}
+              AS SELECT   a.{2}, a.{3}, COALESCE(b.{4}, NULL) AS {4},
+                          a.{5}*b.{6} AS {6},
+                          COALESCE(a.{5}*b.{7}, a.{5}) AS {7},
+                          a.{5}*b.{8} AS {8},
+                          COALESCE(b.{9}, {11}) AS {9}
+              FROM     {0} AS a LEFT JOIN {1} AS b
+                       ON a.{2} = b.{2} AND a.{3} = b.{3}
+          """.format( dicAllWeightFactorsTables[downstreamWeightingTable], 
+                      tempoPrioritiesWeightedAllPlusBack,
+                      ID_POINT                       , ID_POINT_Z,
+                      HEIGHT_FIELD                   , VEGETATION_FACTOR, 
+                      U                              , V,
+                      W                              , REF_HEIGHT_FIELD, 
+                      tempoUpstreamAndDownstream     , REF_HEIGHT_DOWNSTREAM_WEIGHTING,
+                      DataUtil.createIndex(tableName=dicAllWeightFactorsTables[downstreamWeightingTable], 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=dicAllWeightFactorsTables[downstreamWeightingTable], 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAllPlusBack, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAllPlusBack, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False)))
+    
+    # Join the downstream weigthted points to the non downstream weighted ones
+    cursor.execute("""
+          {12};
+          {13};
+          {10};
+          {11};
+          DROP TABLE IF EXISTS {9};
+          CREATE TABLE {9}
+              AS SELECT   a.{2}, a.{3}, a.{4}, a.{5}, a.{6}, a.{7}, a.{8}
+              FROM     {0} AS a LEFT JOIN {1} AS b
+                       ON a.{2} = b.{2} AND a.{3} = b.{3}
+              WHERE    b.{2} IS NULL
+              UNION ALL
+              SELECT    c.{2}, c.{3}, c.{4}, c.{5}, c.{6}, c.{7}, c.{8}
+              FROM     {1} AS c
+          """.format( tempoPrioritiesWeightedAllPlusBack    , tempoUpstreamAndDownstream,
+                      ID_POINT                              , ID_POINT_Z,
+                      HEIGHT_FIELD                          , U,
+                      V                                     , W,
+                      REF_HEIGHT_FIELD                      , initializedWindFactorTable,
+                      DataUtil.createIndex(tableName=tempoUpstreamAndDownstream, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoUpstreamAndDownstream, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAllPlusBack, 
+                                            fieldName=ID_POINT,
+                                            isSpatial=False),
+                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAllPlusBack, 
+                                            fieldName=ID_POINT_Z,
+                                            isSpatial=False)))
+
+    if not DEBUG:
+        # Remove intermediate tables
+        cursor.execute("""
+            DROP TABLE IF EXISTS {0}
+                      """.format(",".join([tempoUpstreamAndDownstream,
+                                           tempoPrioritiesWeighted,
+                                           tempoPrioritiesWeightedAll,
+                                           tempoPrioritiesAll,
+                                           tempoBackwardWeights,
+                                           upstreamBackPrioritiesTempoTable,
+                                           ",".join(list(dicBackwardWeighted.values)),
+                                           tempoPrioritiesWeightedAllPlusBack])))
+    
+    return initializedWindFactorTable
+
+def manageUpstreamSuperimposition(cursor,
+                                  dicAllWeightFactorsTables, 
+                                  upstreamPriorityTables = UPSTREAM_PRIORITY_TABLES,
+                                  upstreamWeightingTables = UPSTREAM_WEIGHTING_TABLES,
+                                  upstreamWeightingInterRules = UPSTREAM_WEIGHTING_INTER_RULES,
+                                  upstreamWeightingIntraRules = UPSTREAM_WEIGHTING_INTRA_RULES,
+                                  backward = False,
+                                  prefix = PREFIX_NAME):
+    """ Keep only one value per 3D point, dealing with superimposition from
+    different "all except downstream weighting tables". Can be applied for
+    forward or backward wind zones.
+    It is performed in three steps:
+        - if a point is covered by several zones, keep the value only from
+        a single zone based on the following priorities:
+            1. the most upstream zone (if equal, use the next priority)
+            2. the upper obstacle (if equal, use the next priority)
+            3. a zone priority order (set in 'upstreamPriorityTables')
+        - apply a weighting due to some upstream zones (such as wake zones)
+
+    		Parameters
+    		_ _ _ _ _ _ _ _ _ _ 
+    
+            cursor: conn.cursor
+                A cursor object, used to perform spatial SQL queries
+            dicAllWeightFactorsTables: Dictionary of Rockle zone tables
+                Dictionary having as key the type of Rockle zone and as value
+                the name of the table containing points corresponding to the zone
+            upstreamPriorityTables: pd.DataFrame, default UPSTREAM_PRIORITY_TABLES
+                Defines which zones should be used in the priority algorithm and
+                set priorities (column "priority") when the zone comes from a same 
+                upstream obstacle of same height. Also contains a column "ref_height" to
+                set by which wind speed height the weigthing factor should be
+                multiplied. The following values are possible:
+                    -> 1: "upstream building height", 
+                    -> 2: "Reference wind speed measurement height Z_REF",
+                    -> 3: "building height")
+            upstreamWeightingTables: list, default UPSTREAM_WEIGHTING_TABLES
+                Defines which upstream zones will be used to weight the wind speed factors
+            upstreamWeightingInterRules: String, default UPSTREAM_WEIGHTING_INTER_RULES
+                Defines how to deal with a point having several values from a
+                same upstream weighting zone
+                    -> "upstream":  use values from the most upstream and upper 
+                                    obstacles
+            upstreamWeightingIntraRules: String, default UPSTREAM_WEIGHTING_INTRA_RULES
+                Defines how to deal with a point having several values from
+                several upstream weighting zones
+                    -> "upstream":  use values from the most upstream and upper 
+                                    obstacles
+            backward: boolean, default False
+                Whether or not the zones to deal with are backward zones
+            prefix: String, default PREFIX_NAME
+                Prefix to add to the output table name
+            
+    		Returns
+    		_ _ _ _ _ _ _ _ _ _ 
+    
+            upstreamWindFactorTable: String
+                Name of the table containing the weighting factor for each 3D point
+                (one value per point, means superimposition have been used)"""
+    print("Deals with superimposition (keeps only 1 value per 3D point)")
+    
+    # Output base name
+    outputBaseName = "UPSTREAM_WIND_FACTOR_TABLE"
+    if backward:
+        outputBaseName = "BACKWARD_" + outputBaseName
+    
+    # Name of the output table
+    upstreamWindFactorTable = DataUtil.prefix(outputBaseName, 
+                                                 prefix = prefix)
+        
+    # Temporary tables (and prefix for temporary tables)
+    tempoPrioritiesAll = DataUtil.postfix("TEMPO_PRIORITY_ALL")
+    tempoPrioritiesWeighted = DataUtil.postfix("TEMPO_PRIORITY_WEIGHTED")
+    
+    
     # Identify the points to keep for duplicates in upstream weigthing
+    if backward:
+        upstreamWeight = False
+    else:
+        upstreamWeight = True
     upstreamWeightingTempoTable = \
         identifyUpstreamer(cursor = cursor,
                            dicAllWeightFactorsTables = dicAllWeightFactorsTables,
                            tablesToConsider = upstreamWeightingTables,
-                           prefix = "TEMPO_WEIGHTING")
+                           prefix = "TEMPO_WEIGHTING",
+                           upstream = upstreamWeight)
     
     # Identify the points to keep for duplicates in upstream priorities
     # (except zones being in weighting)
+    if backward:
+        upstreamPriorities = True
+    else:
+        upstreamPriorities = True
     upstreamPrioritiesTempoTable = \
         identifyUpstreamer(cursor = cursor,
                            dicAllWeightFactorsTables = dicAllWeightFactorsTables,
                            tablesToConsider = upstreamPriorityTables\
                                                .reindex(upstreamPriorityTables.index\
                                                             .difference(pd.Index(upstreamWeightingTables))),
-                           prefix = "TEMPO_PRIORITIES")
+                           prefix = "TEMPO_PRIORITIES",
+                           upstream = upstreamPriorities)
         
     # Identify the points to keep for duplicates in upstream priorities
     # (only zones being in weighting - ie the most downstream wake zones...)
+    if backward:
+        upstreamPrioritiesWeight = True
+    else:
+        upstreamPrioritiesWeight = False
     upstreamPrioritiesWeightTempoTable = \
         identifyUpstreamer(cursor = cursor,
                            dicAllWeightFactorsTables = dicAllWeightFactorsTables,
                            tablesToConsider = upstreamWeightingTables,
                            prefix = "TEMPO_PRIORITIES_WEIGHT",
-                           upstream = False)
+                           upstream = upstreamPrioritiesWeight)
 
     # Join the points from the priority table to the downstreamest points of the
     # weighting table
@@ -2032,7 +2368,7 @@ def manageSuperimposition(cursor,
                       ID_POINT                       , ID_POINT_Z,
                       HEIGHT_FIELD                   , U,
                       V                              , W,
-                      REF_HEIGHT_FIELD               , tempoPrioritiesWeightedAll,
+                      REF_HEIGHT_FIELD               , upstreamWindFactorTable,
                       DataUtil.createIndex(tableName=tempoPrioritiesAll, 
                                             fieldName=ID_POINT,
                                             isSpatial=False),
@@ -2045,90 +2381,9 @@ def manageSuperimposition(cursor,
                       DataUtil.createIndex(tableName=tempoPrioritiesWeighted, 
                                             fieldName=ID_POINT_Z,
                                             isSpatial=False)))
-                             
-    # Weight the wind speeds factors by the downstream weights (vegetation)
-    cursor.execute("""
-          {12};
-          {13};
-          {14};
-          {15};
-          DROP TABLE IF EXISTS {10};
-          CREATE TABLE {10}
-              AS SELECT   a.{2}, a.{3}, COALESCE(b.{4}, NULL) AS {4},
-                          a.{5}*b.{6} AS {6},
-                          COALESCE(a.{5}*b.{7}, a.{5}) AS {7},
-                          a.{5}*b.{8} AS {8},
-                          COALESCE(b.{9}, {11}) AS {9}
-              FROM     {0} AS a LEFT JOIN {1} AS b
-                       ON a.{2} = b.{2} AND a.{3} = b.{3}
-          """.format( dicAllWeightFactorsTables[downstreamWeightingTable], 
-                      tempoPrioritiesWeightedAll,
-                      ID_POINT                       , ID_POINT_Z,
-                      HEIGHT_FIELD                   , VEGETATION_FACTOR, 
-                      U                              , V,
-                      W                              , REF_HEIGHT_FIELD, 
-                      tempoUpstreamAndDownstream     , REF_HEIGHT_DOWNSTREAM_WEIGHTING,
-                      DataUtil.createIndex(tableName=dicAllWeightFactorsTables[downstreamWeightingTable], 
-                                            fieldName=ID_POINT,
-                                            isSpatial=False),
-                      DataUtil.createIndex(tableName=dicAllWeightFactorsTables[downstreamWeightingTable], 
-                                            fieldName=ID_POINT_Z,
-                                            isSpatial=False),
-                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
-                                            fieldName=ID_POINT,
-                                            isSpatial=False),
-                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
-                                            fieldName=ID_POINT_Z,
-                                            isSpatial=False)))
-    
-    # Join the downstream weigthted points to the non downstream weighted ones
-    cursor.execute("""
-          {12};
-          {13};
-          {10};
-          {11};
-          DROP TABLE IF EXISTS {9};
-          CREATE TABLE {9}
-              AS SELECT   a.{2}, a.{3}, a.{4}, a.{5}, a.{6}, a.{7}, a.{8}
-              FROM     {0} AS a LEFT JOIN {1} AS b
-                       ON a.{2} = b.{2} AND a.{3} = b.{3}
-              WHERE    b.{2} IS NULL
-              UNION ALL
-              SELECT    c.{2}, c.{3}, c.{4}, c.{5}, c.{6}, c.{7}, c.{8}
-              FROM     {1} AS c
-          """.format( tempoPrioritiesWeightedAll     , tempoUpstreamAndDownstream,
-                      ID_POINT                       , ID_POINT_Z,
-                      HEIGHT_FIELD                   , U,
-                      V                              , W,
-                      REF_HEIGHT_FIELD               , initializedWindFactorTable,
-                      DataUtil.createIndex(tableName=tempoUpstreamAndDownstream, 
-                                            fieldName=ID_POINT,
-                                            isSpatial=False),
-                      DataUtil.createIndex(tableName=tempoUpstreamAndDownstream, 
-                                            fieldName=ID_POINT_Z,
-                                            isSpatial=False),
-                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
-                                            fieldName=ID_POINT,
-                                            isSpatial=False),
-                      DataUtil.createIndex(tableName=tempoPrioritiesWeightedAll, 
-                                            fieldName=ID_POINT_Z,
-                                            isSpatial=False)))
 
-    if not DEBUG:
-        # Remove intermediate tables
-        cursor.execute("""
-            DROP TABLE IF EXISTS {0}
-                      """.format(",".join([upstreamWeightingTempoTable,
-                                           upstreamPrioritiesTempoTable,
-                                           tempoUpstreamAndDownstream,
-                                           tempoPrioritiesWeighted,
-                                           tempoPrioritiesWeightedAll,
-                                           tempoPrioritiesAll,
-                                           upstreamPrioritiesWeightTempoTable])))
-    
-    return initializedWindFactorTable
-
-
+    return upstreamWindFactorTable
+                       
 def identifyUpstreamer( cursor,
                         dicAllWeightFactorsTables, 
                         tablesToConsider,
@@ -2190,7 +2445,7 @@ def identifyUpstreamer( cursor,
     if(type(tablesToConsider) == type(pd.DataFrame())):
         listOfTables = tablesToConsider.index
         defineCol2Add = "{0} INTEGER, {1} INTEGER, ".format(REF_HEIGHT_FIELD,
-                                                          PRIORITY_FIELD)
+                                                            PRIORITY_FIELD)
     else:
         listOfTables = tablesToConsider
         defineCol2Add = ""

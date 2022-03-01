@@ -201,7 +201,12 @@ UPSTREAM_PRIORITY_TABLES = pd.DataFrame({PRIORITY_FIELD: [1, 2, 3, 3, 3, 4, 5],
                                                  DISPLACEMENT_VORTEX_NAME, 
                                                  DISPLACEMENT_NAME,
                                                  WAKE_NAME])
+UPSTREAM_BACKWARD_PRIORITY_TABLES = pd.DataFrame({PRIORITY_FIELD: [1, 2], 
+                                                  REF_HEIGHT_FIELD: [1, 1]},
+                                                 index = [CAVITY_BACKWARD_NAME,
+                                                          WAKE_BACKWARD_NAME])
 UPSTREAM_WEIGHTING_TABLES = [WAKE_NAME]
+UPSTREAM_BACKWARD_WEIGHTING_TABLES = [WAKE_BACKWARD_NAME]
 UPSTREAM_WEIGHTING_INTRA_RULES = "upstream"
 UPSTREAM_WEIGHTING_INTER_RULES = "upstream"
 DOWNSTREAM_WEIGTHING_TABLE = ALL_VEGETATION_NAME
