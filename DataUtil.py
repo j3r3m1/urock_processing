@@ -248,6 +248,91 @@ def windDirectionFromXY(windSpeedEast, windSpeedNorth):
     
     return radAngle
 
+def getExtremumPoint(pointsTable, axis, extremum, secondAxisExtremum, cursor, prefix_name):
+    """ Identify the point geometry being an extremum ("MIN" or "MAX"") of a polygon
+    along a given axis ("X" or "Y"). If two points are at the same "X" (or "Y"),
+    keep only lowest value or highest ("MIN" or "MAX") along the second 
+    axis "Y" (or "X").
+    
+    Parameters
+	_ _ _ _ _ _ _ _ _ _ 
+        pointsTable: String
+            Name of the table containing the points corresponding to all polygons,
+            the polygon id and the extremum of the polygon we are looking for
+        axis: string
+            Axis along which the extremum is spotted.
+                -> "X": along x-axis
+                -> "Y": along y-axis
+        extremum: string
+            Type of extremum to spot:
+                -> "MIN": minimum value
+                -> "MAX": maximum value
+        secondAxisExtremum: string
+            If two points fit with the extremum value, keep only one value depending
+            on the value along the second axis.
+                -> "MIN": keep the point corresponding to the lowest value
+                along the other axis
+                -> "MAX": keep the point corresponding to the highest value
+                along the other axis
+                -> "AVG": keep an average value of the points being along the
+                other axis
+        cursor: conn.cursor
+            A cursor object, used to perform spatial SQL queries
+        prefix: String, default PREFIX_NAME
+            Prefix to add to the output table name
+    
+    Returns
+	_ _ _ _ _ _ _ _ _ _ 	
+		extremumPointTable: String
+            Return the table containing the expected extremum point for each polygon"""
+    # Output base name
+    outputBaseName = "{0}_{1}_{2}_POINTS".format(pointsTable,
+                                                 axis,
+                                                 extremum)
+    
+    # Name of the output table
+    extremumPointTable = prefix(outputBaseName, prefix = prefix_name)
+
+    # Extremum field name
+    extremumField = axis + "_" + extremum
+    
+    # Set the secondary axis and the point creation query depending on 1st axis
+    if axis == "X":
+        secondaryAxis = "Y"
+        pointCreationQuery = "ST_POINT({0}, {1}({2}))".format(axis,
+                                                              secondAxisExtremum,
+                                                              secondaryAxis)
+    else:
+        secondaryAxis = "X"
+        pointCreationQuery = "ST_POINT({1}({2}), {0})".format(axis,
+                                                              secondAxisExtremum,
+                                                              secondaryAxis)
+    
+    # Identify the extremum point
+    cursor.execute("""
+           {0}{1}{2}
+           DROP TABLE IF EXISTS {3};
+           CREATE TABLE {3}({4} INTEGER, {5} GEOMETRY)
+               AS SELECT {4}, {6}
+               FROM {7}
+               WHERE {8} = {9}
+               GROUP BY {4}, {9};
+           """.format(  createIndex(tableName=pointsTable, 
+                                    fieldName=ID_FIELD_STACKED_BLOCK,
+                                    isSpatial=False),
+                        createIndex(tableName=pointsTable, 
+                                    fieldName=axis,
+                                    isSpatial=False),
+                        createIndex(tableName=pointsTable, 
+                                    fieldName=extremumField,
+                                    isSpatial=False),
+                        extremumPointTable, 
+                        ID_FIELD_STACKED_BLOCK          , GEOM_FIELD,
+                        pointCreationQuery              , pointsTable,
+                        axis                            , extremumField))
+
+    return extremumPointTable
+
 ####### SHOULD BE DELETED SINCE ALREADY IN UMEP !!!
 def locate_py():
     # get Python version

@@ -78,6 +78,8 @@ def zoneProperties(cursor, obstaclePropertiesTable, prefix = PREFIX_NAME):
         - for displacement: length Lf and vortex length Lfv (Bagal et al. - 2004),
         - for cavity: length Lr (equation 3 in Kaplan et al. - 1996),
         - for wake: length Lw (3*Lr, Kaplan et al. - 1996)
+        - for cavity and wake: x coordinate of the downstreamest stacked block point,
+        downstream left facade angle and downstream right facade angle
         - for rooftop perpendicular: height Hcm and length Lc (Pol et al. 2006)
         - for rooftop corner: wind speed factor C1 (Bagal et al. 2004 "Implementation of rooftop...)
     Note that L and W in the equation are respectively replaced by the 
@@ -117,6 +119,12 @@ def zoneProperties(cursor, obstaclePropertiesTable, prefix = PREFIX_NAME):
     zoneLengthTable = DataUtil.prefix(outputBaseName, 
                                       prefix = prefix)
     
+    # Create temporary table names (for tables that will be removed at the end of the process)
+    tempoStackedLengthTab = DataUtil.postfix("TEMPO_STACKED_LENGTH_TAB")
+    pointsStackedBlocks = DataUtil.postfix("POINTS_STACKED_BLOCKS")
+    stackedBlocksXExt = DataUtil.postfix("STACKED_BLOCKS_X_EXT")
+    stackedBlockAzimuths = DataUtil.postfix("STACKED_BLOCKS_AZIMUTHS")
+    
     # Calculates the length (and sometimes height) of each zone:
     #   - for displacement: Lf and Lfv (Bagal et al. - 2004),
     #   - for cavity: Lr (equation 3 in Kaplan et al. - 1996),
@@ -136,7 +144,7 @@ def zoneProperties(cursor, obstaclePropertiesTable, prefix = PREFIX_NAME):
                        0.22*(0.67*LEAST({3},{9})+0.33*GREATEST({3},{9})) AS {11},
                        0.9*(0.67*LEAST({3},{9})+0.33*GREATEST({3},{9})) AS {12},
                        1+0.05*{9}/{3} AS {13}
-           FROM {7}""".format(zoneLengthTable,
+           FROM {7}""".format(tempoStackedLengthTab,
                                ID_FIELD_STACKED_BLOCK,
                                GEOM_FIELD, 
                                HEIGHT_FIELD, 
@@ -151,6 +159,107 @@ def zoneProperties(cursor, obstaclePropertiesTable, prefix = PREFIX_NAME):
                                ROOFTOP_PERP_LENGTH,
                                ROOFTOP_WIND_FACTOR)
     cursor.execute(query)
+    
+    # Calculates the table containing the points corresponding to all polygons,
+    # the polygon id and the extremum of the polygon we are looking for
+    cursor.execute("""
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0}
+               AS SELECT {1}, CAST(ST_X({2}) AS INTEGER) AS X, CAST(ST_Y({2})  AS INTEGER) AS Y, X_MAX, X_MIN, Y_MIN
+               FROM ST_EXPLODE('(SELECT CAST(ST_XMAX({2}) AS INTEGER) AS X_MAX,
+                                        CAST(ST_XMIN({2}) AS INTEGER) AS X_MIN,
+                                        CAST(ST_YMIN({2}) AS INTEGER) AS Y_MIN,
+                                        {1},
+                                        ST_TOMULTIPOINT({2}) AS {2}
+                                FROM {3})');
+           """.format(  pointsStackedBlocks             , ID_FIELD_STACKED_BLOCK,
+                        GEOM_FIELD                      , tempoStackedLengthTab))
+    
+    # Calculates points table corresponding to xmin, xmax and ymin
+    xMinPointTable = DataUtil.getExtremumPoint(pointsTable = pointsStackedBlocks, 
+                                               axis = "X", 
+                                               extremum = "MIN",
+                                               secondAxisExtremum = "MIN",
+                                               cursor = cursor,
+                                               prefix_name = prefix)
+    xMaxPointTable = DataUtil.getExtremumPoint(pointsTable = pointsStackedBlocks, 
+                                               axis = "X", 
+                                               extremum = "MAX",
+                                               secondAxisExtremum = "MIN",
+                                               cursor = cursor,
+                                               prefix_name = prefix)
+    yMinPointTable = DataUtil.getExtremumPoint(pointsTable = pointsStackedBlocks, 
+                                               axis = "Y", 
+                                               extremum = "MIN",
+                                               secondAxisExtremum = "AVG",
+                                               cursor = cursor,
+                                               prefix_name = prefix)
+    
+    # Join x extremum into a single table
+    cursor.execute("""
+           {0}{1}
+           DROP TABLE IF EXISTS {2};
+           CREATE TABLE {2}
+               AS SELECT a.{3}, a.{4} AS {4}_MIN, b.{4} AS {4}_MAX
+               FROM {5} AS a LEFT JOIN {6} AS b
+               ON a.{3} = b.{3};
+           """.format(  DataUtil.createIndex(tableName=xMinPointTable, 
+                                             fieldName=ID_FIELD_STACKED_BLOCK,
+                                             isSpatial=False),
+                        DataUtil.createIndex(tableName=xMaxPointTable, 
+                                             fieldName=ID_FIELD_STACKED_BLOCK,
+                                             isSpatial=False),
+                        stackedBlocksXExt               , ID_FIELD_STACKED_BLOCK,
+                        GEOM_FIELD                      , xMinPointTable,
+                        xMaxPointTable))
+    
+    # Calculates main azimuth of left-side and right-side downstream facades
+    cursor.execute("""
+           {0}{1}
+           DROP TABLE IF EXISTS {2};
+           CREATE TABLE {2}
+               AS SELECT   a.{3}, ST_X(a.{4}) AS {5}, 
+                           ST_AZIMUTH(b.{4}_MIN, a.{4})-PI() AS THETA_LEFT,
+                           ST_AZIMUTH(a.{4}, b.{4}_MAX)-PI() AS THETA_RIGHT
+               FROM {6} AS a LEFT JOIN {7} AS b
+               ON a.{3} = b.{3};
+           """.format(  DataUtil.createIndex(tableName=stackedBlocksXExt, 
+                                             fieldName=ID_FIELD_STACKED_BLOCK,
+                                             isSpatial=False),
+                        DataUtil.createIndex(tableName=yMinPointTable, 
+                                             fieldName=ID_FIELD_STACKED_BLOCK,
+                                             isSpatial=False),
+                        stackedBlockAzimuths            , ID_FIELD_STACKED_BLOCK,
+                        GEOM_FIELD                      , STACKED_BLOCK_UPSTREAMEST_X,
+                        yMinPointTable                  , stackedBlocksXExt))    
+    
+    # Join calculated indicators to previous ones
+    cursor.execute("""
+           {0}{1}
+           DROP TABLE IF EXISTS {2};
+           CREATE TABLE {2}
+               AS SELECT  a.*, b.{3}, COS(b.THETA_LEFT) AS {4}, SIN(b.THETA_LEFT) AS {5},
+                          COS(b.THETA_RIGHT) AS {6}, SIN(b.THETA_RIGHT) AS {7}
+               FROM {8} AS a LEFT JOIN {9} AS b
+               ON a.{10} = b.{10};
+           """.format(  DataUtil.createIndex(tableName=xMinPointTable, 
+                                             fieldName=ID_FIELD_STACKED_BLOCK,
+                                             isSpatial=False),
+                        DataUtil.createIndex(tableName=xMaxPointTable, 
+                                             fieldName=ID_FIELD_STACKED_BLOCK,
+                                             isSpatial=False),
+                        zoneLengthTable                 , STACKED_BLOCK_UPSTREAMEST_X,
+                        COS_BLOCK_LEFT_AZIMUTH          , SIN_BLOCK_LEFT_AZIMUTH,
+                        COS_BLOCK_RIGHT_AZIMUTH         , SIN_BLOCK_RIGHT_AZIMUTH,
+                        tempoStackedLengthTab           , stackedBlockAzimuths,
+                        ID_FIELD_STACKED_BLOCK))
+    
+    if not DEBUG:
+        # Drop intermediate tables
+        cursor.execute("""
+           DROP TABLE IF EXISTS {0}
+           """.format(",".join([tempoStackedLengthTab       , pointsStackedBlocks,
+                                stackedBlocksXExt           , stackedBlockAzimuths])))
     
     return zoneLengthTable
 

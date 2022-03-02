@@ -244,7 +244,8 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
             GROUP BY {3};
         {6}{7}
         CREATE TABLE {8}
-            AS SELECT   a.{3}, a.{1}, b.{2}, b.{10}
+            AS SELECT   a.{3}, a.{1}, b.{2}, b.{10}, b.{11}, b.{12}, b.{13}, 
+                        b.{14}, b.{15}, b.{16}, b.{17}
             FROM {0} AS a LEFT JOIN {9} AS b
             ON a.{3} = b.{3}
             WHERE ST_AREA(a.{1}) > 0;
@@ -260,7 +261,10 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
                                          fieldName=DOWNWIND_FACADE_FIELD,
                                          isSpatial=False),
                     outputZoneTableNames[z]         , downwindWithPropTable,
-                    HEIGHT_FIELD)
+                    HEIGHT_FIELD                    , STACKED_BLOCK_X_MED,
+                    STACKED_BLOCK_UPSTREAMEST_X     , SIN_BLOCK_LEFT_AZIMUTH,
+                    COS_BLOCK_LEFT_AZIMUTH          , COS_BLOCK_RIGHT_AZIMUTH,
+                    SIN_BLOCK_RIGHT_AZIMUTH         , STACKED_BLOCK_WIDTH)
         for z in variablesNames.index]))
                     
     if not DEBUG:

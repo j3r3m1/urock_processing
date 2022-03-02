@@ -33,7 +33,11 @@ from .GlobalVariables import ALONG_WIND_ZONE_EXTEND, CROSS_WIND_ZONE_EXTEND,\
     GEOMETRY_MERGE_TOLERANCE, SNAPPING_TOLERANCE, GEOMETRY_SIMPLIFICATION_DISTANCE,\
     ID_DOWNSTREAM_STACKED_BLOCK, DOWNWIND_FACADE_FIELD, PROFILE_TYPE,\
     HORIZ_WIND_SPEED, CAVITY_BACKWARD_NAME, WAKE_BACKWARD_NAME,\
-    UPSTREAM_BACKWARD_PRIORITY_TABLES, UPSTREAM_BACKWARD_WEIGHTING_TABLES
+    UPSTREAM_BACKWARD_PRIORITY_TABLES, UPSTREAM_BACKWARD_WEIGHTING_TABLES,\
+    STACKED_BLOCK_UPSTREAMEST_X, COS_BLOCK_RIGHT_AZIMUTH,\
+    COS_BLOCK_LEFT_AZIMUTH, COS_BLOCK_AZIMUTH, SIN_BLOCK_RIGHT_AZIMUTH,\
+    SIN_BLOCK_LEFT_AZIMUTH, SIN_BLOCK_AZIMUTH, STACKED_BLOCK_WIDTH,\
+    DOWNSTREAM_X_RELATIVE_POSITION
 import math
 import numpy as np
 import os
@@ -153,9 +157,13 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                         prefix = prefix)
                                         
     # Temporary tables (and prefix for temporary tables)
-    tempoPrefix = "TEMPO"
-    prefixZoneLimits = "ZONE_LIMITS"
     tempoCavity = DataUtil.postfix("TEMPO_CAVITY")
+    dicOfTempoOutput = {t: DataUtil.postfix(DataUtil.prefix(tableName = dicOfOutputTables[t],
+                                                            prefix = "TEMPO"))
+                        for t in dicOfBuildRockleZoneTable}
+    dicOfPrefixZoneLim = {t: DataUtil.postfix(DataUtil.prefix(tableName = t,
+                                                              prefix = "ZONE_LIMITS"))
+                          for t in dicOfBuildRockleZoneTable}
     
     # Tables that should keep y value (distance from upwind building)
     listTabYvalues = [CAVITY_NAME, WAKE_NAME    , DISPLACEMENT_NAME,
@@ -174,15 +182,14 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
     query = ["""{0};
                  DROP TABLE IF EXISTS {1}
              """.format( DataUtil.createIndex(tableName=gridTable, 
-                                         fieldName=GEOM_FIELD,
-                                         isSpatial=True),
+                                             fieldName=GEOM_FIELD,
+                                             isSpatial=True),
                          ",".join(dicOfOutputTables.values()))]
     # Construct a query to affect each point to a Rockle zone
     for i, t in enumerate(dicOfBuildRockleZoneTable):
         # The query differs depending on whether y value should be kept
         queryKeepY = "b.{1}, b.{0}, b.{2},".format(ID_POINT_X, Y_POINT, ID_POINT_Y)
-        tempoTableName = DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                         prefix = tempoPrefix)
+        
         # The columns to keep are different in case of street canyon zone
         # or rooftop corner zone
         columnsToKeepQuery = """b.{0}, {1} a.{2}, a.{3}
@@ -223,7 +230,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                         AND ST_INTERSECTS(a.{1}, b.{1})
                         """.format( dicOfBuildRockleZoneTable[t],
                                     GEOM_FIELD,
-                                    tempoTableName,
+                                    dicOfTempoOutput[t],
                                     gridTable,
                                     columnsToKeepQuery,
                                     DataUtil.createIndex(tableName=dicOfBuildRockleZoneTable[t], 
@@ -246,7 +253,8 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
         CREATE TABLE {0} 
             AS SELECT   a.{1},
                         ST_MAKELINE(b.{2}, a.{2}) AS {2},
-                        b.{4}
+                        b.{4},
+                        ST_X(b.{2}) AS {9}
             FROM {3} AS a LEFT JOIN {3} AS b ON a.{1} = b.{1}
             WHERE a.{4} = 1 AND b.{4} = {5};
         {8};
@@ -264,7 +272,8 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 isSpatial=False),
                         DataUtil.createIndex(   tableName=gridTable, 
                                                 fieldName=GEOM_FIELD,
-                                                isSpatial=True))           
+                                                isSpatial=True),
+                        X)           
     
     # Fields to keep in the zone table (zone dependent)
     varToKeepZone = {
@@ -314,7 +323,16 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                                    )
                                                        )
                                         END AS {4},
-                                    b.{7}
+                                    b.{7},
+                                    CASE WHEN a.{8} > b.{9}
+                                        THEN b.{10}
+                                        ELSE b.{12} 
+                                        END AS {11},
+                                    CASE WHEN a.{8} > b.{9}
+                                        THEN b.{13}
+                                        ELSE b.{14} 
+                                        END AS {15},
+                                    b.{16}/2-ABS(a.{8}-b.{9})/b.{16} AS {17}
                                     """.format( idZone[CAVITY_NAME],
                                                 HEIGHT_FIELD,
                                                 ID_POINT_X,
@@ -322,7 +340,17 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 LENGTH_ZONE_FIELD+CAVITY_NAME[0],
                                                 Y_WALL,
                                                 ID_POINT_Y,
-                                                ID_FIELD_STACKED_BLOCK),
+                                                ID_FIELD_STACKED_BLOCK,
+                                                X,
+                                                STACKED_BLOCK_UPSTREAMEST_X,
+                                                COS_BLOCK_RIGHT_AZIMUTH,
+                                                COS_BLOCK_LEFT_AZIMUTH,
+                                                COS_BLOCK_AZIMUTH,
+                                                SIN_BLOCK_RIGHT_AZIMUTH,
+                                                SIN_BLOCK_LEFT_AZIMUTH,
+                                                SIN_BLOCK_AZIMUTH,
+                                                STACKED_BLOCK_WIDTH,
+                                                DOWNSTREAM_X_RELATIVE_POSITION),
         WAKE_NAME               : """b.{0},
                                     b.{1},
                                     a.{2},
@@ -338,14 +366,33 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                                    )
                                                        )
                                         END AS {4},
-                                    b.{6}
+                                    b.{6},
+                                    CASE WHEN a.{7} > b.{8}
+                                        THEN b.{9}
+                                        ELSE b.{11} 
+                                        END AS {10},
+                                    CASE WHEN a.{7} > b.{8}
+                                        THEN b.{12}
+                                        ELSE b.{13} 
+                                        END AS {14},
+                                    b.{15}/2-ABS(a.{7}-b.{8})/b.{15} AS {16}
                                     """.format( idZone[WAKE_NAME],
                                                 HEIGHT_FIELD,
                                                 ID_POINT_X,
                                                 GEOM_FIELD,
                                                 LENGTH_ZONE_FIELD+WAKE_NAME[0],
                                                 Y_WALL,
-                                                ID_FIELD_STACKED_BLOCK),
+                                                ID_FIELD_STACKED_BLOCK,
+                                                X,
+                                                STACKED_BLOCK_UPSTREAMEST_X,
+                                                COS_BLOCK_RIGHT_AZIMUTH,
+                                                COS_BLOCK_LEFT_AZIMUTH,
+                                                COS_BLOCK_AZIMUTH,
+                                                SIN_BLOCK_RIGHT_AZIMUTH,
+                                                SIN_BLOCK_LEFT_AZIMUTH,
+                                                SIN_BLOCK_AZIMUTH,
+                                                STACKED_BLOCK_WIDTH,
+                                                DOWNSTREAM_X_RELATIVE_POSITION),
         STREET_CANYON_NAME      : """b.{0},
                                     b.{1},
                                     LEAST(b.{3}, b.{1}) AS {4},
@@ -440,7 +487,10 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     a.{4},
                                     b.{6},
                                     CAST(a.{7} AS INTEGER) AS {7},
-                                    b.{10}""".format(ID_POINT,
+                                    b.{10},
+                                    a.{12},
+                                    a.{13},
+                                    a.{14}""".format(ID_POINT,
                                                     UPPER_VERTICAL_THRESHOLD,
                                                     LENGTH_ZONE_FIELD+CAVITY_NAME[0],
                                                     idZone[CAVITY_NAME],
@@ -451,7 +501,10 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                     DISTANCE_BUILD_TO_POINT_FIELD,
                                                     Y_POINT,
                                                     ID_POINT_Y,
-                                                    ID_FIELD_STACKED_BLOCK),
+                                                    ID_FIELD_STACKED_BLOCK,
+                                                    COS_BLOCK_AZIMUTH,
+                                                    SIN_BLOCK_AZIMUTH,
+                                                    DOWNSTREAM_X_RELATIVE_POSITION),
         WAKE_NAME               : """a.{9},
                                     b.{0},
                                     a.{4}*SQRT(1-POWER((a.{7}-b.{8})/
@@ -460,7 +513,10 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     b.{3},
                                     a.{4},
                                     b.{6},
-                                    CAST(a.{7} AS INTEGER) AS {7}
+                                    CAST(a.{7} AS INTEGER) AS {7},
+                                    a.{10},
+                                    a.{11},
+                                    a.{12}
                                     """.format(ID_POINT,
                                                 UPPER_VERTICAL_THRESHOLD,
                                                 LENGTH_ZONE_FIELD+WAKE_NAME[0],
@@ -470,7 +526,10 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 ID_POINT_X,
                                                 Y_WALL,
                                                 Y_POINT,
-                                                ID_FIELD_STACKED_BLOCK),
+                                                ID_FIELD_STACKED_BLOCK,
+                                                COS_BLOCK_AZIMUTH,
+                                                SIN_BLOCK_AZIMUTH,
+                                                DOWNSTREAM_X_RELATIVE_POSITION),
         STREET_CANYON_NAME      : """b.{0},
                                     SIN(2*(a.{1}-PI()/2))*(0.5+(a.{9}-b.{13})*
                                     (a.{2}-(a.{9}-b.{13}))/
@@ -543,8 +602,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
             AS SELECT   {7}
             FROM    {0} AS a RIGHT JOIN {8} AS b
                         ON a.{3} = b.{3} AND a.{9} = b.{9}
-                  """.format( DataUtil.prefix(tableName = t,
-                                             prefix = prefixZoneLimits),
+                  """.format( dicOfPrefixZoneLim[t],
                               GEOM_FIELD,
                               dicOfBuildRockleZoneTable[t],
                               idZone[t],
@@ -552,26 +610,21 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                               dicOfOutputTables[t],
                               varToKeepZone[t],
                               varToKeepPoint[t],
-                              DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                              prefix = tempoPrefix),
+                              dicOfTempoOutput[t],
                               ID_POINT_X,
                               DataUtil.createIndex( tableName=dicOfBuildRockleZoneTable[t], 
                                                     fieldName=GEOM_FIELD,
                                                     isSpatial=True),
-                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = t,
-                                                                              prefix = prefixZoneLimits), 
+                              DataUtil.createIndex( tableName=dicOfPrefixZoneLim[t], 
                                                     fieldName=idZone[t],
                                                     isSpatial=False),
-                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                                                              prefix = tempoPrefix), 
+                              DataUtil.createIndex( tableName=dicOfTempoOutput[t], 
                                                     fieldName=idZone[t],
                                                     isSpatial=False),
-                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = t,
-                                                                              prefix = prefixZoneLimits), 
+                              DataUtil.createIndex( tableName=dicOfPrefixZoneLim[t], 
                                                     fieldName=ID_POINT_X,
                                                     isSpatial=False),
-                              DataUtil.createIndex( tableName=DataUtil.prefix(tableName = dicOfOutputTables[t],
-                                                                              prefix = tempoPrefix), 
+                              DataUtil.createIndex( tableName=dicOfTempoOutput[t], 
                                                     fieldName=ID_POINT_X,
                                                     isSpatial=False))
                   for t in listTabYvalues])
@@ -592,7 +645,10 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                        a.{9},
                        a.{10},
                        a.{7},
-                       a.{21}
+                       a.{21},
+                       a.{32},
+                       a.{33},
+                       a.{34}
            FROM     {0} AS a LEFT JOIN {2} AS b 
                     ON a.{1} = b.{1} AND a.{6} = b.{6};
        {12}{13}
@@ -675,7 +731,9 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                             isSpatial=False),
                     DataUtil.createIndex(   dicOfOutputTables[WAKE_NAME], 
                                             fieldName=DOWNWIND_FACADE_FIELD,
-                                            isSpatial=False)))
+                                            isSpatial=False),
+                    COS_BLOCK_AZIMUTH               , SIN_BLOCK_AZIMUTH,
+                    DOWNSTREAM_X_RELATIVE_POSITION))
     
     # Special treatment for rooftop corners which have not been calculated previously
     cursor.execute("""DROP TABLE IF EXISTS {8};
@@ -703,8 +761,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                             UPWIND_FACADE_ANGLE_FIELD,
                                             GEOM_FIELD,
                                             dicOfOutputTables[ROOFTOP_CORN_NAME],
-                                            DataUtil.prefix(tableName = dicOfOutputTables[ROOFTOP_CORN_NAME],
-                                                            prefix = tempoPrefix),
+                                            dicOfTempoOutput[ROOFTOP_CORN_NAME],
                                             UPWIND_FACADE_ANGLE_FIELD,
                                             ROOFTOP_WIND_FACTOR,
                                             Y_WALL,
@@ -715,12 +772,8 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
         # Remove intermediate tables
         cursor.execute("""
             DROP TABLE IF EXISTS TEMPO_WAKE0, TEMPO_WAKE, {0},{1},{2}
-                      """.format(",".join([DataUtil.prefix( tableName = dicOfOutputTables[t],
-                                                            prefix = tempoPrefix)
-                                                 for t in listTabYvalues]),
-                                  ",".join([DataUtil.prefix(tableName = t,
-                                                            prefix = prefixZoneLimits)
-                                                 for t in listTabYvalues]),
+                      """.format(",".join(list(dicOfTempoOutput.values())),
+                                 ",".join(list(dicOfPrefixZoneLim.values)),
                                  tempoCavity))
         
      
