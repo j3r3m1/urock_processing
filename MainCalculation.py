@@ -73,6 +73,7 @@ def main(javaEnvironmentPath,
     # Blocks and stacked blocks
     outputDataRel["blocks"] = os.path.join(tempoDirectory, "blocks.geojson")
     outputDataRel["stacked_blocks"] = os.path.join(tempoDirectory, "stackedBlocks.geojson")
+    outputDataRel["vegetation"] = os.path.join(tempoDirectory, "vegetation.geojson")
 
     # Rotated geometries
     outputDataRel["rotated_stacked_blocks"] = os.path.join(tempoDirectory, "rotated_stacked_blocks.geojson")
@@ -142,12 +143,14 @@ def main(javaEnvironmentPath,
                                 inputBuildings = BUILDING_TABLE_NAME,
                                 prefix = prefix)
     
-    # Save the blocks and stacked blocks as geojson
+    # Save the blocks, stacked blocks and vegetation as geojson
     if debug or saveRockleZones:
         saveData.saveTable(cursor = cursor                          , tableName = stackedBlockTable,
                            filedir = outputDataAbs["stacked_blocks"], delete = True)
-        saveData.saveTable(cursor = cursor                      , tableName = blockTable,
-                           filedir = outputDataAbs["blocks"]    , delete = True)
+        saveData.saveTable(cursor = cursor                          , tableName = blockTable,
+                           filedir = outputDataAbs["blocks"]        , delete = True)
+        saveData.saveTable(cursor = cursor                          , tableName = VEGETATION_TABLE_NAME,
+                           filedir = outputDataAbs["vegetation"]    , delete = True)
     
     # -----------------------------------------------------------------------------------
     # 3. ROTATES OBSTACLES TO THE RIGHT DIRECTION AND CALCULATES GEOMETRY PROPERTIES ----
@@ -215,13 +218,9 @@ def main(javaEnvironmentPath,
     # Save the rotated obstacles and facades as geojson
     if debug or saveRockleZones:
         saveData.saveTable(cursor = cursor                                  , tableName = rotatedPropStackedBlocks,
-                           filedir = outputDataAbs["rotated_stacked_blocks"], delete = True,
-                           rotationCenterCoordinates = rotationCenterCoordinates,
-                           rotateAngle = - windDirection)
+                           filedir = outputDataAbs["rotated_stacked_blocks"], delete = True)
         saveData.saveTable(cursor = cursor                         , tableName = rotatedVegetation,
-                           filedir = outputDataAbs["rotated_vegetation"]    , delete = True,
-                           rotationCenterCoordinates = rotationCenterCoordinates,
-                           rotateAngle = - windDirection)
+                           filedir = outputDataAbs["rotated_vegetation"]    , delete = True)
         saveData.saveTable(cursor = cursor                      , tableName = upwindTable,
                            filedir = outputDataAbs["upwind_facades"]   , delete = True,
                            rotationCenterCoordinates = rotationCenterCoordinates,

@@ -219,8 +219,8 @@ def zoneProperties(cursor, obstaclePropertiesTable, prefix = PREFIX_NAME):
            DROP TABLE IF EXISTS {2};
            CREATE TABLE {2}
                AS SELECT   a.{3}, ST_X(a.{4}) AS {5}, 
-                           ST_AZIMUTH(b.{4}_MIN, a.{4})-PI() AS THETA_LEFT,
-                           ST_AZIMUTH(a.{4}, b.{4}_MAX)-PI() AS THETA_RIGHT
+                           ST_AZIMUTH(b.{4}_MIN, a.{4})-PI()/2 AS THETA_LEFT,
+                           ST_AZIMUTH(a.{4}, b.{4}_MAX)-PI()/2 AS THETA_RIGHT
                FROM {6} AS a LEFT JOIN {7} AS b
                ON a.{3} = b.{3};
            """.format(  DataUtil.createIndex(tableName=stackedBlocksXExt, 

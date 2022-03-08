@@ -37,7 +37,8 @@ from .GlobalVariables import ALONG_WIND_ZONE_EXTEND, CROSS_WIND_ZONE_EXTEND,\
     STACKED_BLOCK_UPSTREAMEST_X, COS_BLOCK_RIGHT_AZIMUTH,\
     COS_BLOCK_LEFT_AZIMUTH, COS_BLOCK_AZIMUTH, SIN_BLOCK_RIGHT_AZIMUTH,\
     SIN_BLOCK_LEFT_AZIMUTH, SIN_BLOCK_AZIMUTH, STACKED_BLOCK_WIDTH,\
-    DOWNSTREAM_X_RELATIVE_POSITION
+    DOWNSTREAM_X_RELATIVE_POSITION, V_WEIGHT, U_WEIGHT, W_WEIGHT,\
+    STACKED_BLOCK_X_MED
 import math
 import numpy as np
 import os
@@ -326,13 +327,13 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     b.{7},
                                     CASE WHEN a.{8} > b.{9}
                                         THEN b.{10}
-                                        ELSE b.{12} 
-                                        END AS {11},
+                                        ELSE b.{11} 
+                                        END AS {12},
                                     CASE WHEN a.{8} > b.{9}
                                         THEN b.{13}
                                         ELSE b.{14} 
                                         END AS {15},
-                                    b.{16}/2-ABS(a.{8}-b.{9})/b.{16} AS {17}
+                                    POWER((b.{16}/2-ABS(a.{8}-b.{18}))/(b.{16}/2),0.5) AS {17}
                                     """.format( idZone[CAVITY_NAME],
                                                 HEIGHT_FIELD,
                                                 ID_POINT_X,
@@ -350,7 +351,8 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 SIN_BLOCK_LEFT_AZIMUTH,
                                                 SIN_BLOCK_AZIMUTH,
                                                 STACKED_BLOCK_WIDTH,
-                                                DOWNSTREAM_X_RELATIVE_POSITION),
+                                                DOWNSTREAM_X_RELATIVE_POSITION,
+                                                STACKED_BLOCK_X_MED),
         WAKE_NAME               : """b.{0},
                                     b.{1},
                                     a.{2},
@@ -366,33 +368,14 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                                    )
                                                        )
                                         END AS {4},
-                                    b.{6},
-                                    CASE WHEN a.{7} > b.{8}
-                                        THEN b.{9}
-                                        ELSE b.{11} 
-                                        END AS {10},
-                                    CASE WHEN a.{7} > b.{8}
-                                        THEN b.{12}
-                                        ELSE b.{13} 
-                                        END AS {14},
-                                    b.{15}/2-ABS(a.{7}-b.{8})/b.{15} AS {16}
+                                    b.{6}
                                     """.format( idZone[WAKE_NAME],
                                                 HEIGHT_FIELD,
                                                 ID_POINT_X,
                                                 GEOM_FIELD,
                                                 LENGTH_ZONE_FIELD+WAKE_NAME[0],
                                                 Y_WALL,
-                                                ID_FIELD_STACKED_BLOCK,
-                                                X,
-                                                STACKED_BLOCK_UPSTREAMEST_X,
-                                                COS_BLOCK_RIGHT_AZIMUTH,
-                                                COS_BLOCK_LEFT_AZIMUTH,
-                                                COS_BLOCK_AZIMUTH,
-                                                SIN_BLOCK_RIGHT_AZIMUTH,
-                                                SIN_BLOCK_LEFT_AZIMUTH,
-                                                SIN_BLOCK_AZIMUTH,
-                                                STACKED_BLOCK_WIDTH,
-                                                DOWNSTREAM_X_RELATIVE_POSITION),
+                                                ID_FIELD_STACKED_BLOCK),
         STREET_CANYON_NAME      : """b.{0},
                                     b.{1},
                                     LEAST(b.{3}, b.{1}) AS {4},
@@ -441,6 +424,103 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 GEOM_FIELD,
                                                 Y_WALL)}
     
+    # Calculates the coordinate of the upper and lower part of each of the 
+    # Röckle zones for each "north/south" line 
+    endOfQuery += ";".join(["""
+        {6};
+        DROP TABLE IF EXISTS {0}, {4};
+        CREATE TABLE {0}
+            AS SELECT   {5}
+            FROM    {3} AS a, {2} AS b
+            WHERE   a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1}) AND 
+                    ST_DIMENSION(ST_INTERSECTION(a.{1}, b.{1})) > 0;
+                  """.format( dicOfPrefixZoneLim[t],
+                              GEOM_FIELD,
+                              dicOfBuildRockleZoneTable[t],
+                              verticalLineTable,
+                              dicOfOutputTables[t],
+                              varToKeepZone[t],
+                              DataUtil.createIndex( tableName=dicOfBuildRockleZoneTable[t], 
+                                                    fieldName=GEOM_FIELD,
+                                                    isSpatial=True))
+                  for t in listTabYvalues])
+    query.append(endOfQuery)
+    cursor.execute(";".join(query))
+    
+    # The cavity zone length is needed for the wind speed calculation of
+    # wake zone points and for the upper height limit of the street canyon
+    # while the wake zone length is needed for cavity zone wind speed calculation
+    cursor.execute("""
+       {0}{1}{2}{3}
+       DROP TABLE IF EXISTS TEMPO_WAKE;
+       CREATE TABLE TEMPO_WAKE 
+           AS SELECT   a.*, 
+                       b.{4}, b.{19}, b.{20}, b.{21}
+           FROM     {5} AS a LEFT JOIN {6} AS b 
+                    ON a.{7} = b.{7} AND a.{8} = b.{8};
+       DROP TABLE IF EXISTS {5};
+       ALTER TABLE TEMPO_WAKE RENAME TO {5};
+       {9}{10}{11}{12}
+       DROP TABLE IF EXISTS TEMPO_CANYON;
+       CREATE TABLE TEMPO_CANYON 
+           AS SELECT   a.*, 
+                       b.{4}
+           FROM     {13} AS a LEFT JOIN {6} AS b 
+                    ON a.{7} = b.{7} AND a.{8} = b.{8};
+       DROP TABLE IF EXISTS {13};
+       ALTER TABLE TEMPO_CANYON RENAME TO {13};
+       {14}{15}{16}{17}
+       DROP TABLE IF EXISTS TEMPO_CAV;
+       CREATE TABLE TEMPO_CAV 
+           AS SELECT   a.*, 
+                       b.{18}
+           FROM     {6} AS a LEFT JOIN {5} AS b 
+                    ON a.{7} = b.{7} AND a.{8} = b.{8};
+       DROP TABLE IF EXISTS {6};
+       ALTER TABLE TEMPO_CAV RENAME TO {6};
+       """.format(  DataUtil.createIndex(   dicOfPrefixZoneLim[CAVITY_NAME], 
+                                            fieldName=DOWNWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[CAVITY_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[WAKE_NAME], 
+                                            fieldName=DOWNWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[WAKE_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                    LENGTH_ZONE_FIELD+CAVITY_NAME[0], dicOfPrefixZoneLim[WAKE_NAME],
+                    dicOfPrefixZoneLim[CAVITY_NAME] , DOWNWIND_FACADE_FIELD,
+                    ID_POINT_X, 
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[CAVITY_NAME], 
+                                            fieldName=DOWNWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[CAVITY_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[STREET_CANYON_NAME], 
+                                            fieldName=DOWNWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[STREET_CANYON_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                    dicOfPrefixZoneLim[STREET_CANYON_NAME],             
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[CAVITY_NAME], 
+                                            fieldName=DOWNWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[CAVITY_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[WAKE_NAME], 
+                                            fieldName=DOWNWIND_FACADE_FIELD,
+                                            isSpatial=False),
+                    DataUtil.createIndex(   dicOfPrefixZoneLim[WAKE_NAME], 
+                                            fieldName=ID_POINT_X,
+                                            isSpatial=False),
+                    LENGTH_ZONE_FIELD+WAKE_NAME[0]  , COS_BLOCK_AZIMUTH,
+                    SIN_BLOCK_AZIMUTH               , DOWNSTREAM_X_RELATIVE_POSITION))
+    
     # Fields to keep in the point table (zone dependent)
     varToKeepPoint = {
         DISPLACEMENT_NAME       : """b.{0},
@@ -479,7 +559,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
         CAVITY_NAME             : """a.{11},
                                     b.{0},
                                     a.{4}*SQRT(1-POWER((a.{7}-b.{9})/
-                                                                 a.{2}, 2)) AS {1},
+                                                       a.{2}, 2)) AS {1},
                                     (a.{7}-b.{9})/a.{2} AS {5},
                                     (a.{7}-b.{9}) AS {8},
                                     a.{2},
@@ -490,7 +570,9 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     b.{10},
                                     a.{12},
                                     a.{13},
-                                    a.{14}""".format(ID_POINT,
+                                    a.{14},
+                                    a.{15},
+                                    (a.{7}-b.{9})/a.{15} AS {16}""".format(ID_POINT,
                                                     UPPER_VERTICAL_THRESHOLD,
                                                     LENGTH_ZONE_FIELD+CAVITY_NAME[0],
                                                     idZone[CAVITY_NAME],
@@ -504,19 +586,28 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                     ID_FIELD_STACKED_BLOCK,
                                                     COS_BLOCK_AZIMUTH,
                                                     SIN_BLOCK_AZIMUTH,
-                                                    DOWNSTREAM_X_RELATIVE_POSITION),
+                                                    DOWNSTREAM_X_RELATIVE_POSITION,
+                                                    LENGTH_ZONE_FIELD+WAKE_NAME[0],
+                                                    POINT_RELATIVE_POSITION_FIELD+WAKE_NAME[0]),
         WAKE_NAME               : """a.{9},
                                     b.{0},
                                     a.{4}*SQRT(1-POWER((a.{7}-b.{8})/
-                                                                 a.{2}, 2)) AS {1},
+                                                       a.{2}, 2)) AS {1},
                                     (a.{7}-b.{8}) AS {5},
                                     b.{3},
                                     a.{4},
                                     b.{6},
                                     CAST(a.{7} AS INTEGER) AS {7},
-                                    a.{10},
-                                    a.{11},
-                                    a.{12}
+                                    POWER(a.{10}/(a.{7}-b.{8}),1.5) AS {11},
+                                    CASE  WHEN a.{7}-b.{8} < a.{10}
+                                          THEN a.{4}*SQRT(1-POWER((a.{7}-b.{8})/
+                                                                 a.{10}, 2))
+                                          ELSE 0
+                                          END AS {12},
+                                    a.{13},
+                                    a.{14},
+                                    a.{15},
+                                    (a.{7}-b.{8})/a.{2} AS {16}
                                     """.format(ID_POINT,
                                                 UPPER_VERTICAL_THRESHOLD,
                                                 LENGTH_ZONE_FIELD+WAKE_NAME[0],
@@ -527,9 +618,13 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 Y_WALL,
                                                 Y_POINT,
                                                 ID_FIELD_STACKED_BLOCK,
+                                                LENGTH_ZONE_FIELD+CAVITY_NAME[0],
+                                                WAKE_RELATIVE_POSITION_FIELD,
+                                                UPPER_VERTICAL_THRESHOLD + CAVITY_NAME[0],
                                                 COS_BLOCK_AZIMUTH,
                                                 SIN_BLOCK_AZIMUTH,
-                                                DOWNSTREAM_X_RELATIVE_POSITION),
+                                                DOWNSTREAM_X_RELATIVE_POSITION,
+                                                POINT_RELATIVE_POSITION_FIELD+WAKE_NAME[0]),
         STREET_CANYON_NAME      : """b.{0},
                                     SIN(2*(a.{1}-PI()/2))*(0.5+(a.{9}-b.{13})*
                                     (a.{2}-(a.{9}-b.{13}))/
@@ -549,7 +644,8 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     b.{15},
                                     a.{16},
                                     b.{13},
-                                    a.{2}
+                                    a.{2},
+                                    a.{7}*SQRT(1-POWER((a.{8}-b.{13})/a.{17}, 2)) AS {18}
                                     """.format( ID_POINT,
                                                 UPWIND_FACADE_ANGLE_FIELD,
                                                 LENGTH_ZONE_FIELD+STREET_CANYON_NAME[0],
@@ -566,7 +662,9 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                 Y_POINT,
                                                 ID_UPSTREAM_STACKED_BLOCK,
                                                 ID_POINT_Y,
-                                                DOWNWIND_FACADE_FIELD),
+                                                DOWNWIND_FACADE_FIELD,
+                                                LENGTH_ZONE_FIELD+CAVITY_NAME[0],
+                                                UPPER_VERTICAL_THRESHOLD),
         ROOFTOP_PERP_NAME       : """b.{0},
                                     a.{3}*SQRT(1-POWER(((a.{6}-b.{8})-a.{4}/2)/
                                                                      a.{4}, 2)) AS {5},
@@ -583,158 +681,34 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                                     ID_POINT_X,
                                                     Y_POINT)}
     
-    # Calculates the coordinate of the upper and lower part of the zones
-    # for each "north/south" line and last calculate the relative position of each
-    # point according to the upper and lower part of the Rockle zones
-    endOfQuery += ";".join(["""
-        {10};
-        DROP TABLE IF EXISTS {0}, {5};
-        CREATE TABLE {0}
-            AS SELECT   {6}
-            FROM    {4} AS a, {2} AS b
-            WHERE   a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1}) AND 
-                    ST_DIMENSION(ST_INTERSECTION(a.{1}, b.{1})) > 0;
-        {11};
-        {12};
-        {13};
-        {14};
-        CREATE TABLE {5}
-            AS SELECT   {7}
-            FROM    {0} AS a RIGHT JOIN {8} AS b
-                        ON a.{3} = b.{3} AND a.{9} = b.{9}
-                  """.format( dicOfPrefixZoneLim[t],
-                              GEOM_FIELD,
-                              dicOfBuildRockleZoneTable[t],
-                              idZone[t],
-                              verticalLineTable,
-                              dicOfOutputTables[t],
-                              varToKeepZone[t],
-                              varToKeepPoint[t],
-                              dicOfTempoOutput[t],
-                              ID_POINT_X,
-                              DataUtil.createIndex( tableName=dicOfBuildRockleZoneTable[t], 
-                                                    fieldName=GEOM_FIELD,
-                                                    isSpatial=True),
-                              DataUtil.createIndex( tableName=dicOfPrefixZoneLim[t], 
-                                                    fieldName=idZone[t],
-                                                    isSpatial=False),
-                              DataUtil.createIndex( tableName=dicOfTempoOutput[t], 
-                                                    fieldName=idZone[t],
-                                                    isSpatial=False),
-                              DataUtil.createIndex( tableName=dicOfPrefixZoneLim[t], 
-                                                    fieldName=ID_POINT_X,
-                                                    isSpatial=False),
-                              DataUtil.createIndex( tableName=dicOfTempoOutput[t], 
-                                                    fieldName=ID_POINT_X,
-                                                    isSpatial=False))
-                  for t in listTabYvalues])
-    query.append(endOfQuery)
-    cursor.execute(";".join(query))
-    
-    # The cavity zone length is needed for the wind speed calculation of
-    # wake zone points and for the upper height limit of the street canyon
-    cursor.execute("""
-       {14}{15}{12}{31}
-       DROP TABLE IF EXISTS TEMPO_WAKE0;
-       CREATE TABLE TEMPO_WAKE0 
-           AS SELECT   a.{1}, 
-                       COALESCE(b.{9}, 0) AS {16},
-                       a.{4},
-                       a.{5},
-                       a.{6},
-                       a.{9},
-                       a.{10},
-                       a.{7},
-                       a.{21},
-                       a.{32},
-                       a.{33},
-                       a.{34}
-           FROM     {0} AS a LEFT JOIN {2} AS b 
-                    ON a.{1} = b.{1} AND a.{6} = b.{6};
-       {12}{13}
-       DROP TABLE IF EXISTS {11};
-       CREATE TABLE {11}
-           AS SELECT MIN({3}) AS {3}, {7}, {6}, {21}
-           FROM {2}
-           GROUP BY {6}, {7};
-       {17}{18}{19}{20}
-       DROP TABLE IF EXISTS TEMPO_WAKE;
-       CREATE TABLE TEMPO_WAKE 
-           AS SELECT   a.{1}, 
-                       POWER(b.{3}/a.{4},1.5) AS {8},
-                       a.{4},
-                       a.{5},
-                       a.{6},
-                       a.{9},
-                       a.{16},
-                       a.{10},
-                       a.{7},
-                       a.{21}
-           FROM     TEMPO_WAKE0 AS a LEFT JOIN {11} AS b 
-                    ON a.{6} = b.{6} AND a.{7} = b.{7};
-       DROP TABLE IF EXISTS {0};
-       ALTER TABLE TEMPO_WAKE RENAME TO {0};
-       {30}{23}{24}{25}   
-       DROP TABLE IF EXISTS TEMPO_STREET_CANYON;
-       CREATE TABLE TEMPO_STREET_CANYON 
-           AS SELECT   a.*, 
-                       a.{27}*SQRT(1-POWER((a.{28}-a.{29})/b.{3}, 2)) AS {9},
-           FROM     {22} AS a LEFT JOIN {11} AS b 
-                    ON a.{6} = b.{6} AND a.{7} = b.{7} AND a.{26} = b.{21};
-       DROP TABLE IF EXISTS {22};
-       ALTER TABLE TEMPO_STREET_CANYON RENAME TO {22};
-       """.format(  dicOfOutputTables[WAKE_NAME]    , ID_POINT,
-                    dicOfOutputTables[CAVITY_NAME]  , LENGTH_ZONE_FIELD+CAVITY_NAME[0],
-                    DISTANCE_BUILD_TO_POINT_FIELD   , HEIGHT_FIELD,                   
-                    DOWNWIND_FACADE_FIELD           , ID_POINT_X,
-                    WAKE_RELATIVE_POSITION_FIELD    , UPPER_VERTICAL_THRESHOLD,
-                    Y_WALL                          , tempoCavity,
-                    DataUtil.createIndex(   dicOfOutputTables[CAVITY_NAME], 
-                                            fieldName=DOWNWIND_FACADE_FIELD,
-                                            isSpatial=False),
-                    DataUtil.createIndex(   dicOfOutputTables[CAVITY_NAME], 
-                                            fieldName=ID_POINT_X,
-                                            isSpatial=False),
-                    DataUtil.createIndex(   dicOfOutputTables[CAVITY_NAME], 
-                                            fieldName=ID_POINT,
-                                            isSpatial=False),
-                    DataUtil.createIndex(   dicOfOutputTables[WAKE_NAME], 
-                                            fieldName=ID_POINT,
-                                            isSpatial=False),
-                    UPPER_VERTICAL_THRESHOLD + CAVITY_NAME[0],
-                    DataUtil.createIndex(   "TEMPO_WAKE0", 
-                                            fieldName=DOWNWIND_FACADE_FIELD,
-                                            isSpatial=False),
-                    DataUtil.createIndex(   "TEMPO_WAKE0", 
-                                            fieldName=ID_POINT_X,
-                                            isSpatial=False),
-                    DataUtil.createIndex(   tempoCavity, 
-                                            fieldName=DOWNWIND_FACADE_FIELD,
-                                            isSpatial=False),
-                    DataUtil.createIndex(   tempoCavity, 
-                                            fieldName=ID_POINT_X,
-                                            isSpatial=False),
-                    ID_FIELD_STACKED_BLOCK          , dicOfOutputTables[STREET_CANYON_NAME],
-                    DataUtil.createIndex(   dicOfOutputTables[STREET_CANYON_NAME], 
-                                            fieldName=DOWNWIND_FACADE_FIELD,
-                                            isSpatial=False),
-                    DataUtil.createIndex(   dicOfOutputTables[STREET_CANYON_NAME], 
-                                            fieldName=ID_POINT_X,
-                                            isSpatial=False),
-                    DataUtil.createIndex(   dicOfOutputTables[STREET_CANYON_NAME], 
-                                            fieldName=ID_UPSTREAM_STACKED_BLOCK,
-                                            isSpatial=False),
-                    ID_UPSTREAM_STACKED_BLOCK       , UPSTREAM_HEIGHT_FIELD,
-                    Y_WALL                          , Y_POINT,
-                    DataUtil.createIndex(   tempoCavity, 
-                                            fieldName=ID_FIELD_STACKED_BLOCK,
-                                            isSpatial=False),
-                    DataUtil.createIndex(   dicOfOutputTables[WAKE_NAME], 
-                                            fieldName=DOWNWIND_FACADE_FIELD,
-                                            isSpatial=False),
-                    COS_BLOCK_AZIMUTH               , SIN_BLOCK_AZIMUTH,
-                    DOWNSTREAM_X_RELATIVE_POSITION))
-    
+    # Last calculate the relative position of each point according 
+    # to the upper and lower part of the Rockle zones
+    cursor.execute(";".join(["""
+        {0};
+        {1};
+        {2};
+        {3};
+        CREATE TABLE {4}
+            AS SELECT   {5}
+            FROM    {6} AS a RIGHT JOIN {7} AS b
+                        ON a.{8} = b.{8} AND a.{9} = b.{9}
+        """.format( DataUtil.createIndex( tableName=dicOfPrefixZoneLim[t], 
+                                          fieldName=idZone[t],
+                                          isSpatial=False),
+                    DataUtil.createIndex( tableName=dicOfTempoOutput[t], 
+                                          fieldName=idZone[t],
+                                          isSpatial=False),
+                    DataUtil.createIndex( tableName=dicOfPrefixZoneLim[t], 
+                                          fieldName=ID_POINT_X,
+                                          isSpatial=False),
+                    DataUtil.createIndex( tableName=dicOfTempoOutput[t], 
+                                          fieldName=ID_POINT_X,
+                                          isSpatial=False), 
+                    dicOfOutputTables[t]            , varToKeepPoint[t],
+                    dicOfPrefixZoneLim[t]           , dicOfTempoOutput[t],
+                    idZone[t]                       , ID_POINT_X)
+                  for t in listTabYvalues]))
+
     # Special treatment for rooftop corners which have not been calculated previously
     cursor.execute("""DROP TABLE IF EXISTS {8};
                    CREATE TABLE {8}
@@ -1554,30 +1528,44 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                              ID_POINT),
             CAVITY_NAME       : """
                  b.{0},
-                 -POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2) AS {4},
+                 -POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2)*a.{6}*a.{8} AS {4},
                  a.{5},
-                 a.{3}
+                 a.{3},
+                 a.{7}*a.{8} AS {9}
                  """.format( ID_POINT_Z,
                              POINT_RELATIVE_POSITION_FIELD+CAVITY_NAME[0],
                              Z,
                              HEIGHT_FIELD,
                              V,
-                             ID_POINT),
+                             ID_POINT,
+                             COS_BLOCK_AZIMUTH,
+                             SIN_BLOCK_AZIMUTH,
+                             DOWNSTREAM_X_RELATIVE_POSITION,
+                             U,
+                             POINT_RELATIVE_POSITION_FIELD+WAKE_NAME[0]),
             WAKE_NAME       : """
                  b.{0},
                  1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {4},
                  1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {6},
                  1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {7},
                  a.{5},
-                 a.{3}
+                 a.{3},
+                 1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)*a.{8}*a.{10} AS {11},
+                 -POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)*a.{8}*a.{10} AS {12}
                  """.format( ID_POINT_Z,
                              WAKE_RELATIVE_POSITION_FIELD,
                              Z,
                              HEIGHT_FIELD,
-                             V,
+                             V_WEIGHT,
                              ID_POINT,
+                             U_WEIGHT,
+                             W_WEIGHT,
+                             COS_BLOCK_AZIMUTH,
+                             SIN_BLOCK_AZIMUTH,
+                             DOWNSTREAM_X_RELATIVE_POSITION,
+                             V,
                              U,
-                             W),
+                             POINT_RELATIVE_POSITION_FIELD+WAKE_NAME[0]),
             STREET_CANYON_NAME       : """
                  b.{0},
                  a.{1},
@@ -2279,9 +2267,10 @@ def manageUpstreamSuperimposition(cursor,
                            dicAllWeightFactorsTables = dicAllWeightFactorsTables,
                            tablesToConsider = upstreamWeightingTables,
                            prefix = "TEMPO_WEIGHTING",
-                           upstream = upstreamWeight)
+                           upstream = upstreamWeight,
+                           weightingZone = True)
     
-    # Identify the points to keep for duplicates in upstream priorities
+    # Identify the points to keep to solve duplicated points in upstream priorities
     # (except zones being in weighting)
     if backward:
         upstreamPriorities = True
@@ -2296,7 +2285,7 @@ def manageUpstreamSuperimposition(cursor,
                            prefix = "TEMPO_PRIORITIES",
                            upstream = upstreamPriorities)
         
-    # Identify the points to keep for duplicates in upstream priorities
+    # Identify the points to keep to solve duplicated points in upstream priorities
     # (only zones being in weighting - ie the most downstream wake zones...)
     if backward:
         upstreamPrioritiesWeight = True
@@ -2321,7 +2310,7 @@ def manageUpstreamSuperimposition(cursor,
               AS SELECT   {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}
               FROM        {1}
               UNION ALL   
-              SELECT    a.{2}, a.{3}, a.{4}, a.{5}, NULL AS {6}, a.{7},
+              SELECT    a.{2}, a.{3}, a.{4}, a.{5}, a.{6}, a.{7},
                           NULL AS {8},
                           {11} AS {9}
               FROM     {0} AS a LEFT JOIN {1} AS b
@@ -2359,7 +2348,7 @@ def manageUpstreamSuperimposition(cursor,
           {19};
           DROP TABLE IF EXISTS {10};
           CREATE TABLE {10}
-              AS SELECT   a.{2}, a.{3}, a.{4}, COALESCE(a.{6}*b.{6}, 0) AS {6},
+              AS SELECT   a.{2}, a.{3}, a.{4}, COALESCE(a.{6}*b.{6}, a.{6}) AS {6},
                           COALESCE(a.{7}*b.{7}, a.{7}) AS {7},
                           COALESCE(a.{8}*b.{8}, 0) AS {8},
                           COALESCE(b.{9}, {11}) AS {9}
@@ -2367,7 +2356,7 @@ def manageUpstreamSuperimposition(cursor,
                        ON a.{2} = b.{2} AND a.{3} = b.{3}
               WHERE    (a.{5} >= b.{5} AND a.{4} > b.{4})
               UNION ALL
-              SELECT   a.{2}, a.{3}, a.{4}, NULL AS {6}, a.{7}, NULL AS {8}, {11} AS {9}
+              SELECT   a.{2}, a.{3}, a.{4}, a.{6}, a.{7}, NULL AS {8}, {11} AS {9}
               FROM     {0} AS a LEFT JOIN {1} AS b
                        ON a.{2} = b.{2} AND a.{3} = b.{3}
               WHERE    b.{2} IS NULL AND b.{3} IS NULL
@@ -2441,7 +2430,8 @@ def identifyUpstreamer( cursor,
                         dicAllWeightFactorsTables, 
                         tablesToConsider,
                         prefix = PREFIX_NAME,
-                        upstream = True):
+                        upstream = True,
+                        weightingZone = False):
     """ If a point is covered by several zones, keep the value only from
         a single zone based on the following priorities:
             1. the most upstream zone (if equal, use the next priority)
@@ -2476,6 +2466,9 @@ def identifyUpstreamer( cursor,
         upstream: Boolean, default True
             If False, the downstreamest zone coming from the lowest obstacles 
             are used for calculation
+        weightingZone: boolean, default False
+            If True, use wind factor used for weighting (U_WEIGHT, V_WEIGHT, W_WEIGHT)
+            instead of normal wind factors (U, V, W)
         
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -2483,6 +2476,17 @@ def identifyUpstreamer( cursor,
         uniqueValuePerPointTable: String
             Name of the table containing one value per point (without duplicate)"""
     print("Identify upstreamer points in {0} table".format(prefix))
+    
+    # Wind factors
+    if weightingZone:
+        u_factor = U_WEIGHT
+        v_factor = V_WEIGHT
+        w_factor = W_WEIGHT
+    else:
+        u_factor = U
+        v_factor = V
+        w_factor = W
+    wind_factor_names = {u_factor: U, v_factor: V, w_factor: W}
     
     # Output base name
     outputBaseName = "UNIQUE_3D"
@@ -2531,11 +2535,11 @@ def identifyUpstreamer( cursor,
                        
         #  Set to null wind speed factor for axis not set by upstream zones
         columns = DataUtil.getColumns(cursor = cursor, tableName = dicAllWeightFactorsTables[t])
-        for i in [U, V, W]:
+        for i in wind_factor_names:
             if i in columns:
-                selectQueryDownstream[t] += " {0}, ".format(i)
+                selectQueryDownstream[t] += " {0} AS {1}, ".format(i, wind_factor_names[i])
             else:
-                selectQueryDownstream[t] += " NULL AS {0}, ".format(i)
+                selectQueryDownstream[t] += " NULL AS {0}, ".format(wind_factor_names[i])
         selectQueryDownstream[t] = selectQueryDownstream[t][0:-2]+" FROM "+dicAllWeightFactorsTables[t]
         
     # Gather all data for the upstream weighting into a same table

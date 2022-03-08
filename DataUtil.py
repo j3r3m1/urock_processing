@@ -316,7 +316,7 @@ def getExtremumPoint(pointsTable, axis, extremum, secondAxisExtremum, cursor, pr
                AS SELECT {4}, {6}
                FROM {7}
                WHERE {8} = {9}
-               GROUP BY {4}, {9};
+               GROUP BY {4};
            """.format(  createIndex(tableName=pointsTable, 
                                     fieldName=ID_FIELD_STACKED_BLOCK,
                                     isSpatial=False),
