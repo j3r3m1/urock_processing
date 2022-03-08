@@ -645,7 +645,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     a.{16},
                                     b.{13},
                                     a.{2},
-                                    a.{7}*SQRT(1-POWER((a.{8}-b.{13})/a.{17}, 2)) AS {18}
+                                    a.{7}*SQRT(1-POWER((a.{9}-b.{13})/a.{17}, 2)) AS {18}
                                     """.format( ID_POINT,
                                                 UPWIND_FACADE_ANGLE_FIELD,
                                                 LENGTH_ZONE_FIELD+STREET_CANYON_NAME[0],
