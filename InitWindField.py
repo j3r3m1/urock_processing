@@ -747,7 +747,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
         cursor.execute("""
             DROP TABLE IF EXISTS TEMPO_WAKE0, TEMPO_WAKE, {0},{1},{2}
                       """.format(",".join(list(dicOfTempoOutput.values())),
-                                 ",".join(list(dicOfPrefixZoneLim.values)),
+                                 ",".join(list(dicOfPrefixZoneLim.values())),
                                  tempoCavity))
         
      
@@ -1551,7 +1551,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                  a.{5},
                  a.{3},
                  1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)*a.{8}*a.{10} AS {11},
-                 -POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)*a.{8}*a.{10} AS {12}
+                 POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5)*a.{9}*a.{10} AS {12}
                  """.format( ID_POINT_Z,
                              WAKE_RELATIVE_POSITION_FIELD,
                              Z,
@@ -2177,7 +2177,7 @@ def manageSuperimposition(cursor,
                                            tempoPrioritiesAll,
                                            tempoBackwardWeights,
                                            upstreamBackPrioritiesTempoTable,
-                                           ",".join(list(dicBackwardWeighted.values)),
+                                           ",".join(list(dicBackwardWeighted.values())),
                                            tempoPrioritiesWeightedAllPlusBack])))
     
     return initializedWindFactorTable

@@ -709,12 +709,12 @@ def main(javaEnvironmentPath,
                                             x = x                           , y = y,
                                             x_rot = x_rot                   , y_rot = y_rot,
                                             u = u                           , v = v)
-    if debug:
-        x_rot, y_rot, u0_rot, v0_rot = rotateData(theta = -windDirection*np.pi/180  , nx = nx, 
-                                                  ny = ny                           , nz = nz, 
-                                                  x = x                             , y = y,
-                                                  x_rot = x_rot                     , y_rot = y_rot,
-                                                  u = u0                            , v = v0)
+
+    x_rot, y_rot, u0_rot, v0_rot = rotateData(theta = -windDirection*np.pi/180  , nx = nx, 
+                                              ny = ny                           , nz = nz, 
+                                              x = x                             , y = y,
+                                              x_rot = x_rot                     , y_rot = y_rot,
+                                              u = u0                            , v = v0)
     # Set the real (x,y) grid coordinates
     x_rot += rotationCenterCoordinates[0]
     y_rot += rotationCenterCoordinates[1]
