@@ -2635,6 +2635,9 @@ def getVerticalProfile( cursor,
         - urban: exponential below mean building height and log otherwise
         (used in Nelson et al., 2007)
         - logarithmic: classic logarithmic wind profile
+        - user: the profile is defined by the user (need to pass the 
+                                                    'verticalProfileFile'
+                                                    parameter)
     
     Note that:
         - the exponent p of the power-law is calculated according to the

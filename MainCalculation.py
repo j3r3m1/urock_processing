@@ -722,12 +722,13 @@ def main(javaEnvironmentPath,
     # -------------------------------------------------------------------
     # 12. SAVE EACH OF THE UROCK OUTPUT ---------------------------------
     # ------------------------------------------------------------------- 
+    outputFilePathAndFullName = os.sep.join(outputFilePathAndNameBase.split(os.sep)[0:-1]) + os.sep + prefix + "_" + outputFilePathAndNameBase.split(os.sep)[-1]
     dicVectorTables = saveData.saveBasicOutputs(  cursor = cursor                , z_out = z_out,
                                                   dz = dz                        , u = u_rot,
                                                   v = v_rot                      , w = w, 
                                                   gridName = gridPoint           , rotationCenterCoordinates = rotationCenterCoordinates,
                                                   windDirection = windDirection  , verticalWindProfile = verticalWindProfile,
-                                                  outputFilePathAndNameBase = outputFilePathAndNameBase,
+                                                  outputFilePathAndNameBase = outputFilePathAndFullName,
                                                   meshSize = meshSize            , outputRaster = outputRaster,
                                                   saveRaster = saveRaster        , saveVector = saveVector,
                                                   saveNetcdf = saveNetcdf)
