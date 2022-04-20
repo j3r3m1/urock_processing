@@ -244,7 +244,8 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
             GROUP BY {3};
         {6}{7}
         CREATE TABLE {8}
-            AS SELECT   a.{3}, a.{1}, b.{2}, b.{10}
+            AS SELECT   a.{3}, a.{1}, b.{2}, b.{10}, b.{11}, b.{12}, b.{13}, 
+                        b.{14}, b.{15}, b.{16}, b.{17}
             FROM {0} AS a LEFT JOIN {9} AS b
             ON a.{3} = b.{3}
             WHERE ST_AREA(a.{1}) > 0;
@@ -260,7 +261,10 @@ def cavityAndWakeZones(cursor, downwindWithPropTable, srid, ellipseResolution,
                                          fieldName=DOWNWIND_FACADE_FIELD,
                                          isSpatial=False),
                     outputZoneTableNames[z]         , downwindWithPropTable,
-                    HEIGHT_FIELD)
+                    HEIGHT_FIELD                    , STACKED_BLOCK_X_MED,
+                    STACKED_BLOCK_UPSTREAMEST_X     , SIN_BLOCK_LEFT_AZIMUTH,
+                    COS_BLOCK_LEFT_AZIMUTH          , COS_BLOCK_RIGHT_AZIMUTH,
+                    SIN_BLOCK_RIGHT_AZIMUTH         , STACKED_BLOCK_WIDTH)
         for z in variablesNames.index]))
                     
     if not DEBUG:
@@ -407,7 +411,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                          {5} INTEGER,
                          {11} DOUBLE,
                          {12} INTEGER,
-                         {14} INTEGER)
+                         {14} INTEGER,
+                         {9} INTEGER)
             AS SELECT   NULL AS {13},
                         {1},
                         {8},
@@ -416,7 +421,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         {5},
                         {11},
                         {12},
-                        {14}
+                        {14},
+                        {9}
             FROM ST_EXPLODE('(SELECT    a.{1},
                                         a.{8},
                                         ST_SPLIT(a.{3},
@@ -425,7 +431,8 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                                         a.{5},
                                         a.{11},
                                         a.{12},
-                                        a.{14}
+                                        a.{14},
+                                        a.{9}
                             FROM        {0} AS a LEFT JOIN {7} AS b ON a.{9}=b.{9})')
             WHERE EXPLOD_ID = 1
            """.format( canyonExtendTable                , ID_UPSTREAM_STACKED_BLOCK,

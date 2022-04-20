@@ -579,7 +579,8 @@ def initDownwindFacades(cursor, obstaclesTable, prefix = PREFIX_NAME):
        CREATE TABLE {7}
            AS SELECT    a.{1}, a.{2}, a.{4}, b.{8}, b.{9}, b.{10},
                        (ST_XMAX(b.{2}) + ST_XMIN(b.{2})) / 2 AS {12},
-                       (ST_XMAX(b.{2}) - ST_XMIN(b.{2})) AS {13}
+                       (ST_XMAX(b.{2}) - ST_XMIN(b.{2})) AS {13},
+                       b.{14}, b.{15}, b.{16}, b.{17}, b.{18}
            FROM {0} AS a LEFT JOIN {11} AS b
            ON a.{4} = b.{4}
             """.format(tempoDownwindLines               , DOWNWIND_FACADE_FIELD,
@@ -593,7 +594,10 @@ def initDownwindFacades(cursor, obstaclesTable, prefix = PREFIX_NAME):
                         downwindTable,
                         CAVITY_LENGTH_FIELD             , WAKE_LENGTH_FIELD,
                         HEIGHT_FIELD                    , obstaclesTable,
-                        STACKED_BLOCK_X_MED             , STACKED_BLOCK_WIDTH))
+                        STACKED_BLOCK_X_MED             , STACKED_BLOCK_WIDTH,
+                        STACKED_BLOCK_UPSTREAMEST_X     , SIN_BLOCK_LEFT_AZIMUTH,
+                        COS_BLOCK_LEFT_AZIMUTH          , COS_BLOCK_RIGHT_AZIMUTH,
+                        SIN_BLOCK_RIGHT_AZIMUTH))
     
     if not DEBUG:
         # Drop intermediate tables
