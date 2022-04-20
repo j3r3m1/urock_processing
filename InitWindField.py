@@ -1531,7 +1531,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                  -POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2)*a.{6}*a.{8} AS {4},
                  a.{5},
                  a.{3},
-                 a.{7}*a.{8} AS {9}
+                 a.{7} AS {9}
                  """.format( ID_POINT_Z,
                              POINT_RELATIVE_POSITION_FIELD+CAVITY_NAME[0],
                              Z,
