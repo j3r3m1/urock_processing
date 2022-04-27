@@ -184,7 +184,7 @@ X = "X"
 Y = "Y"
 Z = "Z"
 # Coefficients for displacement zone calculation
-C_DZ = 0.4
+C_DZ = 0.5
 P_DZ = 0.16
 # Coefficient for rooftop perpendicular
 P_RTP = 0.16

@@ -254,9 +254,9 @@ def calcLambda(cells4Solver, lambdaN, lambdaN1, omega, alpha1, u0, v0, w0, dx, d
     if DESCENDING_Y:
         for k, j, i in np.flip(cells4Solver):
             lambdaN1[i, j, k] = omega * (
-                ((-1.) * (dx ** 2 * (-2. * alpha1 ** 2) * (((u0[i - 1, j, k] - u0[i, j, k]) / (dx) + (
-                        v0[i, j - 1, k] - v0[i, j, k]) / (dy) +
-                                                            (w0[i, j, k - 1] - w0[i, j, k]) / (dz)))) + (
+                ((-1.) * (dx ** 2 * (-2. * alpha1 ** 2) * (((u0[i, j, k] - u0[i + 1, j, k]) / (dx) + (
+                        v0[i, j, k] - v0[i, j + 1, k]) / (dy) +
+                                                            (w0[i, j, k] - w0[i, j, k + 1]) / (dz)))) + (
                           e[i, j, k] * lambdaN[i - 1, j, k] + f[i, j, k] * lambdaN1[i + 1, j, k] + A * (
                           g[i, j, k] * lambdaN[i, j - 1, k] + h[i, j, k] * lambdaN1[i, j + 1, k]) + B * (
                                   m[i, j, k] * lambdaN[i, j, k - 1] + n[i, j, k] * lambdaN1[i, j, k + 1]))) / (
