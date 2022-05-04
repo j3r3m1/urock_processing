@@ -8,6 +8,7 @@ Created on Wed Feb  3 15:39:07 2021
 
 from . import DataUtil as DataUtil
 import pandas as pd
+idx = pd.IndexSlice
 from .GlobalVariables import ALONG_WIND_ZONE_EXTEND, CROSS_WIND_ZONE_EXTEND,\
     MESH_SIZE, PREFIX_NAME, GEOM_FIELD, ID_POINT, ID_POINT_X, ID_POINT_Y,\
     CAVITY_NAME, WAKE_NAME, DISPLACEMENT_NAME, DISPLACEMENT_VORTEX_NAME,\
@@ -38,7 +39,7 @@ from .GlobalVariables import ALONG_WIND_ZONE_EXTEND, CROSS_WIND_ZONE_EXTEND,\
     COS_BLOCK_LEFT_AZIMUTH, COS_BLOCK_AZIMUTH, SIN_BLOCK_RIGHT_AZIMUTH,\
     SIN_BLOCK_LEFT_AZIMUTH, SIN_BLOCK_AZIMUTH, STACKED_BLOCK_WIDTH,\
     DOWNSTREAM_X_RELATIVE_POSITION, V_WEIGHT, U_WEIGHT, W_WEIGHT,\
-    STACKED_BLOCK_X_MED
+    STACKED_BLOCK_X_MED, REMOVE_INITIALIZATION_OFFSET
 import math
 import numpy as np
 import os
@@ -2975,14 +2976,24 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                                                               [j for j in range(0, nPoints[Y])],
                                                               [k for k in range(0, nPoints[Z])]]))
 
-    # Update the 3D wind speed field with the initial guess near obstacles
+    # Read the wind speed near obstacles (data coming from H2GIS database)
     df_wind0_rockle = pd.read_csv(os.path.join(tempoDirectory,
                                                initRockleFilename),
                                   header = 0,
                                   index_col = [0, 1, 2])
-    for c in df_wind0_rockle.columns:
-        df_wind0.loc[df_wind0_rockle[c].sort_index().dropna().index,c] = df_wind0_rockle[c].sort_index().dropna()
     
+    # Update the 3D wind speed field with the initial guess near obstacles
+    for c in df_wind0_rockle.columns:
+        df_wind0.loc[df_wind0_rockle[c].sort_index().dropna().index,c] = df_wind0_rockle[c].sort_index().dropna() 
+    
+    # Renormalize wind speed at each height to make sure there is no offset of
+    # wind speed between the wind profile and the initialization before the balance of wind
+    if REMOVE_INITIALIZATION_OFFSET:
+        max_zi = df_wind0_rockle.index.get_level_values("ID_Z").max()
+        for z_i in verticalWindSpeedProfile.index[1:max_zi + 1]:
+            df_wind0.loc[idx[:,:,z_i],:] = df_wind0.loc[idx[:,:,z_i],:] \
+                * verticalWindSpeedProfile.loc[z_i, HORIZ_WIND_SPEED] \
+                    / df_wind0.loc[idx[:,:,z_i],:].pow(2).sum(axis=1).pow(0.5).mean()
     
     # Set to 0 wind speed within buildings...
     df_wind0.loc[df_gridBuil.index] = 0

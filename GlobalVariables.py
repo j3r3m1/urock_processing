@@ -18,7 +18,8 @@ V_REF = 2.0
 WIND_DIRECTION = 270
 PROFILE_TYPE = "power"
 
-# Option to have 
+# Option to remove any offset due to the initialisation step
+REMOVE_INITIALIZATION_OFFSET = False
 
 # If the solver should go descending order along y (does not work yet...)
 DESCENDING_Y = False
