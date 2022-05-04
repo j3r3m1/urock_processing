@@ -338,7 +338,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         inputVegetationlayer = self.parameterAsVectorLayer(parameters, self.VEGETATION_TABLE_NAME, context)
         if inputVegetationlayer:
             veg_file = str(inputVegetationlayer.dataProvider().dataSourceUri())
-            srid_veg = inputVegetationlayer.crs().srsid()
+            srid_veg = inputVegetationlayer.crs().postgisSrid()
             if srid_build != srid_veg:
                 feedback.pushInfo('Coordinate system of input building layer and vegetation layer differ!')
         else:
@@ -372,7 +372,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
 
         # If there is an output raster, need to get some of its parameters
         if outputRaster:
-            if inputBuildinglayer.crs().srsid() != outputRaster.crs().srsid():
+            if inputBuildinglayer.crs().postgisSrid() != outputRaster.crs().postgisSrid():
                 feedback.pushInfo('Coordinate system of input building layer and output Raster layer differ!')
             xres = (outputRaster.extent().xMaximum() - outputRaster.extent().xMinimum()) / outputRaster.width()
             yres = (outputRaster.extent().yMaximum() - outputRaster.extent().yMinimum()) / outputRaster.height()               
