@@ -197,6 +197,7 @@ def getJavaDir(pluginDirectory):
                 JAVA variable path"""
     javaPath = os.environ.get("JAVA_HOME")
     javaPathFile = os.path.join(pluginDirectory, JAVA_PATH_FILENAME)
+    
     # For some reason, JAVA_HOME may be set to %JAVA_HOME% while there is no
     # Java home set. This should be associated to None
     if javaPath:

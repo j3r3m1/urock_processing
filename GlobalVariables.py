@@ -18,6 +18,8 @@ V_REF = 2.0
 WIND_DIRECTION = 270
 PROFILE_TYPE = "power"
 
+# Option to have 
+
 # If the solver should go descending order along y (does not work yet...)
 DESCENDING_Y = False
 
@@ -66,7 +68,7 @@ JAVA_PATH_FILENAME = "JavaPath.csv"
 
 # If debug is True, keep intermediate tables (within each process) and save
 # intermediate tables (such as Röckle zones) as GIS file
-DEBUG = True
+DEBUG = False
 ONLY_INITIALIZATION = False
 SAVE_ROCKLE_ZONES = False
 MAX_ITERATIONS = 500      # Based on QUIC-URB default values (2021)
@@ -184,7 +186,7 @@ X = "X"
 Y = "Y"
 Z = "Z"
 # Coefficients for displacement zone calculation
-C_DZ = 0.5
+C_DZ = 0.4
 P_DZ = 0.16
 # Coefficient for rooftop perpendicular
 P_RTP = 0.16

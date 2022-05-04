@@ -331,7 +331,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         # Get building layer and then file directory
         inputBuildinglayer = self.parameterAsVectorLayer(parameters, self.BUILDING_TABLE_NAME, context)
         build_file = str(inputBuildinglayer.dataProvider().dataSourceUri())
-        srid_build = inputBuildinglayer.crs().srsid()
+        srid_build = inputBuildinglayer.crs().postgisSrid()
 
         # Get vegetation layer if exists, check that it has the same SRID as building layer
         # and then get the file directory of the layer

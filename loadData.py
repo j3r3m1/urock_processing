@@ -194,13 +194,13 @@ def loadData(fromCad                        , prefix,
                          {3}, CAST(ROUND({4}, 0) AS INT) AS {4}
                FROM     (SELECT  {1}, {3}, CAST({4} AS DOUBLE) AS {4}
                          FROM {5})
-               WHERE {4} > 0;
+               WHERE {4} > 0.5;
            DROP TABLE IF EXISTS {6};
            CREATE TABLE {6}
                AS SELECT ST_SETSRID({1}, {2}) AS {1},
                          {7}, {8}, {9}, {10}
                FROM {11}
-               WHERE {9} > 0;
+               WHERE {9} > 0.5;
            """.format(BUILDING_TABLE_NAME           , GEOM_FIELD,
                       srid                          , ID_FIELD_BUILD,
                       HEIGHT_FIELD                  , buildTablePreSrid,
@@ -215,7 +215,7 @@ def loadData(fromCad                        , prefix,
                          {5}, CAST(ROUND({6}, 0) AS INT) AS {6}
                FROM     (SELECT  {4}, {5}, CAST({6} AS DOUBLE) AS {6}
                         FROM {2})
-               WHERE {6} > 0;
+               WHERE {6} > 0.5;
            ALTER TABLE {3} RENAME TO {1};
            """.format(BUILDING_TABLE_NAME       , VEGETATION_TABLE_NAME,
                       buildTablePreSrid         , vegTablePreSrid,

@@ -234,15 +234,6 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
     v[buildingCoordinates[0],buildingCoordinates[1]+1,buildingCoordinates[2]]=0
     w[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
     w[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]+1]=0
-    
-    # Wind speed values are recentered to the middle of the cells
-    u[0:nx-1 ,0:ny-1 ,0:nz-1]=   (u[0:nx-1, 0:ny-1, 0:nz-1] + u[1:nx, 0:ny-1, 0:nz-1])/2
-    v[0:nx-1 ,0:ny-1, 0:nz-1]=   (v[0:nx-1, 0:ny-1, 0:nz-1] + v[0:nx-1, 1:ny, 0:nz-1])/2
-    w[0:nx-1, 0:ny-1, 0:nz-1]=   (w[0:nx-1, 0:ny-1, 0:nz-1] + w[0:nx-1, 0:ny-1, 1:nz])/2
-    u0[0:nx-1 ,0:ny-1 ,0:nz-1]=   (u0[0:nx-1, 0:ny-1, 0:nz-1] + u0[1:nx, 0:ny-1, 0:nz-1])/2
-    v0[0:nx-1 ,0:ny-1, 0:nz-1]=   (v0[0:nx-1, 0:ny-1, 0:nz-1] + v0[0:nx-1, 1:ny, 0:nz-1])/2
-    w0[0:nx-1, 0:ny-1, 0:nz-1]=   (w0[0:nx-1, 0:ny-1, 0:nz-1] + w0[0:nx-1, 0:ny-1, 1:nz])/2
-
 
     print("Time spent by the wind speed solver: {0} s".format(time.time()-timeStartCalculation))
     

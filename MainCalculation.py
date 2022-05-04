@@ -145,8 +145,6 @@ def main(javaEnvironmentPath,
     
     # Save the blocks, stacked blocks and vegetation as geojson
     if debug or saveRockleZones:
-        saveData.saveTable(cursor = cursor                          , tableName = stackedBlockTable,
-                           filedir = outputDataAbs["stacked_blocks"], delete = True)
         saveData.saveTable(cursor = cursor                          , tableName = blockTable,
                            filedir = outputDataAbs["blocks"]        , delete = True)
         saveData.saveTable(cursor = cursor                          , tableName = VEGETATION_TABLE_NAME,
@@ -229,6 +227,9 @@ def main(javaEnvironmentPath,
                            filedir = outputDataAbs["downwind_facades"]   , delete = True,
                            rotationCenterCoordinates = rotationCenterCoordinates,
                            rotateAngle = - windDirection)
+        saveData.saveTable(cursor = cursor                          , tableName = rotatedPropStackedBlocks,
+                           rotationCenterCoordinates = rotationCenterCoordinates,
+                           filedir = outputDataAbs["stacked_blocks"], delete = True)
     
     
     # -----------------------------------------------------------------------------------
@@ -674,6 +675,14 @@ def main(javaEnvironmentPath,
         u = u0
         v = v0
         w = w0
+        
+    # Wind speed values are recentered to the middle of the cells
+    u[0:nx-1 ,0:ny-1 ,0:nz-1]=   (u[0:nx-1, 0:ny-1, 0:nz-1] + u[1:nx, 0:ny-1, 0:nz-1])/2
+    v[0:nx-1 ,0:ny-1, 0:nz-1]=   (v[0:nx-1, 0:ny-1, 0:nz-1] + v[0:nx-1, 1:ny, 0:nz-1])/2
+    w[0:nx-1, 0:ny-1, 0:nz-1]=   (w[0:nx-1, 0:ny-1, 0:nz-1] + w[0:nx-1, 0:ny-1, 1:nz])/2
+    u0[0:nx-1 ,0:ny-1 ,0:nz-1]=   (u0[0:nx-1, 0:ny-1, 0:nz-1] + u0[1:nx, 0:ny-1, 0:nz-1])/2
+    v0[0:nx-1 ,0:ny-1, 0:nz-1]=   (v0[0:nx-1, 0:ny-1, 0:nz-1] + v0[0:nx-1, 1:ny, 0:nz-1])/2
+    w0[0:nx-1, 0:ny-1, 0:nz-1]=   (w0[0:nx-1, 0:ny-1, 0:nz-1] + w0[0:nx-1, 0:ny-1, 1:nz])/2
     
     # -------------------------------------------------------------------
     # 11. ROTATE THE WIND FIELD TO THE INITIAL DISPOSITION --------------
@@ -737,7 +746,7 @@ def main(javaEnvironmentPath,
     if debug:
         saveData.saveBasicOutputs(cursor = cursor                , z_out = z_out,
                                   dz = dz                        , u = u0_rot,
-                                  v = v0_rot                     , w = w, 
+                                  v = v0_rot                     , w = w0, 
                                   gridName = gridPoint           , rotationCenterCoordinates = rotationCenterCoordinates,
                                   windDirection = windDirection  , verticalWindProfile = verticalWindProfile,
                                   outputFilePathAndNameBase = os.path.join(tempoDirectory, prefix + "wind_initiatlisation"),

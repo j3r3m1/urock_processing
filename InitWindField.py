@@ -1503,7 +1503,10 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                  b.{0},
                  {1}*POWER(b.{2}/a.{3},{4})*a.{7} AS {7},
                  {1}*POWER(b.{2}/a.{3},{4})*a.{5} AS {5},
-                 -{1}*POWER((a.{3}-b.{2})/a.{3},0.5)*(ABS(a.{7})/POWER(POWER(a.{7},2)+POWER(a.{5},2),0.5)) AS {8},
+                 CASE  WHEN a.{7} = 0 AND a.{5} = 0
+                       THEN 0
+                       ELSE -{1}*POWER((a.{3}-b.{2})/a.{3},0.5)*(ABS(a.{7})/POWER(POWER(a.{7},2)+POWER(a.{5},2),0.5))
+                       END AS {8},
                  a.{6},
                  a.{3}
                  """.format( ID_POINT_Z,
@@ -1533,7 +1536,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                  -POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2)*POWER(a.{6},2)*POWER(a.{8},0) AS {4},
                  a.{5},
                  a.{3},
-                 POWER(a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),0.5)*a.{7}*POWER(1-a.{8},0.5) AS {9},
+                 0*POWER(a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),0.5)*a.{7}*POWER(1-a.{8},0.5) AS {9},
                  POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2)*POWER(a.{8},0.5) AS {11}
                  """.format( ID_POINT_Z,
                              POINT_RELATIVE_POSITION_FIELD+CAVITY_NAME[0],
