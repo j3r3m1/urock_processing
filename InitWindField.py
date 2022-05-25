@@ -1503,6 +1503,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                  b.{0},
                  {1}*POWER(b.{2}/a.{3},{4})*a.{7} AS {7},
                  {1}*POWER(b.{2}/a.{3},{4})*a.{5} AS {5},
+                 -{1}*POWER((a.{3}-b.{2})/a.{3},0.5)*(ABS(a.{7})/POWER(POWER(a.{7},2)+POWER(a.{5},2),0.5)) AS {8},
                  a.{6},
                  a.{3}
                  """.format( ID_POINT_Z,
@@ -1512,7 +1513,8 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                              P_DZ,
                              V,
                              ID_POINT,
-                             U),
+                             U,
+                             W),
             DISPLACEMENT_VORTEX_NAME       : """
                  b.{0},
                  -(0.6*COS(PI()*b.{1}/(0.5*a.{2}))+0.05)*0.6*SIN(PI()*a.{3}) AS {4},
@@ -1528,10 +1530,11 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                              ID_POINT),
             CAVITY_NAME       : """
                  b.{0},
-                 -POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2)*POWER(a.{6},2) AS {4},
+                 -POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2)*POWER(a.{6},2)*POWER(a.{8},0) AS {4},
                  a.{5},
                  a.{3},
-                 a.{7}*POWER(a.{8},1) AS {9}
+                 POWER(a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),0.5)*a.{7}*POWER(1-a.{8},0.5) AS {9},
+                 POWER(1-a.{1}/POWER(1-POWER(b.{2}/a.{3},2),0.5),2)*POWER(a.{8},0.5) AS {11}
                  """.format( ID_POINT_Z,
                              POINT_RELATIVE_POSITION_FIELD+CAVITY_NAME[0],
                              Z,
@@ -1542,7 +1545,8 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                              SIN_BLOCK_AZIMUTH,
                              DOWNSTREAM_X_RELATIVE_POSITION,
                              U,
-                             POINT_RELATIVE_POSITION_FIELD+WAKE_NAME[0]),
+                             POINT_RELATIVE_POSITION_FIELD+WAKE_NAME[0],
+                             W),
             WAKE_NAME       : """
                  b.{0},
                  1-POWER(a.{1}*POWER(1-POWER(b.{2}/a.{3},2),0.5),1.5) AS {4},
@@ -2887,15 +2891,18 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                AS SELECT   a.{5},
                            a.{2},
                            CASE WHEN  a.{3}=1
-                           THEN       (SELECT   c.{6} 
+                               THEN    (SELECT   c.{6} 
                                        FROM     {10} AS c
                                        WHERE    a.{11} = c.{11})
-                           ELSE     CASE WHEN   a.{3} = 2
-                                    THEN        {7}
-                                    ELSE        (SELECT   b.{6} 
-                                                 FROM     {1} AS b
-                                                 WHERE    a.{2} = b.{2})
-                                    END
+                           WHEN a.{3} = 2
+                               THEN        {7}
+                           WHEN a.{3} = 3
+                               THEN      (SELECT   b.{6} 
+                                         FROM     {1} AS b
+                                         WHERE    a.{2} = b.{2})
+                               ELSE      (SELECT   5 * b.{6} 
+                                         FROM     {1} AS b
+                                         WHERE    a.{2} = b.{2})
                            END AS WIND_SPEED,
                            a.{8},
                            a.{6},
