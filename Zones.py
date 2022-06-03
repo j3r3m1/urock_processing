@@ -342,7 +342,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                         b.{13}
             FROM {3} AS a, {4} AS b
             WHERE   a.{2} && b.{2} AND ST_INTERSECTS(a.{2}, b.{2})
-                    AND a.{8} > RADIANS(45) AND a.{8} < RADIANS(135)
+                    AND a.{8} >= RADIANS({14}) AND a.{8} <= RADIANS(180-{14})
            """.format( intersectTable                   , ID_FIELD_STACKED_BLOCK,
                        GEOM_FIELD                       , upwindTable,
                        cavityZonesTable                 , HEIGHT_FIELD,
@@ -354,7 +354,7 @@ def streetCanyonZones(cursor, cavityZonesTable, zonePropertiesTable, upwindTable
                        DataUtil.createIndex(tableName=cavityZonesTable, 
                                             fieldName=GEOM_FIELD,
                                             isSpatial=True),
-                       DOWNWIND_FACADE_FIELD)
+                       DOWNWIND_FACADE_FIELD            , STREET_CANYON_ANGLE_THRESH)
                        
     cursor.execute(intersectionQuery)
     

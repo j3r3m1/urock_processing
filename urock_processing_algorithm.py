@@ -384,10 +384,12 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             
         # Make the calculations
         u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName,\
-        rotationCenterCoordinates, verticalWindProfile, dicVectorTables = \
+        rotationCenterCoordinates, verticalWindProfile, dicVectorTables,\
+        netcdf_path, net_cdf_path_ini = \
             MainCalculation.main(javaEnvironmentPath = javaEnvVar,
                                  pluginDirectory = plugin_directory,
-                                 outputFilePathAndNameBase = outputDirectory + os.sep + prefix + outputFilename,
+                                 outputFilePath = outputDirectory,
+                                 outputFilename = outputFilename,
                                  buildingFilePath = build_file,
                                  vegetationFilePath = veg_file,
                                  srid = srid_build,

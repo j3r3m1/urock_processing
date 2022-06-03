@@ -226,7 +226,7 @@ def loadData(fromCad                        , prefix,
         # Drop intermediate tables
         cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([vegTablePreSrid, buildTablePreSrid])))
     
-def loadFile(cursor, filePath, tableName):
+def loadFile(cursor, filePath, tableName, srid = None):
     """ Load a file in the database according to its extension
     
 		Parameters
@@ -238,6 +238,8 @@ def loadFile(cursor, filePath, tableName):
                 Path of the file to load
             tableName: String
                 Name of the table for the loaded file
+            srid: int, default None
+                SRID of the loaded file (if known)
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -260,6 +262,23 @@ def loadFile(cursor, filePath, tableName):
            DROP TABLE IF EXISTS {0};
             CALL {2}('{1}','{0}');
             """.format( tableName, filePath, readFunction))
+    
+    if srid:
+        listCols = DataUtil.getColumns(cursor, tableName)
+        listCols.remove(GEOM_FIELD)
+        
+        cursor.execute("""
+           DROP TABLE IF EXISTS TEMPO_LOAD;
+           CREATE TABLE TEMPO_LOAD
+               AS SELECT {0}, ST_SETSRID({1}, {2}) AS {1}
+               FROM {3};
+           DROP TABLE {3};
+           ALTER TABLE TEMPO_LOAD RENAME TO {3}
+           """.format(",".join(listCols), 
+                       GEOM_FIELD, 
+                       srid,
+                       tableName))
+        
 
 def fromShp3dTo2_5(cursor, triangles3d, TreesZone, buildTableName,
                    vegTableName, prefix = PREFIX_NAME, save = True):

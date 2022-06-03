@@ -25,9 +25,10 @@ import os
 
 def main(javaEnvironmentPath,
          pluginDirectory,
-         outputFilePathAndNameBase,
+         outputFilePath,
          buildingFilePath,
          srid,
+         outputFilename = OUTPUT_FILENAME,
          vegetationFilePath = "",
          z_ref = Z_REF,
          v_ref = V_REF,
@@ -684,6 +685,14 @@ def main(javaEnvironmentPath,
     v0[0:nx-1 ,0:ny-1, 0:nz-1]=   (v0[0:nx-1, 0:ny-1, 0:nz-1] + v0[0:nx-1, 1:ny, 0:nz-1])/2
     w0[0:nx-1, 0:ny-1, 0:nz-1]=   (w0[0:nx-1, 0:ny-1, 0:nz-1] + w0[0:nx-1, 0:ny-1, 1:nz])/2
     
+    # Reset input and output wind speed to zero for building cells
+    u[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
+    v[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
+    w[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
+    u0[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
+    v0[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
+    w0[buildingCoordinates[0],buildingCoordinates[1],buildingCoordinates[2]] = 0
+    
     # -------------------------------------------------------------------
     # 11. ROTATE THE WIND FIELD TO THE INITIAL DISPOSITION --------------
     # ------------------------------------------------------------------- 
@@ -731,32 +740,40 @@ def main(javaEnvironmentPath,
     # -------------------------------------------------------------------
     # 12. SAVE EACH OF THE UROCK OUTPUT ---------------------------------
     # ------------------------------------------------------------------- 
-    outputFilePathAndFullName = os.sep.join(outputFilePathAndNameBase.split(os.sep)[0:-1]) + os.sep + prefix + "_" + outputFilePathAndNameBase.split(os.sep)[-1]
-    dicVectorTables = saveData.saveBasicOutputs(  cursor = cursor                , z_out = z_out,
-                                                  dz = dz                        , u = u_rot,
-                                                  v = v_rot                      , w = w, 
-                                                  gridName = gridPoint           , rotationCenterCoordinates = rotationCenterCoordinates,
-                                                  windDirection = windDirection  , verticalWindProfile = verticalWindProfile,
-                                                  outputFilePathAndNameBase = outputFilePathAndFullName,
-                                                  meshSize = meshSize            , outputRaster = outputRaster,
-                                                  saveRaster = saveRaster        , saveVector = saveVector,
-                                                  saveNetcdf = saveNetcdf)
+    # First rotate the coordinates of the grid of points
+    rotated_grid = Obstacles.windRotation(cursor = cursor,
+                                          dicOfInputTables = {gridPoint: gridPoint},
+                                          rotateAngle = - windDirection,
+                                          rotationCenterCoordinates = rotationCenterCoordinates)[0][gridPoint]
+    
+    dicVectorTables, netcdf_path =\
+        saveData.saveBasicOutputs(cursor = cursor                , z_out = z_out,
+                                  dz = dz                        , u = u_rot,
+                                  v = v_rot                      , w = w, 
+                                  gridName = rotated_grid        , verticalWindProfile = verticalWindProfile,
+                                  outputFilePath = outputFilePath, outputFilename = outputFilename,
+                                  meshSize = meshSize            , outputRaster = outputRaster,
+                                  saveRaster = saveRaster        , saveVector = saveVector,
+                                  saveNetcdf = saveNetcdf        , prefix_name = prefix)
     
     # Save also the initialisation field if needed
     if debug:
-        saveData.saveBasicOutputs(cursor = cursor                , z_out = z_out,
-                                  dz = dz                        , u = u0_rot,
-                                  v = v0_rot                     , w = w0, 
-                                  gridName = gridPoint           , rotationCenterCoordinates = rotationCenterCoordinates,
-                                  windDirection = windDirection  , verticalWindProfile = verticalWindProfile,
-                                  outputFilePathAndNameBase = os.path.join(tempoDirectory, prefix + "wind_initiatlisation"),
-                                  meshSize = meshSize            , outputRaster = outputRaster,
-                                  saveRaster = saveRaster        , saveVector = saveVector,
-                                  saveNetcdf = saveNetcdf)        
+        dicVectorTables_ini, netcdf_path_ini =\
+            saveData.saveBasicOutputs(cursor = cursor                , z_out = z_out,
+                                      dz = dz                        , u = u0_rot,
+                                      v = v0_rot                     , w = w0, 
+                                      gridName = rotated_grid        , verticalWindProfile = verticalWindProfile,
+                                      outputFilePath = tempoDirectory, outputFilename = "wind_initiatlisation",
+                                      meshSize = meshSize            , outputRaster = outputRaster,
+                                      saveRaster = saveRaster        , saveVector = saveVector,
+                                      saveNetcdf = saveNetcdf        , prefix_name = prefix)  
+    else:
+        dicVectorTables_ini = None
+        netcdf_path_ini = None
 
     return  u_rot, v_rot, w, u0_rot, v0_rot, w0, x_rot, y_rot, z,\
-            buildingCoordinates, cursor, gridPoint, rotationCenterCoordinates,\
-            verticalWindProfile, dicVectorTables
+            buildingCoordinates, cursor, rotated_grid, rotationCenterCoordinates,\
+            verticalWindProfile, dicVectorTables, netcdf_path, netcdf_path_ini
 
 @jit(nopython=True)
 def rotateData(theta, nx, ny, nz, x, y, x_rot, y_rot, u, v):
