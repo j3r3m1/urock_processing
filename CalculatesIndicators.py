@@ -333,6 +333,7 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
     cursor.execute("""
            SELECT   EXP(1.0 / SUM(OBSTACLE_HEIGHT_TAB.AREA) * 
                         SUM(OBSTACLE_HEIGHT_TAB.AREA * LOG(OBSTACLE_HEIGHT_TAB.HEIGHT))) AS H_r,
+                    MAX(OBSTACLE_HEIGHT_TAB.HEIGHT) AS H_max
             FROM (SELECT    MAX({0}) AS HEIGHT,
                             ST_AREA(ST_UNION(ST_ACCUM({5}))) AS AREA
                   FROM {1}
@@ -347,7 +348,7 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
                         vegetationTable,
                         ID_FIELD_BLOCK,
                         GEOM_FIELD))
-    H_r = cursor.fetchall()[0][0]
+    H_r, H_max = cursor.fetchall()[0]
     
     # Calculates the obstacle (stacked blocks and vegetation) 
     # and frontal density (lambda_f)
@@ -387,7 +388,7 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
         z0 = 0.15 * H_r
         d = (0.7 + 0.35 * (lambda_f - 0.15)) * H_r
     
-    return z0, d, H_r, lambda_f
+    return z0, d, H_r, H_max, lambda_f
 
 def maxObstacleHeight(cursor, stackedBlockTable, vegetationTable):
     """ Calculates the maximum height of the obstacles within the study area.

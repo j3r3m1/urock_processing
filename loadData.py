@@ -111,23 +111,42 @@ def loadData(fromCad                        , prefix,
                            delete=True)
         
     else:
-        # 1. IMPORT BUILDING GEOMETRIES        
-        # Load buildings into H2GIS DB
-        loadFile(cursor = cursor,
-                 filePath = os.path.abspath(buildingFilePath), 
-                 tableName = buildTablePreSrid)
-        
-        # If the id field is None, set the primary key "PK" as id
-        if idFieldBuild is None or idFieldBuild == "":
-            idFieldBuild = "PK"
-        
-        # Rename building fields to generic names
-        importQuery = """
-            ALTER TABLE {0} RENAME COLUMN {1} TO {2};
-            ALTER TABLE {0} RENAME COLUMN {3} TO {4};
-            """.format( buildTablePreSrid,
-                        idFieldBuild, ID_FIELD_BUILD,
-                        buildingHeightField, HEIGHT_FIELD)
+        importQuery = ""
+        h2gisBuildSrid = 0
+        h2gisVegSrid = 0
+        # 1. IMPORT BUILDING GEOMETRIES   
+        if buildingFilePath:
+            # Load buildings into H2GIS DB
+            loadFile(cursor = cursor,
+                     filePath = os.path.abspath(buildingFilePath), 
+                     tableName = buildTablePreSrid)
+            
+            # Get the building SRID
+            cursor.execute("""
+                           SELECT ST_SRID({0}) AS SRID FROM {1} LIMIT 1
+                           """.format(GEOM_FIELD                , buildTablePreSrid))
+            h2gisBuildSrid = cursor.fetchall()[0][0]
+            
+            # If the id field is None, set the primary key "PK" as id
+            if idFieldBuild is None or idFieldBuild == "":
+                idFieldBuild = "PK"
+            
+            # Rename building fields to generic names
+            importQuery += """
+                ALTER TABLE {0} RENAME COLUMN {1} TO {2};
+                ALTER TABLE {0} RENAME COLUMN {3} TO {4};
+                """.format( buildTablePreSrid,
+                            idFieldBuild, ID_FIELD_BUILD,
+                            buildingHeightField, HEIGHT_FIELD)
+                
+        else:
+            importQuery += """ DROP TABLE IF EXISTS {0};
+                               CREATE TABLE {0}({1} INTEGER, {2} GEOMETRY,
+                                                {3} INTEGER);
+                            """.format( buildTablePreSrid,
+                                        ID_FIELD_BUILD,
+                                        GEOM_FIELD,
+                                        HEIGHT_FIELD)        
         
         # 2. IMPORT VEGETATION GEOMETRIES
         if vegetationFilePath:
@@ -135,6 +154,13 @@ def loadData(fromCad                        , prefix,
             loadFile(cursor = cursor,
                      filePath = os.path.abspath(vegetationFilePath),
                      tableName = vegTablePreSrid)
+            
+            # Get the vegetation SRID
+            cursor.execute("""
+                           SELECT ST_SRID({0}) AS SRID FROM {1} LIMIT 1
+                           """.format(GEOM_FIELD                , vegTablePreSrid))
+            h2gisVegSrid = cursor.fetchall()[0][0]
+            
             # Create an ID FIELD if None.
             if idVegetation is None or idVegetation == "":
                 idVegetation = "PK"
@@ -171,7 +197,7 @@ def loadData(fromCad                        , prefix,
             importQuery += """ DROP TABLE IF EXISTS {0};
                                CREATE TABLE {0}(PK INTEGER, {1} GEOMETRY,
                                                 {2} DOUBLE, {3} DOUBLE,
-                                                {4} INTEGER, {5} DOUBLE)
+                                                {4} INTEGER, {5} DOUBLE);
                             """.format( vegTablePreSrid,
                                         GEOM_FIELD,
                                         VEGETATION_CROWN_BASE_HEIGHT,
@@ -180,13 +206,10 @@ def loadData(fromCad                        , prefix,
                                         VEGETATION_ATTENUATION_FACTOR)
         cursor.execute(importQuery)
     
-    cursor.execute("""
-           SELECT ST_SRID({0}) AS SRID FROM {1} LIMIT 1
-           """.format(GEOM_FIELD                , buildTablePreSrid))
-    h2gisBuildSrid = cursor.fetchall()[0][0]
-    
+
+    # 3. SET VEGETATION AND BUILDING TABLE SRID AND REMOVE SMALL GEOMETRIES 
     # If H2GIS does not identify any SRID for the tables, set the ones identied by GDAL
-    if h2gisBuildSrid == 0:
+    if h2gisBuildSrid == 0 and h2gisVegSrid == 0:
         cursor.execute("""
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
@@ -207,7 +230,7 @@ def loadData(fromCad                        , prefix,
                       VEGETATION_TABLE_NAME         , ID_VEGETATION,
                       VEGETATION_CROWN_BASE_HEIGHT  , VEGETATION_CROWN_TOP_HEIGHT,
                       VEGETATION_ATTENUATION_FACTOR , vegTablePreSrid))
-    else:
+    elif h2gisBuildSrid != 0:
         cursor.execute("""
            DROP TABLE IF EXISTS {0}, {1};
            CREATE TABLE {0}
@@ -220,7 +243,19 @@ def loadData(fromCad                        , prefix,
            """.format(BUILDING_TABLE_NAME       , VEGETATION_TABLE_NAME,
                       buildTablePreSrid         , vegTablePreSrid,
                       GEOM_FIELD                , ID_FIELD_BUILD,
-                      HEIGHT_FIELD))        
+                      HEIGHT_FIELD))
+    elif h2gisVegSrid != 0:
+        cursor.execute("""
+           DROP TABLE IF EXISTS {0};
+           CREATE TABLE {0}
+               AS SELECT ST_SETSRID({1}, {2}) AS {1},
+                         {3}, CAST(ROUND({4}, 0) AS INT) AS {4}
+               FROM     (SELECT  {1}, {3}, CAST({4} AS DOUBLE) AS {4}
+                         FROM {5})
+               WHERE {4} > 0.5;
+           """.format(BUILDING_TABLE_NAME           , GEOM_FIELD,
+                      h2gisVegSrid                  , ID_FIELD_BUILD,
+                      HEIGHT_FIELD                  , buildTablePreSrid))
         
     if not DEBUG:
         # Drop intermediate tables

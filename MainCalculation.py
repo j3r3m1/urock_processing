@@ -201,7 +201,7 @@ def main(javaEnvironmentPath,
                                             prefix = prefix)
     
     # Calculates roughness properties of the study area
-    z0, d, Hr, lambda_f = \
+    z0, d, Hr, H_ob_max, lambda_f = \
         CalculatesIndicators.studyAreaProperties(cursor = cursor, 
                                                  upwindTable = upwindInitedTable, 
                                                  stackedBlockTable = rotatedStackedBlocks, 
@@ -452,7 +452,7 @@ def main(javaEnvironmentPath,
     if feedback:
         feedback.setProgressText('Initializes the 3D grid within Röckle zones')
     # Calculates the 3D wind speed factors for each building Röckle zone
-    dicOfBuildZone3DWindFactor, maxHeight = \
+    dicOfBuildZone3DWindFactor, maxBuildZoneHeight = \
         InitWindField.calculates3dBuildWindFactor(cursor = cursor,
                                                   dicOfBuildZoneGridPoint = dicOfBuildZoneGridPoint,
                                                   dz = dz,
@@ -485,6 +485,10 @@ def main(javaEnvironmentPath,
         
     # Calculates the 3D wind speed factors of the vegetation (considering all zone types)
     # after calculation of the top of the "sketch"
+    maxHeight = H_ob_max
+    if maxBuildZoneHeight: 
+        if maxBuildZoneHeight > H_ob_max:
+            maxHeight = maxBuildZoneHeight
     sketchHeight = maxHeight + verticalExtend
     vegetationWeightFactorTable = \
         InitWindField.calculates3dVegWindFactor(cursor = cursor,

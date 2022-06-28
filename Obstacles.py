@@ -69,7 +69,7 @@ def windRotation(cursor, dicOfInputTables, rotateAngle, rotationCenterCoordinate
     sqlRotateQueries = ["""
         DROP TABLE IF EXISTS {0};
         CREATE TABLE    {0}
-            AS SELECT   ST_ROTATE({1}, {2}, {3}, {4}) AS {1},
+            AS SELECT   ST_MAKEVALID(ST_ROTATE({1}, {2}, {3}, {4})) AS {1},
                         {5}
             FROM        {6}""".format(  dicOfRotateTables[t],\
                                         GEOM_FIELD,\
@@ -122,7 +122,7 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
     cursor.execute("""
        DROP TABLE IF EXISTS {0}; 
        CREATE TABLE {0} 
-            AS SELECT EXPLOD_ID AS {1}, ST_SIMPLIFY(ST_NORMALIZE({2}), {5}) AS {2} 
+            AS SELECT EXPLOD_ID AS {1}, ST_MAKEVALID(ST_SIMPLIFY(ST_NORMALIZE({2}), {5})) AS {2} 
             FROM ST_EXPLODE ('(SELECT ST_UNION(ST_ACCUM(ST_BUFFER({2},{3},''join=mitre'')))
                              AS {2} FROM {4})');
             """.format(blockTable           , ID_FIELD_BLOCK,
@@ -161,33 +161,44 @@ def createsBlocks(cursor, inputBuildings, snappingTolerance = GEOMETRY_MERGE_TOL
        ON a.{1} = b.{1};
        """.format( correlTable                  , ID_FIELD_BLOCK,
                    HEIGHT_FIELD))
-    listOfHeight = pd.DataFrame(cursor.fetchall()).dropna()[0].astype(int).values
+    listOfHeight = cursor.fetchall()
+    if len(listOfHeight) > 0:
+        df_listOfHeight = pd.DataFrame(listOfHeight).dropna()[0].astype(int).values
     
-    # Create stacked blocks according to building blocks and height
-    listOfSqlQueries = [
-        """ SELECT NULL, {2}, ST_NORMALIZE({0}) AS {0} , {4}
-            FROM ST_EXPLODE('(SELECT ST_MAKEVALID(ST_SNAP(ST_SIMPLIFY(ST_UNION(ST_ACCUM(ST_BUFFER(a.{0},
-                                                                                    {6},
-                                                                                    ''join=mitre''))),
-                                                                    {5}),
-                                                         a.GEOM_BLOCK,
-                                                         {6})
-                                                    ) AS {0},
-                                    a.{2} AS {2}
-                            FROM {3} AS a RIGHT JOIN (SELECT {2} 
-                                                      FROM {3}
-                                                      WHERE {1}={4}) AS b
-                            ON a.{2}=b.{2} WHERE a.{1}>={4}
-                            GROUP BY a.{2})')
-                            """.format(GEOM_FIELD       , HEIGHT_FIELD, 
-                                        ID_FIELD_BLOCK  , correlTable, 
-                                        height_i        , GEOMETRY_SIMPLIFICATION_DISTANCE,
-                                        snappingTolerance) for height_i in listOfHeight]
-    cursor.execute("""
-        DROP TABLE IF EXISTS {0};
-        CREATE TABLE {0}({1} SERIAL, {2} INT, {3} GEOMETRY, {4} INT)
-            AS {5}""".format(stackedBlockTable, ID_FIELD_STACKED_BLOCK, ID_FIELD_BLOCK,
-                                GEOM_FIELD, HEIGHT_FIELD, " UNION ALL ".join(listOfSqlQueries)))
+        # Create stacked blocks according to building blocks and height
+        listOfSqlQueries = [
+            """ SELECT NULL, {2}, ST_MAKEVALID(ST_NORMALIZE({0})) AS {0} , {4}
+                FROM ST_EXPLODE('(SELECT ST_MAKEVALID(ST_SNAP(ST_SIMPLIFY(ST_UNION(ST_ACCUM(ST_BUFFER(a.{0},
+                                                                                        {6},
+                                                                                        ''join=mitre''))),
+                                                                        {5}),
+                                                             a.GEOM_BLOCK,
+                                                             {6})
+                                                        ) AS {0},
+                                        a.{2} AS {2}
+                                FROM {3} AS a RIGHT JOIN (SELECT {2} 
+                                                          FROM {3}
+                                                          WHERE {1}={4}) AS b
+                                ON a.{2}=b.{2} WHERE a.{1}>={4}
+                                GROUP BY a.{2})')
+                                """.format(GEOM_FIELD       , HEIGHT_FIELD, 
+                                            ID_FIELD_BLOCK  , correlTable, 
+                                            height_i        , GEOMETRY_SIMPLIFICATION_DISTANCE,
+                                            snappingTolerance) for height_i in df_listOfHeight]
+        cursor.execute("""
+            DROP TABLE IF EXISTS {0};
+            CREATE TABLE {0}({1} SERIAL, {2} INT, {3} GEOMETRY, {4} INT)
+                AS {5}
+                """.format(stackedBlockTable, ID_FIELD_STACKED_BLOCK, ID_FIELD_BLOCK,
+                            GEOM_FIELD, HEIGHT_FIELD, " UNION ALL ".join(listOfSqlQueries)))
+    
+    else:
+        # Create an empty block table
+        cursor.execute("""
+            DROP TABLE IF EXISTS {0};
+            CREATE TABLE {0}({1} SERIAL, {2} INT, {3} GEOMETRY, {4} INT)
+            """.format(stackedBlockTable, ID_FIELD_STACKED_BLOCK, ID_FIELD_BLOCK,
+                       GEOM_FIELD, HEIGHT_FIELD))
     
     if not DEBUG:
         # Drop intermediate tables

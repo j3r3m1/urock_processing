@@ -1536,7 +1536,7 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
     # Temporary tables (and prefix for temporary tables)
     zValueTable = DataUtil.postfix("Z_VALUES")
     
-    # Identify the maximum height where wind speed may be affected by obstacles
+    # Identify the maximum height where wind speed may be affected by building obstacles
     maxHeightQuery = \
         {   DISPLACEMENT_NAME       : "MAX({0}) AS MAX_HEIGHT".format(UPPER_VERTICAL_THRESHOLD),
             DISPLACEMENT_VORTEX_NAME: "MAX({0}) AS MAX_HEIGHT".format(UPPER_VERTICAL_THRESHOLD),
@@ -1555,18 +1555,26 @@ def calculates3dBuildWindFactor(cursor, dicOfBuildZoneGridPoint,
                                                               for t in dicOfBuildZoneGridPoint])))
     maxHeight = cursor.fetchall()[0][0]
     
-    # Creates the table of z levels impacted by obstacles (start at dz/2)
-    listOfZ = [str(i) for i in np.arange(float(dz)/2,
-                                         float(dz)/2+math.trunc(maxHeight/dz)*dz,
-                                         dz)]
-    cursor.execute("""
-               DROP TABLE IF EXISTS {0};
-               CREATE TABLE {0}({2} SERIAL, {3} DOUBLE);
-               INSERT INTO {0} VALUES (NULL, {1})
-               """.format(  zValueTable,
-                            "), (NULL, ".join(listOfZ),
-                            ID_POINT_Z,
-                            Z))
+    # Creates the table of z levels impacted by building obstacles (start at dz/2)
+    if maxHeight:
+        listOfZ = [str(i) for i in np.arange(float(dz)/2,
+                                             float(dz)/2+math.trunc(maxHeight/dz)*dz,
+                                             dz)]
+        cursor.execute("""
+                   DROP TABLE IF EXISTS {0};
+                   CREATE TABLE {0}({2} SERIAL, {3} DOUBLE);
+                   INSERT INTO {0} VALUES (NULL, {1})
+                   """.format(  zValueTable,
+                                "), (NULL, ".join(listOfZ),
+                                ID_POINT_Z,
+                                Z))
+    else:
+        cursor.execute("""
+                   DROP TABLE IF EXISTS {0};
+                   CREATE TABLE {0}({1} SERIAL, {2} DOUBLE);
+                   """.format(  zValueTable,
+                                ID_POINT_Z,
+                                Z))
     
     # Defines the calculation and columns to keep for each zone
     calcQuery = \
@@ -2940,27 +2948,35 @@ def setInitialWindField(cursor, initializedWindFactorTable, gridPoint,
                        FROM {1}
                        WHERE {0} IS NOT NULL;                   
                    """.format(HEIGHT_FIELD, initializedWindFactorTable))
-    buildingHeightList = pd.Series(pd.DataFrame(cursor.fetchall())[0].values)
-    buildingHeightWindSpeed = \
-            getVerticalProfile( cursor = cursor,
-                                pointHeightList = buildingHeightList,
-                                z0 = z0,
-                                V_ref=V_ref,
-                                z_ref=z_ref,
-                                profileType = profileType,
-                                d = d,
-                                H = H,
-                                lambda_f = lambda_f,
-                                verticalProfileFile = verticalProfileFile)
+    buildingHeightList = cursor.fetchall()
+    if len(buildingHeightList) > 0:
+        df_buildingHeightList = pd.Series(pd.DataFrame(buildingHeightList)[0].values)
+        buildingHeightWindSpeed = \
+                getVerticalProfile( cursor = cursor,
+                                    pointHeightList = df_buildingHeightList,
+                                    z0 = z0,
+                                    V_ref=V_ref,
+                                    z_ref=z_ref,
+                                    profileType = profileType,
+                                    d = d,
+                                    H = H,
+                                    lambda_f = lambda_f,
+                                    verticalProfileFile = verticalProfileFile)
             
-    # ... and insert it into a table
-    valuesForEachRowBuilding = [str(i)+","+str(j) for i, j in buildingHeightWindSpeed.set_index(Z)[HORIZ_WIND_SPEED].iteritems()]
-    cursor.execute("""
-           DROP TABLE IF EXISTS {0};
-           CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
-           INSERT INTO {0} VALUES ({3});
-           """.format( tempoBuildingHeightWindTable     , HEIGHT_FIELD,
-                       V                                ,"), (".join(valuesForEachRowBuilding)))
+        # ... and insert it into a table
+        valuesForEachRowBuilding = [str(i)+","+str(j) for i, j in buildingHeightWindSpeed.set_index(Z)[HORIZ_WIND_SPEED].iteritems()]
+        cursor.execute("""
+               DROP TABLE IF EXISTS {0};
+               CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
+               INSERT INTO {0} VALUES ({3});
+               """.format( tempoBuildingHeightWindTable     , HEIGHT_FIELD,
+                           V                                ,"), (".join(valuesForEachRowBuilding)))
+    else:
+        cursor.execute("""
+               DROP TABLE IF EXISTS {0};
+               CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
+               """.format( tempoBuildingHeightWindTable     , HEIGHT_FIELD,
+                           V))
     
     if V_ref is None or z_ref is None:
         V_ref = verticalWindSpeedProfile.loc[verticalWindSpeedProfile.index[-1], HORIZ_WIND_SPEED]
@@ -3159,18 +3175,25 @@ def identifyBuildPoints(cursor, gridPoint, stackedBlocksWithBaseHeight,
     buildMaxHeight = cursor.fetchall()[0][0]
     
     # Set a list of the level height (and indice) which can intersect with buildings
-    levelHeightList = [str(j+1)+","+str(i)
-                           for j, i in enumerate(np.arange(float(dz)/2, 
-                                                           float(dz)/2+math.trunc(buildMaxHeight/dz)*dz,
-                                                           dz))]
+    if buildMaxHeight:
+        levelHeightList = [str(j+1)+","+str(i)
+                               for j, i in enumerate(np.arange(float(dz)/2, 
+                                                               float(dz)/2+math.trunc(buildMaxHeight/dz)*dz,
+                                                               dz))]
 
-    # ...and insert them into a table
-    cursor.execute("""
-           DROP TABLE IF EXISTS {0};
-           CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
-           INSERT INTO {0} VALUES ({3});
-           """.format( tempoLevelHeightPointTable     , ID_POINT_Z,
-                       Z                              ,"), (".join(levelHeightList)))
+        # ...and insert them into a table
+        cursor.execute("""
+               DROP TABLE IF EXISTS {0};
+               CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
+               INSERT INTO {0} VALUES ({3});
+               """.format( tempoLevelHeightPointTable     , ID_POINT_Z,
+                           Z                              ,"), (".join(levelHeightList)))
+    else:
+        cursor.execute("""
+               DROP TABLE IF EXISTS {0};
+               CREATE TABLE {0}({1} INTEGER, {2} DOUBLE);
+               """.format( tempoLevelHeightPointTable     , ID_POINT_Z,
+                           Z))
                        
     # Identify the third dimension of points intersecting buildings and save it...
     cursor.execute("""
