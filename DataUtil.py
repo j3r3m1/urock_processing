@@ -119,8 +119,10 @@ def prefix(tableName, prefix = PREFIX_NAME, separator = "_"):
     Returns
 	_ _ _ _ _ _ _ _ _ _ 	
 		The input table name with the prefix"""
-        
-    return prefix+separator+tableName
+    if prefix == "":
+        return tableName
+    else:
+        return prefix+separator+tableName
 
 def getColumns(cursor, tableName):
     """ Get the column name of a table into a list

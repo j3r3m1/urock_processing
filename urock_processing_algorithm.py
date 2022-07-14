@@ -331,14 +331,14 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         # Get building layer and then file directory
         inputBuildinglayer = self.parameterAsVectorLayer(parameters, self.BUILDING_TABLE_NAME, context)
         build_file = str(inputBuildinglayer.dataProvider().dataSourceUri())
-        srid_build = inputBuildinglayer.crs().srsid()
+        srid_build = inputBuildinglayer.crs().postgisSrid()
 
         # Get vegetation layer if exists, check that it has the same SRID as building layer
         # and then get the file directory of the layer
         inputVegetationlayer = self.parameterAsVectorLayer(parameters, self.VEGETATION_TABLE_NAME, context)
         if inputVegetationlayer:
             veg_file = str(inputVegetationlayer.dataProvider().dataSourceUri())
-            srid_veg = inputVegetationlayer.crs().srsid()
+            srid_veg = inputVegetationlayer.crs().postgisSrid()
             if srid_build != srid_veg:
                 feedback.pushInfo('Coordinate system of input building layer and vegetation layer differ!')
         else:
@@ -372,7 +372,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
 
         # If there is an output raster, need to get some of its parameters
         if outputRaster:
-            if inputBuildinglayer.crs().srsid() != outputRaster.crs().srsid():
+            if inputBuildinglayer.crs().postgisSrid() != outputRaster.crs().postgisSrid():
                 feedback.pushInfo('Coordinate system of input building layer and output Raster layer differ!')
             xres = (outputRaster.extent().xMaximum() - outputRaster.extent().xMinimum()) / outputRaster.width()
             yres = (outputRaster.extent().yMaximum() - outputRaster.extent().yMinimum()) / outputRaster.height()               
@@ -384,10 +384,12 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             
         # Make the calculations
         u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName,\
-        rotationCenterCoordinates, verticalWindProfile, dicVectorTables = \
+        rotationCenterCoordinates, verticalWindProfile, dicVectorTables,\
+        netcdf_path, net_cdf_path_ini = \
             MainCalculation.main(javaEnvironmentPath = javaEnvVar,
                                  pluginDirectory = plugin_directory,
-                                 outputFilePathAndNameBase = outputDirectory + os.sep + prefix + outputFilename,
+                                 outputFilePath = outputDirectory,
+                                 outputFilename = outputFilename,
                                  buildingFilePath = build_file,
                                  vegetationFilePath = veg_file,
                                  srid = srid_build,

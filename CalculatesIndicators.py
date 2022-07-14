@@ -139,8 +139,8 @@ def zoneProperties(cursor, obstaclePropertiesTable, prefix = PREFIX_NAME):
                        {3},
                        1.*1.5*{9}/(1+0.8*{9}/{3}) AS {4},
                        1.*0.6*{9}/(1+0.8*{9}/{3}) AS {10},
-                       1.25*1.8*{9}/(POWER({8}/{3},0.3)*(1+0.24*{9}/{3})) AS {5},
-                       1.25*3*1.8*{9}/(POWER({8}/{3},0.3)*(1+0.24*{9}/{3})) AS {6},
+                       1.*1.8*{9}/(POWER({8}/{3},0.3)*(1+0.24*{9}/{3})) AS {5},
+                       1.*3*1.8*{9}/(POWER({8}/{3},0.3)*(1+0.24*{9}/{3})) AS {6},
                        0.22*(0.67*LEAST({3},{9})+0.33*GREATEST({3},{9})) AS {11},
                        0.9*(0.67*LEAST({3},{9})+0.33*GREATEST({3},{9})) AS {12},
                        1+0.05*{9}/{3} AS {13}
@@ -333,6 +333,7 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
     cursor.execute("""
            SELECT   EXP(1.0 / SUM(OBSTACLE_HEIGHT_TAB.AREA) * 
                         SUM(OBSTACLE_HEIGHT_TAB.AREA * LOG(OBSTACLE_HEIGHT_TAB.HEIGHT))) AS H_r,
+                    MAX(OBSTACLE_HEIGHT_TAB.HEIGHT) AS H_max
             FROM (SELECT    MAX({0}) AS HEIGHT,
                             ST_AREA(ST_UNION(ST_ACCUM({5}))) AS AREA
                   FROM {1}
@@ -347,7 +348,7 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
                         vegetationTable,
                         ID_FIELD_BLOCK,
                         GEOM_FIELD))
-    H_r = cursor.fetchall()[0][0]
+    H_r, H_max = cursor.fetchall()[0]
     
     # Calculates the obstacle (stacked blocks and vegetation) 
     # and frontal density (lambda_f)
@@ -387,7 +388,7 @@ def studyAreaProperties(cursor, upwindTable, stackedBlockTable, vegetationTable)
         z0 = 0.15 * H_r
         d = (0.7 + 0.35 * (lambda_f - 0.15)) * H_r
     
-    return z0, d, H_r, lambda_f
+    return z0, d, H_r, H_max, lambda_f
 
 def maxObstacleHeight(cursor, stackedBlockTable, vegetationTable):
     """ Calculates the maximum height of the obstacles within the study area.

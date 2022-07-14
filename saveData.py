@@ -7,7 +7,7 @@ Created on Mon Oct  4 13:59:31 2021
 """
 import pandas as pd
 import numpy as np
-from .DataUtil import radToDeg, windDirectionFromXY, createIndex
+from .DataUtil import radToDeg, windDirectionFromXY, createIndex, prefix
 from .Obstacles import windRotation
 from osgeo.gdal import Grid, GridOptions
 from .GlobalVariables import HORIZ_WIND_DIRECTION, HORIZ_WIND_SPEED, WIND_SPEED,\
@@ -15,16 +15,17 @@ from .GlobalVariables import HORIZ_WIND_DIRECTION, HORIZ_WIND_SPEED, WIND_SPEED,
     OUTPUT_DIRECTORY, MESH_SIZE, OUTPUT_FILENAME, DELETE_OUTPUT_IF_EXISTS,\
     OUTPUT_RASTER_EXTENSION, OUTPUT_VECTOR_EXTENSION, OUTPUT_NETCDF_EXTENSION,\
     WIND_GROUP, WINDSPEED_PROFILE, RLON, RLAT, LON, LAT, LEVELS, WINDSPEED_X,\
-    WINDSPEED_Y, WINDSPEED_Z, VERT_WIND, Z
+    WINDSPEED_Y, WINDSPEED_Z, VERT_WIND, Z, OUTPUT_FILENAME, PREFIX_NAME
 from datetime import datetime
 import netCDF4 as nc4
 import os
 
-def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName, 
-                     rotationCenterCoordinates, windDirection,
-                     verticalWindProfile, outputFilePathAndNameBase,
-                     meshSize, outputRaster = None, saveRaster = True,
-                     saveVector = True, saveNetcdf = True):
+def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
+                     verticalWindProfile, outputFilePath, meshSize,
+                     outputFilename = OUTPUT_FILENAME,
+                     outputRaster = None, saveRaster = True,
+                     saveVector = True, saveNetcdf = True,
+                     prefix_name = PREFIX_NAME):
 
     # -------------------------------------------------------------------
     # SAVE NETCDF -------------------------------------------------------
@@ -53,19 +54,23 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
     
         # Save the data into a NetCDF file
         # If delete = False, add a suffix to the file
-        if os.path.isfile(outputFilePathAndNameBase + OUTPUT_NETCDF_EXTENSION) \
-            and not DELETE_OUTPUT_IF_EXISTS :
-            outputFilePathAndNameBase = renameFileIfExists(filedir = outputFilePathAndNameBase,
-                                                           extension = OUTPUT_NETCDF_EXTENSION)    
-        saveToNetCDF(longitude = longitude,
-                     latitude = latitude,
-                     x = range(nx),
-                     y = range(ny),
-                     u = u,
-                     v = v,
-                     w = w,
-                     verticalWindProfile = verticalWindProfile,
-                     path = outputFilePathAndNameBase)
+        netcdf_base_dir_name = os.path.join(outputFilePath, 
+                                            prefix(outputFilename, prefix_name))
+        if os.path.isfile(netcdf_base_dir_name + OUTPUT_NETCDF_EXTENSION):
+            if DELETE_OUTPUT_IF_EXISTS:
+                os.remove(netcdf_base_dir_name + OUTPUT_NETCDF_EXTENSION)
+            else:
+                netcdf_base_dir_name = renameFileIfExists(filedir = netcdf_base_dir_name,
+                                                          extension = OUTPUT_NETCDF_EXTENSION)  
+        final_netcdf_path = saveToNetCDF(longitude = longitude,
+                                         latitude = latitude,
+                                         x = range(nx),
+                                         y = range(ny),
+                                         u = u,
+                                         v = v,
+                                         w = w,
+                                         verticalWindProfile = verticalWindProfile,
+                                         path = netcdf_base_dir_name)
 
     horizOutputUrock = {z_i : "HORIZ_OUTPUT_UROCK_{0}".format(str(z_i).replace(".","_")) for z_i in z_out}
     for z_i in z_out:
@@ -90,19 +95,19 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                            HORIZ_WIND_DIRECTION: radToDeg(windDirectionFromXY(ufin, vfin)).flatten("F"), 
                            VERT_WIND_SPEED: wfin.flatten("F")}).rename_axis(ID_POINT)
         
-        # Rotate the grid back to initial and save horizontal wind speed, 
-        # wind direction and vertical wind speed in a vector file
-        df.to_csv(TEMPO_DIRECTORY + os.sep + TEMPO_HORIZ_WIND_FILE)
+        # Save horizontal wind speed, wind direction and
+        # vertical wind speed in a vector file
+        df.to_csv(os.path.join(TEMPO_DIRECTORY, TEMPO_HORIZ_WIND_FILE))
         cursor.execute(
             """
             DROP TABLE IF EXISTS {9};
-            CREATE TABLE {9}({3} INTEGER, {5} DOUBLE, {6} DOUBLE, {7} DOUBLE, {14} DOUBLE)
-                AS SELECT {3}, {5}, {6}, {7}, {14} FROM CSVREAD('{13}');
+            CREATE TABLE {9}({3} INTEGER, {5} DOUBLE, {6} DOUBLE, {7} DOUBLE, {11} DOUBLE)
+                AS SELECT {3}, {5}, {6}, {7}, {11} FROM CSVREAD('{10}');
             {0}{1}
             DROP TABLE IF EXISTS {2};
             CREATE TABLE {2}
-                AS SELECT   a.{3}, ST_ROTATE(a.{4}, {10}, {11}, {12}) as {4}, b.{5}, 
-                            b.{6}, b.{7}, b.{14}
+                AS SELECT   a.{3}, {4}, b.{5}, 
+                            b.{6}, b.{7}, b.{11}
                 FROM {8} AS a
                 LEFT JOIN {9} AS b
                 ON a.{3} = b.{3}
@@ -116,19 +121,22 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                         GEOM_FIELD                  , HORIZ_WIND_SPEED,
                         HORIZ_WIND_DIRECTION        , VERT_WIND_SPEED,
                         gridName                    , tempoTable,
-                        -windDirection/180*np.pi    , rotationCenterCoordinates[0],
-                        rotationCenterCoordinates[1], TEMPO_DIRECTORY + os.sep + TEMPO_HORIZ_WIND_FILE,
+                        TEMPO_DIRECTORY + os.sep + TEMPO_HORIZ_WIND_FILE,
                         WIND_SPEED))
         
         # -------------------------------------------------------------------
         # SAVE VECTOR -------------------------------------------------------
         # ------------------------------------------------------------------- 
         if saveVector or saveRaster:
+            outputDir_zi = os.path.join(outputFilePath, 
+                                        "z" + str(z_i).replace(".","_"))
+            if not os.path.exists(outputDir_zi):
+                os.mkdir(outputDir_zi)
             outputVectorFile = saveTable(cursor = cursor,
                                          tableName = horizOutputUrock[z_i],
-                                         filedir = outputFilePathAndNameBase +\
-                                                   str(z_i).replace(".","_")+\
-                                                   OUTPUT_VECTOR_EXTENSION,
+                                         filedir = os.path.join(outputDir_zi,
+                                                                prefix(outputFilename, prefix_name)+\
+                                                                OUTPUT_VECTOR_EXTENSION),
                                          delete = DELETE_OUTPUT_IF_EXISTS)
             # -------------------------------------------------------------------
             # SAVE RASTER -------------------------------------------------------
@@ -137,7 +145,8 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                 # Save the all direction wind speed into a Raster
                 saveRasterFile(cursor = cursor, 
                                outputVectorFile = outputVectorFile,
-                               outputFilePathAndNameBase = outputFilePathAndNameBase, 
+                               outputFilePathAndNameBase = os.path.join(outputDir_zi,
+                                                                        prefix(outputFilename, prefix_name)),
                                horizOutputUrock = horizOutputUrock,
                                outputRaster = outputRaster, 
                                z_i = z_i, 
@@ -147,7 +156,8 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                 # Save the horizontal wind speed into a Raster
                 saveRasterFile(cursor = cursor, 
                                outputVectorFile = outputVectorFile,
-                               outputFilePathAndNameBase = outputFilePathAndNameBase, 
+                               outputFilePathAndNameBase = os.path.join(outputDir_zi,
+                                                                        prefix(outputFilename, prefix_name)),
                                horizOutputUrock = horizOutputUrock,
                                outputRaster = outputRaster, 
                                z_i = z_i, 
@@ -157,14 +167,15 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
                 # Save the vertical wind speed into a Raster
                 saveRasterFile(cursor = cursor, 
                                outputVectorFile = outputVectorFile,
-                               outputFilePathAndNameBase = outputFilePathAndNameBase, 
+                               outputFilePathAndNameBase = os.path.join(outputDir_zi,
+                                                                        prefix(outputFilename, prefix_name)),
                                horizOutputUrock = horizOutputUrock,
                                outputRaster = outputRaster, 
                                z_i = z_i, 
                                meshSize = meshSize,
-                               var2save = VERT_WIND_SPEED)                
+                               var2save = VERT_WIND_SPEED)
 
-    return horizOutputUrock
+    return horizOutputUrock, final_netcdf_path
     
 def saveToNetCDF(longitude,
                  latitude,
@@ -202,9 +213,10 @@ def saveToNetCDF(longitude,
     
     Returns
     -------
-        None
-    """
-     # Opens a netCDF file in writing mode ('w')
+        String being the path, filename and extension of the netCdf file where
+        are stored the results
+    """    
+    # Opens a netCDF file in writing mode ('w')
     f = nc4.Dataset(path + OUTPUT_NETCDF_EXTENSION,'w', format='NETCDF4')
     
     # 3D WIND SPEED DATA
@@ -219,7 +231,7 @@ def saveToNetCDF(longitude,
     # Build the variables
     rlon = wind3dGrp.createVariable(RLON, 'i4', 'rlon')
     rlat = wind3dGrp.createVariable(RLAT, 'i4', 'rlat')
-    z = wind3dGrp.createVariable(Z, 'i4', 'z')
+    z = wind3dGrp.createVariable(Z, 'f4', 'z')
     lon = wind3dGrp.createVariable(LON, 'f8', ('rlon', 'rlat'))
     lat = wind3dGrp.createVariable(LAT, 'f8', ('rlon', 'rlat'))
     windSpeed_x = wind3dGrp.createVariable(WINDSPEED_X, 'f4', ('rlon', 'rlat', 'z'))
@@ -268,6 +280,8 @@ def saveToNetCDF(longitude,
     f.history = "Created " + datetime.today().strftime("%y-%m-%d")
     
     f.close()
+    
+    return path + OUTPUT_NETCDF_EXTENSION
     
 def saveTable(cursor, tableName, filedir, delete = False, 
               rotationCenterCoordinates = None, rotateAngle = None):
@@ -367,15 +381,12 @@ def saveRasterFile(cursor, outputVectorFile, outputFilePathAndNameBase,
     Returns
 	_ _ _ _ _ _ _ _ _ _ 	
 		None"""
+    outputFilePathAndNameBaseRaster = outputFilePathAndNameBase + var2save
     # If delete = False, add a suffix to the filename
-    if (os.path.isfile(outputFilePathAndNameBase + var2save + OUTPUT_RASTER_EXTENSION)) \
+    if (os.path.isfile(outputFilePathAndNameBaseRaster + OUTPUT_RASTER_EXTENSION)) \
         and (not DELETE_OUTPUT_IF_EXISTS):
-        outputFilePathAndNameBaseRaster = renameFileIfExists(filedir = outputFilePathAndNameBase\
-                                                                       + str(z_i).replace(".","_")\
-                                                                       + "_" + var2save,
+        outputFilePathAndNameBaseRaster = renameFileIfExists(filedir = outputFilePathAndNameBaseRaster,
                                                              extension = OUTPUT_RASTER_EXTENSION)
-    else:
-        outputFilePathAndNameBaseRaster = outputFilePathAndNameBase + str(z_i).replace(".","_") + "_" + var2save 
     # Whether or not a raster output is given as input, the rasterization process is slightly different
     if outputRaster:
         outputRasterExtent = outputRaster.extent()

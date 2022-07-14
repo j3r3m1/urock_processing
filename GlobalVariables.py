@@ -18,8 +18,14 @@ V_REF = 2.0
 WIND_DIRECTION = 270
 PROFILE_TYPE = "power"
 
+# Option to remove any offset due to the initialisation step
+REMOVE_INITIALIZATION_OFFSET = False
+
 # If the solver should go descending order along y (does not work yet...)
 DESCENDING_Y = False
+
+# Street canyon scheme limitation (below this angle, no street canyon is created)
+STREET_CANYON_ANGLE_THRESH = 0
 
 # Temporary directory where are saved database and specific files exchanged between
 # the H2Database and Python
@@ -66,7 +72,7 @@ JAVA_PATH_FILENAME = "JavaPath.csv"
 
 # If debug is True, keep intermediate tables (within each process) and save
 # intermediate tables (such as Röckle zones) as GIS file
-DEBUG = True
+DEBUG = False
 ONLY_INITIALIZATION = False
 SAVE_ROCKLE_ZONES = False
 MAX_ITERATIONS = 500      # Based on QUIC-URB default values (2021)
@@ -148,7 +154,7 @@ ROOFTOP_WIND_FACTOR = "C1"
 ROOFTOP_PERP_VAR_HEIGHT = "Hr"
 ROOFTOP_CORNER_VAR_HEIGHT = "Hccp"
 
-PREFIX_NAME = "BigArea"
+PREFIX_NAME = ""
 Y_WALL = "Y_WALL"
 Y_POINT = "Y_POINT"
 DISTANCE_BUILD_TO_POINT_FIELD = "DY"
@@ -184,7 +190,7 @@ X = "X"
 Y = "Y"
 Z = "Z"
 # Coefficients for displacement zone calculation
-C_DZ = 0.5
+C_DZ = 0.4
 P_DZ = 0.16
 # Coefficient for rooftop perpendicular
 P_RTP = 0.16
@@ -201,10 +207,14 @@ DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC = 25
 #  3: "Point height")
 REF_HEIGHT_FIELD = "REF_HEIGHT"
 PRIORITY_FIELD = "PRIORITY"
+IS_UPSTREAM_FIELD = "IS_UPSTREAM"
 REF_HEIGHT_UPSTREAM_WEIGHTING = 3
 REF_HEIGHT_DOWNSTREAM_WEIGHTING = 3
+IS_UPSTREAM_UPSTREAM_WEIGHTING = 0
+IS_UPSTREAM_DOWNSTREAM_WEIGHTING = 0
 UPSTREAM_PRIORITY_TABLES = pd.DataFrame({PRIORITY_FIELD: [1, 2, 3, 3, 3, 4, 5], 
-                                         REF_HEIGHT_FIELD: [1, 1, 2, 2, 1, 1, 3]},
+                                         REF_HEIGHT_FIELD: [1, 1, 2, 2, 1, 1, 3],
+                                         IS_UPSTREAM_FIELD: [0, 0, 0, 0, 1, 1, 0]},
                                         index = [STREET_CANYON_NAME, 
                                                  CAVITY_NAME, 
                                                  ROOFTOP_PERP_NAME,
@@ -213,7 +223,8 @@ UPSTREAM_PRIORITY_TABLES = pd.DataFrame({PRIORITY_FIELD: [1, 2, 3, 3, 3, 4, 5],
                                                  DISPLACEMENT_NAME,
                                                  WAKE_NAME])
 UPSTREAM_BACKWARD_PRIORITY_TABLES = pd.DataFrame({PRIORITY_FIELD: [1, 2], 
-                                                  REF_HEIGHT_FIELD: [1, 1]},
+                                                  REF_HEIGHT_FIELD: [1, 1],
+                                                  IS_UPSTREAM_FIELD: [0, 0]},
                                                  index = [CAVITY_BACKWARD_NAME,
                                                           WAKE_BACKWARD_NAME])
 UPSTREAM_WEIGHTING_TABLES = [WAKE_NAME]
