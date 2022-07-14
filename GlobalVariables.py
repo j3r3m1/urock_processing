@@ -194,8 +194,8 @@ C_DZ = 0.4
 P_DZ = 0.16
 # Coefficient for rooftop perpendicular
 P_RTP = 0.16
-# Default vegetation attenuation factor
-DEFAULT_VEG_ATTEN_FACT = 0.79
+# Default vegetation attenuation factor (value for Larch plantation - Cionco et al. (1978))
+DEFAULT_VEG_ATTEN_FACT = 1.00
 # Default vegetation crown base height (in % of crown top height)
 DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC = 25
 
