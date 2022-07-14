@@ -132,12 +132,18 @@ def loadData(fromCad                        , prefix,
                 idFieldBuild = "PK"
             
             # Rename building fields to generic names
-            importQuery += """
-                ALTER TABLE {0} RENAME COLUMN {1} TO {2};
-                ALTER TABLE {0} RENAME COLUMN {3} TO {4};
-                """.format( buildTablePreSrid,
-                            idFieldBuild, ID_FIELD_BUILD,
-                            buildingHeightField, HEIGHT_FIELD)
+            if idFieldBuild.upper() != ID_FIELD_BUILD.upper():
+                importQuery += """
+                    ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
+                    ALTER TABLE {0} RENAME COLUMN {1} TO {2};
+                    """.format( buildTablePreSrid,
+                                idFieldBuild, ID_FIELD_BUILD)
+            if buildingHeightField.upper() != HEIGHT_FIELD.upper():
+                importQuery += """
+                    ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
+                    ALTER TABLE {0} RENAME COLUMN {1} TO {2};
+                    """.format( buildTablePreSrid,
+                                buildingHeightField, HEIGHT_FIELD)
                 
         else:
             importQuery += """ DROP TABLE IF EXISTS {0};
@@ -168,6 +174,7 @@ def loadData(fromCad                        , prefix,
             # if no column
             if vegetationAttenuationFactor is None or vegetationAttenuationFactor == "":
                 cursor.execute(""" 
+                   ALTER TABLE {0} DROP COLUMN IF EXISTS {1};
                    ALTER TABLE {0} ADD COLUMN {1} DOUBLE DEFAULT {2};
                    """.format( vegTablePreSrid     , VEGETATION_ATTENUATION_FACTOR,
                                DEFAULT_VEG_ATTEN_FACT))
@@ -176,6 +183,7 @@ def loadData(fromCad                        , prefix,
             # if no column
             if vegetationBaseHeight is None or vegetationBaseHeight == "":
                 cursor.execute(""" 
+                   ALTER TABLE {0} DROP COLUMN IF EXISTS {1};
                    ALTER TABLE {0} ADD COLUMN {1} DOUBLE DEFAULT {2};
                    """.format( vegTablePreSrid,
                                VEGETATION_CROWN_BASE_HEIGHT,
@@ -183,16 +191,30 @@ def loadData(fromCad                        , prefix,
                 vegetationBaseHeight = VEGETATION_CROWN_BASE_HEIGHT
     
             # Load vegetation data and rename fields to generic names
-            importQuery += """
-                ALTER TABLE {0} RENAME COLUMN {1} TO {2};
-                ALTER TABLE {0} RENAME COLUMN {3} TO {4};
-                ALTER TABLE {0} RENAME COLUMN {5} TO {6};
-                ALTER TABLE {0} RENAME COLUMN {7} TO {8};
-                """.format( vegTablePreSrid,
-                            vegetationBaseHeight, VEGETATION_CROWN_BASE_HEIGHT,
-                            vegetationTopHeight, VEGETATION_CROWN_TOP_HEIGHT,
-                            idVegetation, ID_VEGETATION,
-                            vegetationAttenuationFactor, VEGETATION_ATTENUATION_FACTOR)
+            if buildingHeightField.upper() != HEIGHT_FIELD.upper():
+                importQuery += """
+                    ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
+                    ALTER TABLE {0} RENAME COLUMN {1} TO {2};
+                    """.format( vegTablePreSrid,
+                                vegetationBaseHeight, VEGETATION_CROWN_BASE_HEIGHT)
+            if buildingHeightField.upper() != HEIGHT_FIELD.upper():
+                importQuery += """
+                    ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
+                    ALTER TABLE {0} RENAME COLUMN {1} TO {2};
+                    """.format( vegTablePreSrid,
+                                vegetationTopHeight, VEGETATION_CROWN_TOP_HEIGHT)
+            if buildingHeightField.upper() != HEIGHT_FIELD.upper():
+                importQuery += """
+                    ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
+                    ALTER TABLE {0} RENAME COLUMN {1} TO {2};
+                    """.format( vegTablePreSrid,
+                                idVegetation, ID_VEGETATION)
+            if buildingHeightField.upper() != HEIGHT_FIELD.upper():
+                importQuery += """
+                    ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
+                    ALTER TABLE {0} RENAME COLUMN {1} TO {2};
+                    """.format( vegTablePreSrid,
+                                vegetationAttenuationFactor, VEGETATION_ATTENUATION_FACTOR)
         else:
             importQuery += """ DROP TABLE IF EXISTS {0};
                                CREATE TABLE {0}(PK INTEGER, {1} GEOMETRY,
