@@ -147,19 +147,19 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                 [QgsProcessing.TypeVectorPolygon]))
         self.addParameter(
             QgsProcessingParameterField(
+                self.HEIGHT_FIELD_BUILD,
+                self.tr('Building height field'),
+                None,
+                self.BUILDING_TABLE_NAME,
+                QgsProcessingParameterField.Numeric))
+        self.addParameter(
+            QgsProcessingParameterField(
                 self.ID_FIELD_BUILD,
                 self.tr('Building ID field'),
                 None,
                 self.BUILDING_TABLE_NAME,
                 QgsProcessingParameterField.Numeric,
                 optional=True))
-        self.addParameter(
-            QgsProcessingParameterField(
-                self.HEIGHT_FIELD_BUILD,
-                self.tr('Building height field'),
-                None,
-                self.BUILDING_TABLE_NAME,
-                QgsProcessingParameterField.Numeric))
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.VEGETATION_TABLE_NAME,
@@ -168,8 +168,8 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                 optional=True))
         self.addParameter(
             QgsProcessingParameterField(
-                self.ID_FIELD_VEG,
-                self.tr('Vegetation ID field'),
+                self.VEGETATION_CROWN_TOP_HEIGHT,
+                self.tr('Vegetation crown top height field'),
                 None,
                 self.VEGETATION_TABLE_NAME,
                 QgsProcessingParameterField.Numeric,
@@ -184,14 +184,6 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                 optional = True))
         self.addParameter(
             QgsProcessingParameterField(
-                self.VEGETATION_CROWN_TOP_HEIGHT,
-                self.tr('Vegetation crown top height field'),
-                None,
-                self.VEGETATION_TABLE_NAME,
-                QgsProcessingParameterField.Numeric,
-                optional = True))
-        self.addParameter(
-            QgsProcessingParameterField(
                 self.ATTENUATION_FIELD,
                 self.tr('Vegetation wind attenuation factor'),
                 None,
@@ -199,54 +191,63 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                 QgsProcessingParameterField.Numeric,
                 optional = True))
         self.addParameter(
-            QgsProcessingParameterRasterLayer(
-                self.RASTER_OUTPUT,
-                self.tr('Raster to use as output'), 
+            QgsProcessingParameterField(
+                self.ID_FIELD_VEG,
+                self.tr('Vegetation ID field'),
                 None,
+                self.VEGETATION_TABLE_NAME,
+                QgsProcessingParameterField.Numeric,
                 optional = True))
 
 
         # Then the informations related to calculation
         self.addParameter(
+            QgsProcessingParameterFile(
+                self.INPUT_PROFILE_FILE,
+                self.tr('Vertical wind profile file (.csv)'),
+                defaultValue = '',
+                extension='csv',
+                optional = True))
+        self.addParameter(
            QgsProcessingParameterEnum(
                self.INPUT_PROFILE_TYPE, 
                self.tr('Vertical wind profile type'),
                self.LIST_OF_PROFILES.values,
-               defaultValue=0))
-        self.addParameter(
-            QgsProcessingParameterFile(
-                self.INPUT_PROFILE_FILE,
-                self.tr('Input wind profile file (.csv)'),
-                defaultValue = '',
-                extension='csv',
-                optional = True))
+               defaultValue=0,
+               optional = True))
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.INPUT_WIND_HEIGHT,
                 self.tr('Height of the reference wind speed (m)'),
                 QgsProcessingParameterNumber.Double,
                 10,
-                False))
+                True))
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.INPUT_WIND_SPEED,
-                self.tr('Wind speed at reference height (m/s)'),
+                self.tr('Wind speed at the reference height (m/s)'),
                 QgsProcessingParameterNumber.Double,
                 2,
-                False))
+                True))
         self.addParameter(
             QgsProcessingParameterNumber(
                 self.INPUT_WIND_DIRECTION,
-                self.tr('Wind direction at reference height (° clock-wise from North)'),
+                self.tr('Wind direction (° clock-wise from North)'),
                 QgsProcessingParameterNumber.Double,
                 45,
                 False))
         self.addParameter(
+            QgsProcessingParameterRasterLayer(
+                self.RASTER_OUTPUT,
+                self.tr('Raster to use as output'), 
+                None,
+                optional = True))
+        self.addParameter(
             QgsProcessingParameterNumber(
                 self.HORIZONTAL_RESOLUTION,
-                self.tr('Horizontal resolution (m) - Set blank if you want to use the raster resolution'),
+                self.tr('Horizontal resolution (m)'),
                 QgsProcessingParameterNumber.Integer,
-                None,
+                2,
                 optional = True))
         self.addParameter(
             QgsProcessingParameterNumber(
@@ -277,17 +278,17 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.SAVE_RASTER,
-                self.tr("Save one level wind speed in a raster file"),
+                self.tr("Save 2D wind speed as raster file(s)"),
                 defaultValue=False))
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.SAVE_VECTOR,
-                self.tr("Save one level wind field in a vector file"),
+                self.tr("Save 2D wind field as vector file(s)"),
                 defaultValue=False))
         self.addParameter(
             QgsProcessingParameterBoolean(
                 self.SAVE_NETCDF,
-                self.tr("Save all levels wind field in a NetCDF file"),
+                self.tr("Save 3D wind field in a NetCDF file"),
                 defaultValue=False))
         self.addParameter(
             QgsProcessingParameterBoolean(
@@ -424,21 +425,25 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                                  debug = DEBUG,
                                  profileType = profileType,
                                  verticalProfileFile = profileFile)
-
+        
+        # Load files into QGIS if user set it
         if loadOutput:
             for z_i in z_out:
                 if saveVector:
                     loadedVector = \
-                        QgsVectorLayer(outputDirectory + os.sep + outputFilename +\
-                                       str(z_i).replace(".","_") + OUTPUT_VECTOR_EXTENSION,
+                        QgsVectorLayer(os.path.join(outputDirectory, 
+                                                    "z{0}".format(str(z_i).replace(".","_")),
+                                                    outputFilename\
+                                                    + OUTPUT_VECTOR_EXTENSION),
                                        "Wind at {0} m".format(z_i),
                                        "ogr")
                     if not loadedVector.isValid():
                         feedback.pushInfo("Vector layer failed to load!")
                         break
                     else:
-                        loadedVector.loadNamedStyle(plugin_directory + os.sep +\
-                                                    VECTOR_STYLE_FILENAME, True)
+                        loadedVector.loadNamedStyle(os.path.join(plugin_directory,\
+                                                                 "Resources",
+                                                                 VECTOR_STYLE_FILENAME), True)
                         context.addLayerToLoadOnCompletion(loadedVector.id(),
                                                            QgsProcessingContext.LayerDetails("Wind at {0} m".format(z_i),
                                                                                              QgsProject.instance(),
@@ -447,8 +452,10 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                         
                 if saveRaster:
                     loadedRaster = \
-                        QgsRasterLayer(outputDirectory + os.sep + outputFilename +\
-                                       str(z_i).replace(".","_") + OUTPUT_RASTER_EXTENSION,
+                        QgsRasterLayer(os.path.join(outputDirectory, 
+                                                    "z{0}".format(str(z_i).replace(".","_")),
+                                                    outputFilename\
+                                                    + WIND_SPEED + OUTPUT_RASTER_EXTENSION),
                                        "Wind speed at {0} m".format(z_i),
                                        "gdal")
                     if not loadedRaster.isValid():
