@@ -30,6 +30,7 @@ def saveBasicOutputs(cursor, z_out, dz, u, v, w, gridName,
     # -------------------------------------------------------------------
     # SAVE NETCDF -------------------------------------------------------
     # ------------------------------------------------------------------- 
+    final_netcdf_path = None
     if saveNetcdf:    
         # Get the srid of the input geometry
         cursor.execute(""" SELECT ST_SRID({0}) AS srid FROM {1} LIMIT 1

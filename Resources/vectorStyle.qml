@@ -1,54 +1,54 @@
 <!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
-<qgis simplifyDrawingTol="1" simplifyAlgorithm="0" maxScale="0" simplifyMaxScale="1" minScale="100000000" simplifyLocal="1" version="3.16.1-Hannover" readOnly="0" simplifyDrawingHints="0" hasScaleBasedVisibilityFlag="0" labelsEnabled="0" styleCategories="AllStyleCategories">
+<qgis minScale="100000000" simplifyDrawingTol="1" hasScaleBasedVisibilityFlag="0" labelsEnabled="0" simplifyDrawingHints="0" version="3.16.1-Hannover" simplifyLocal="1" maxScale="0" readOnly="0" styleCategories="AllStyleCategories" simplifyMaxScale="1" simplifyAlgorithm="0">
   <flags>
     <Identifiable>1</Identifiable>
     <Removable>1</Removable>
     <Searchable>1</Searchable>
   </flags>
-  <temporal durationField="" accumulate="0" fixedDuration="0" endField="" mode="0" durationUnit="min" startExpression="" endExpression="" enabled="0" startField="">
+  <temporal enabled="0" endField="" durationField="" accumulate="0" endExpression="" fixedDuration="0" startField="" durationUnit="min" mode="0" startExpression="">
     <fixedRange>
       <start></start>
       <end></end>
     </fixedRange>
   </temporal>
-  <renderer-v2 enableorderby="0" type="singleSymbol" forceraster="0" symbollevels="0">
+  <renderer-v2 enableorderby="0" symbollevels="0" forceraster="0" type="singleSymbol">
     <symbols>
-      <symbol clip_to_extent="1" type="marker" name="0" alpha="1" force_rhr="0">
+      <symbol alpha="1" clip_to_extent="1" force_rhr="0" type="marker" name="0">
         <layer class="SimpleMarker" pass="0" enabled="1" locked="0">
-          <prop k="angle" v="0"/>
-          <prop k="color" v="141,90,153,255"/>
-          <prop k="horizontal_anchor_point" v="1"/>
-          <prop k="joinstyle" v="bevel"/>
-          <prop k="name" v="arrow"/>
-          <prop k="offset" v="0,0"/>
-          <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-          <prop k="offset_unit" v="Inch"/>
-          <prop k="outline_color" v="35,35,35,255"/>
-          <prop k="outline_style" v="solid"/>
-          <prop k="outline_width" v="0"/>
-          <prop k="outline_width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-          <prop k="outline_width_unit" v="Inch"/>
-          <prop k="scale_method" v="diameter"/>
-          <prop k="size" v="2"/>
-          <prop k="size_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-          <prop k="size_unit" v="MapUnit"/>
-          <prop k="vertical_anchor_point" v="1"/>
+          <prop v="0" k="angle"/>
+          <prop v="141,90,153,255" k="color"/>
+          <prop v="1" k="horizontal_anchor_point"/>
+          <prop v="bevel" k="joinstyle"/>
+          <prop v="arrow" k="name"/>
+          <prop v="0,0" k="offset"/>
+          <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+          <prop v="Inch" k="offset_unit"/>
+          <prop v="35,35,35,255" k="outline_color"/>
+          <prop v="solid" k="outline_style"/>
+          <prop v="0" k="outline_width"/>
+          <prop v="3x:0,0,0,0,0,0" k="outline_width_map_unit_scale"/>
+          <prop v="Inch" k="outline_width_unit"/>
+          <prop v="diameter" k="scale_method"/>
+          <prop v="2" k="size"/>
+          <prop v="3x:0,0,0,0,0,0" k="size_map_unit_scale"/>
+          <prop v="MapUnit" k="size_unit"/>
+          <prop v="1" k="vertical_anchor_point"/>
           <data_defined_properties>
             <Option type="Map">
-              <Option type="QString" value="" name="name"/>
+              <Option value="" type="QString" name="name"/>
               <Option type="Map" name="properties">
                 <Option type="Map" name="angle">
-                  <Option type="bool" value="true" name="active"/>
-                  <Option type="QString" value="HWD" name="field"/>
-                  <Option type="int" value="2" name="type"/>
+                  <Option value="true" type="bool" name="active"/>
+                  <Option value="HWD" type="QString" name="field"/>
+                  <Option value="2" type="int" name="type"/>
                 </Option>
                 <Option type="Map" name="size">
-                  <Option type="bool" value="true" name="active"/>
-                  <Option type="QString" value="HWS" name="field"/>
-                  <Option type="int" value="2" name="type"/>
+                  <Option value="true" type="bool" name="active"/>
+                  <Option value="&quot;HWS&quot;/MEDIAN(&quot;HWS&quot;)" type="QString" name="expression"/>
+                  <Option value="3" type="int" name="type"/>
                 </Option>
               </Option>
-              <Option type="QString" value="collection" name="type"/>
+              <Option value="collection" type="QString" name="type"/>
             </Option>
           </data_defined_properties>
         </layer>
@@ -58,7 +58,7 @@
     <sizescale/>
   </renderer-v2>
   <customproperties>
-    <property key="embeddedWidgets/count" value="0"/>
+    <property value="0" key="embeddedWidgets/count"/>
     <property key="variableNames"/>
     <property key="variableValues"/>
   </customproperties>
@@ -66,37 +66,38 @@
   <featureBlendMode>0</featureBlendMode>
   <layerOpacity>1</layerOpacity>
   <SingleCategoryDiagramRenderer attributeLegend="1" diagramType="Histogram">
-    <DiagramCategory labelPlacementMethod="XHeight" spacingUnitScale="3x:0,0,0,0,0,0" scaleBasedVisibility="0" enabled="0" minimumSize="0" sizeScale="3x:0,0,0,0,0,0" direction="0" showAxis="1" penColor="#000000" penWidth="0" backgroundColor="#ffffff" penAlpha="255" backgroundAlpha="255" spacing="5" scaleDependency="Area" opacity="1" spacingUnit="MM" sizeType="MM" rotationOffset="270" lineSizeScale="3x:0,0,0,0,0,0" lineSizeType="MM" diagramOrientation="Up" barWidth="5" height="15" width="15" maxScaleDenominator="1e+08" minScaleDenominator="0">
-      <fontProperties style="" description="Sans Serif,9,-1,5,50,0,0,0,0,0"/>
+    <DiagramCategory penWidth="0" sizeScale="3x:0,0,0,0,0,0" penAlpha="255" penColor="#000000" minScaleDenominator="0" direction="0" width="15" scaleBasedVisibility="0" scaleDependency="Area" minimumSize="0" backgroundColor="#ffffff" spacingUnit="MM" labelPlacementMethod="XHeight" diagramOrientation="Up" lineSizeType="MM" lineSizeScale="3x:0,0,0,0,0,0" opacity="1" showAxis="1" maxScaleDenominator="1e+08" backgroundAlpha="255" height="15" spacing="5" barWidth="5" rotationOffset="270" spacingUnitScale="3x:0,0,0,0,0,0" sizeType="MM" enabled="0">
+      <fontProperties description="Sans Serif,9,-1,5,50,0,0,0,0,0" style=""/>
+      <attribute label="" color="#000000" field=""/>
       <axisSymbol>
-        <symbol clip_to_extent="1" type="line" name="" alpha="1" force_rhr="0">
+        <symbol alpha="1" clip_to_extent="1" force_rhr="0" type="line" name="">
           <layer class="SimpleLine" pass="0" enabled="1" locked="0">
-            <prop k="align_dash_pattern" v="0"/>
-            <prop k="capstyle" v="square"/>
-            <prop k="customdash" v="5;2"/>
-            <prop k="customdash_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-            <prop k="customdash_unit" v="MM"/>
-            <prop k="dash_pattern_offset" v="0"/>
-            <prop k="dash_pattern_offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-            <prop k="dash_pattern_offset_unit" v="MM"/>
-            <prop k="draw_inside_polygon" v="0"/>
-            <prop k="joinstyle" v="bevel"/>
-            <prop k="line_color" v="35,35,35,255"/>
-            <prop k="line_style" v="solid"/>
-            <prop k="line_width" v="0.26"/>
-            <prop k="line_width_unit" v="MM"/>
-            <prop k="offset" v="0"/>
-            <prop k="offset_map_unit_scale" v="3x:0,0,0,0,0,0"/>
-            <prop k="offset_unit" v="MM"/>
-            <prop k="ring_filter" v="0"/>
-            <prop k="tweak_dash_pattern_on_corners" v="0"/>
-            <prop k="use_custom_dash" v="0"/>
-            <prop k="width_map_unit_scale" v="3x:0,0,0,0,0,0"/>
+            <prop v="0" k="align_dash_pattern"/>
+            <prop v="square" k="capstyle"/>
+            <prop v="5;2" k="customdash"/>
+            <prop v="3x:0,0,0,0,0,0" k="customdash_map_unit_scale"/>
+            <prop v="MM" k="customdash_unit"/>
+            <prop v="0" k="dash_pattern_offset"/>
+            <prop v="3x:0,0,0,0,0,0" k="dash_pattern_offset_map_unit_scale"/>
+            <prop v="MM" k="dash_pattern_offset_unit"/>
+            <prop v="0" k="draw_inside_polygon"/>
+            <prop v="bevel" k="joinstyle"/>
+            <prop v="35,35,35,255" k="line_color"/>
+            <prop v="solid" k="line_style"/>
+            <prop v="0.26" k="line_width"/>
+            <prop v="MM" k="line_width_unit"/>
+            <prop v="0" k="offset"/>
+            <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
+            <prop v="MM" k="offset_unit"/>
+            <prop v="0" k="ring_filter"/>
+            <prop v="0" k="tweak_dash_pattern_on_corners"/>
+            <prop v="0" k="use_custom_dash"/>
+            <prop v="3x:0,0,0,0,0,0" k="width_map_unit_scale"/>
             <data_defined_properties>
               <Option type="Map">
-                <Option type="QString" value="" name="name"/>
+                <Option value="" type="QString" name="name"/>
                 <Option name="properties"/>
-                <Option type="QString" value="collection" name="type"/>
+                <Option value="collection" type="QString" name="type"/>
               </Option>
             </data_defined_properties>
           </layer>
@@ -104,16 +105,16 @@
       </axisSymbol>
     </DiagramCategory>
   </SingleCategoryDiagramRenderer>
-  <DiagramLayerSettings zIndex="0" priority="0" obstacle="0" linePlacementFlags="18" dist="0" showAll="1" placement="0">
+  <DiagramLayerSettings linePlacementFlags="18" zIndex="0" dist="0" placement="0" priority="0" showAll="1" obstacle="0">
     <properties>
       <Option type="Map">
-        <Option type="QString" value="" name="name"/>
+        <Option value="" type="QString" name="name"/>
         <Option name="properties"/>
-        <Option type="QString" value="collection" name="type"/>
+        <Option value="collection" type="QString" name="type"/>
       </Option>
     </properties>
   </DiagramLayerSettings>
-  <geometryOptions geometryPrecision="0" removeDuplicateNodes="0">
+  <geometryOptions removeDuplicateNodes="0" geometryPrecision="0">
     <activeChecks/>
     <checkConfiguration/>
   </geometryOptions>
@@ -157,45 +158,45 @@
     </field>
   </fieldConfiguration>
   <aliases>
-    <alias index="0" field="ID_POINT" name=""/>
-    <alias index="1" field="HWS" name=""/>
-    <alias index="2" field="HWD" name=""/>
-    <alias index="3" field="VWS" name=""/>
-    <alias index="4" field="WS" name=""/>
+    <alias name="" field="ID_POINT" index="0"/>
+    <alias name="" field="HWS" index="1"/>
+    <alias name="" field="HWD" index="2"/>
+    <alias name="" field="VWS" index="3"/>
+    <alias name="" field="WS" index="4"/>
   </aliases>
   <defaults>
-    <default expression="" field="ID_POINT" applyOnUpdate="0"/>
-    <default expression="" field="HWS" applyOnUpdate="0"/>
-    <default expression="" field="HWD" applyOnUpdate="0"/>
-    <default expression="" field="VWS" applyOnUpdate="0"/>
-    <default expression="" field="WS" applyOnUpdate="0"/>
+    <default expression="" applyOnUpdate="0" field="ID_POINT"/>
+    <default expression="" applyOnUpdate="0" field="HWS"/>
+    <default expression="" applyOnUpdate="0" field="HWD"/>
+    <default expression="" applyOnUpdate="0" field="VWS"/>
+    <default expression="" applyOnUpdate="0" field="WS"/>
   </defaults>
   <constraints>
-    <constraint unique_strength="0" exp_strength="0" notnull_strength="0" field="ID_POINT" constraints="0"/>
-    <constraint unique_strength="0" exp_strength="0" notnull_strength="0" field="HWS" constraints="0"/>
-    <constraint unique_strength="0" exp_strength="0" notnull_strength="0" field="HWD" constraints="0"/>
-    <constraint unique_strength="0" exp_strength="0" notnull_strength="0" field="VWS" constraints="0"/>
-    <constraint unique_strength="0" exp_strength="0" notnull_strength="0" field="WS" constraints="0"/>
+    <constraint unique_strength="0" constraints="0" exp_strength="0" field="ID_POINT" notnull_strength="0"/>
+    <constraint unique_strength="0" constraints="0" exp_strength="0" field="HWS" notnull_strength="0"/>
+    <constraint unique_strength="0" constraints="0" exp_strength="0" field="HWD" notnull_strength="0"/>
+    <constraint unique_strength="0" constraints="0" exp_strength="0" field="VWS" notnull_strength="0"/>
+    <constraint unique_strength="0" constraints="0" exp_strength="0" field="WS" notnull_strength="0"/>
   </constraints>
   <constraintExpressions>
-    <constraint desc="" exp="" field="ID_POINT"/>
-    <constraint desc="" exp="" field="HWS"/>
-    <constraint desc="" exp="" field="HWD"/>
-    <constraint desc="" exp="" field="VWS"/>
-    <constraint desc="" exp="" field="WS"/>
+    <constraint desc="" field="ID_POINT" exp=""/>
+    <constraint desc="" field="HWS" exp=""/>
+    <constraint desc="" field="HWD" exp=""/>
+    <constraint desc="" field="VWS" exp=""/>
+    <constraint desc="" field="WS" exp=""/>
   </constraintExpressions>
   <expressionfields/>
   <attributeactions>
-    <defaultAction key="Canvas" value="{00000000-0000-0000-0000-000000000000}"/>
+    <defaultAction value="{00000000-0000-0000-0000-000000000000}" key="Canvas"/>
   </attributeactions>
-  <attributetableconfig actionWidgetStyle="dropDown" sortExpression="" sortOrder="0">
+  <attributetableconfig sortExpression="" sortOrder="0" actionWidgetStyle="dropDown">
     <columns>
-      <column hidden="0" width="-1" type="field" name="ID_POINT"/>
-      <column hidden="0" width="-1" type="field" name="HWS"/>
-      <column hidden="0" width="-1" type="field" name="HWD"/>
-      <column hidden="0" width="-1" type="field" name="VWS"/>
-      <column hidden="0" width="-1" type="field" name="WS"/>
-      <column hidden="1" width="-1" type="actions"/>
+      <column width="-1" hidden="0" type="field" name="ID_POINT"/>
+      <column width="-1" hidden="0" type="field" name="HWS"/>
+      <column width="-1" hidden="0" type="field" name="HWD"/>
+      <column width="-1" hidden="0" type="field" name="VWS"/>
+      <column width="-1" hidden="0" type="field" name="WS"/>
+      <column width="-1" hidden="1" type="actions"/>
     </columns>
   </attributetableconfig>
   <conditionalstyles>
@@ -234,11 +235,11 @@ def my_form_open(dialog, layer, feature):
     <field editable="1" name="WS"/>
   </editable>
   <labelOnTop>
-    <field labelOnTop="0" name="HWD"/>
-    <field labelOnTop="0" name="HWS"/>
-    <field labelOnTop="0" name="ID_POINT"/>
-    <field labelOnTop="0" name="VWS"/>
-    <field labelOnTop="0" name="WS"/>
+    <field name="HWD" labelOnTop="0"/>
+    <field name="HWS" labelOnTop="0"/>
+    <field name="ID_POINT" labelOnTop="0"/>
+    <field name="VWS" labelOnTop="0"/>
+    <field name="WS" labelOnTop="0"/>
   </labelOnTop>
   <dataDefinedFieldProperties/>
   <widgets/>
