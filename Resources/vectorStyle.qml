@@ -16,9 +16,9 @@
       <symbol alpha="1" clip_to_extent="1" force_rhr="0" type="marker" name="0">
         <layer class="SimpleMarker" pass="0" enabled="1" locked="0">
           <prop v="0" k="angle"/>
-          <prop v="141,90,153,255" k="color"/>
+          <prop v="0,144,233,191" k="color"/>
           <prop v="1" k="horizontal_anchor_point"/>
-          <prop v="bevel" k="joinstyle"/>
+          <prop v="miter" k="joinstyle"/>
           <prop v="arrow" k="name"/>
           <prop v="0,0" k="offset"/>
           <prop v="3x:0,0,0,0,0,0" k="offset_map_unit_scale"/>
