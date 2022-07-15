@@ -479,7 +479,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'URock'
+        return 'urock'
 
     def displayName(self):
         """
