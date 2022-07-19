@@ -307,7 +307,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterString(
                 self.JAVA_PATH,
-                self.tr('Java environment path (should be set automatically'),
+                self.tr('Java environment path (should be set automatically)'),
                 javaDirDefault,
                 False,
                 False)) 
