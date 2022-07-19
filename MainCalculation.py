@@ -230,6 +230,7 @@ def main(javaEnvironmentPath,
                            rotateAngle = - windDirection)
         saveData.saveTable(cursor = cursor                          , tableName = rotatedPropStackedBlocks,
                            rotationCenterCoordinates = rotationCenterCoordinates,
+                           rotateAngle = - windDirection,
                            filedir = outputDataAbs["stacked_blocks"], delete = True)
     
     
