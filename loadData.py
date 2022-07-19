@@ -188,14 +188,16 @@ def loadData(fromCad                        , prefix,
                                DEFAULT_VEG_ATTEN_FACT))
                 vegetationAttenuationFactor = VEGETATION_ATTENUATION_FACTOR
             # Create a base height attribute with default 'DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC'
-            # if no column
+            # of the maximum height if no attribute for base height
             if vegetationBaseHeight is None or vegetationBaseHeight == "":
                 cursor.execute(""" 
                    ALTER TABLE {0} DROP COLUMN IF EXISTS {1};
-                   ALTER TABLE {0} ADD COLUMN {1} DOUBLE DEFAULT {2};
+                   ALTER TABLE {0} ADD COLUMN {1} DOUBLE;
+                   UPDATE {0} SET {1} = {2} * {3};
                    """.format( vegTablePreSrid,
                                VEGETATION_CROWN_BASE_HEIGHT,
-                               DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC))
+                               DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC,
+                               vegetationTopHeight))
                 vegetationBaseHeight = VEGETATION_CROWN_BASE_HEIGHT
     
             # Load vegetation data and rename fields to generic names

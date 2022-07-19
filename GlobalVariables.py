@@ -197,7 +197,7 @@ P_RTP = 0.16
 # Default vegetation attenuation factor (value for Larch plantation - Cionco et al. (1978))
 DEFAULT_VEG_ATTEN_FACT = 1.00
 # Default vegetation crown base height (in % of crown top height)
-DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC = 25
+DEFAULT_VEG_CROWN_BASE_HEIGHT_FRAC = 0.25
 
 # Defines priorities (column "priority") when the zone comes from a same 
 # obstacle of same height. Also contains a column "ref_height" to
