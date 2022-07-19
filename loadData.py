@@ -127,9 +127,13 @@ def loadData(fromCad                        , prefix,
                            """.format(GEOM_FIELD                , buildTablePreSrid))
             h2gisBuildSrid = cursor.fetchall()[0][0]
             
-            # If the id field is None, set the primary key "PK" as id
+            # Create an ID FIELD if None.
             if idFieldBuild is None or idFieldBuild == "":
-                idFieldBuild = "PK"
+                cursor.execute(""" 
+                   ALTER TABLE {0} DROP COLUMN IF EXISTS {1};
+                   ALTER TABLE {0} ADD COLUMN {1} SERIAL;
+                   """.format( buildTablePreSrid     , ID_FIELD_BUILD))
+                idFieldBuild = ID_FIELD_BUILD
             
             # Rename building fields to generic names
             if idFieldBuild.upper() != ID_FIELD_BUILD.upper():
@@ -169,7 +173,11 @@ def loadData(fromCad                        , prefix,
             
             # Create an ID FIELD if None.
             if idVegetation is None or idVegetation == "":
-                idVegetation = "PK"
+                cursor.execute(""" 
+                   ALTER TABLE {0} DROP COLUMN IF EXISTS {1};
+                   ALTER TABLE {0} ADD COLUMN {1} SERIAL;
+                   """.format( vegTablePreSrid     , ID_VEGETATION))
+                idVegetation = ID_VEGETATION
             # Create an attenuation attribute with default 'DEFAULT_VEG_ATTEN_FACT'
             # if no column
             if vegetationAttenuationFactor is None or vegetationAttenuationFactor == "":
@@ -191,25 +199,25 @@ def loadData(fromCad                        , prefix,
                 vegetationBaseHeight = VEGETATION_CROWN_BASE_HEIGHT
     
             # Load vegetation data and rename fields to generic names
-            if buildingHeightField.upper() != HEIGHT_FIELD.upper():
+            if vegetationBaseHeight.upper() != VEGETATION_CROWN_BASE_HEIGHT.upper():
                 importQuery += """
                     ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
                     ALTER TABLE {0} RENAME COLUMN {1} TO {2};
                     """.format( vegTablePreSrid,
                                 vegetationBaseHeight, VEGETATION_CROWN_BASE_HEIGHT)
-            if buildingHeightField.upper() != HEIGHT_FIELD.upper():
+            if vegetationTopHeight.upper() != VEGETATION_CROWN_TOP_HEIGHT.upper():
                 importQuery += """
                     ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
                     ALTER TABLE {0} RENAME COLUMN {1} TO {2};
                     """.format( vegTablePreSrid,
                                 vegetationTopHeight, VEGETATION_CROWN_TOP_HEIGHT)
-            if buildingHeightField.upper() != HEIGHT_FIELD.upper():
+            if idVegetation.upper() != ID_VEGETATION.upper():
                 importQuery += """
                     ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
                     ALTER TABLE {0} RENAME COLUMN {1} TO {2};
                     """.format( vegTablePreSrid,
                                 idVegetation, ID_VEGETATION)
-            if buildingHeightField.upper() != HEIGHT_FIELD.upper():
+            if vegetationAttenuationFactor.upper() != VEGETATION_ATTENUATION_FACTOR.upper():
                 importQuery += """
                     ALTER TABLE {0} DROP COLUMN IF EXISTS {2};
                     ALTER TABLE {0} RENAME COLUMN {1} TO {2};
@@ -229,7 +237,7 @@ def loadData(fromCad                        , prefix,
         cursor.execute(importQuery)
     
 
-    # 3. SET VEGETATION AND BUILDING TABLE SRID AND REMOVE SMALL GEOMETRIES 
+    # 3. SET VEGETATION AND BUILDING TABLE SRID AND REMOVE SMALL OBSTACLE 
     # If H2GIS does not identify any SRID for the tables, set the ones identied by GDAL
     if h2gisBuildSrid == 0 and h2gisVegSrid == 0:
         cursor.execute("""
