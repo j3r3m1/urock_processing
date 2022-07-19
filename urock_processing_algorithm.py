@@ -332,6 +332,8 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         # Get building layer and then file directory
         inputBuildinglayer = self.parameterAsVectorLayer(parameters, self.BUILDING_TABLE_NAME, context)
         build_file = str(inputBuildinglayer.dataProvider().dataSourceUri())
+        if build_file.count("|layername") == 1:
+            build_file = build_file.split("|layername")[0]
         srid_build = inputBuildinglayer.crs().postgisSrid()
 
         # Get vegetation layer if exists, check that it has the same SRID as building layer
@@ -339,6 +341,8 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         inputVegetationlayer = self.parameterAsVectorLayer(parameters, self.VEGETATION_TABLE_NAME, context)
         if inputVegetationlayer:
             veg_file = str(inputVegetationlayer.dataProvider().dataSourceUri())
+            if veg_file.count("|layername") == 1:
+                veg_file = veg_file.split("|layername")[0]
             srid_veg = inputVegetationlayer.crs().postgisSrid()
             if srid_build != srid_veg:
                 feedback.pushInfo('Coordinate system of input building layer and vegetation layer differ!')

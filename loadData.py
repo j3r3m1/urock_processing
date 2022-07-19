@@ -52,7 +52,7 @@ def loadData(fromCad                        , prefix,
 
             None"""
     print("Load input data")
-
+    
     # Create temporary table names (for tables that will be removed at the end of the IProcess)
     buildTablePreSrid = DataUtil.postfix("build_pre_srid")
     vegTablePreSrid = DataUtil.postfix("veg_pre_srid")
@@ -262,25 +262,27 @@ def loadData(fromCad                        , prefix,
                       VEGETATION_ATTENUATION_FACTOR , vegTablePreSrid))
     elif h2gisBuildSrid != 0:
         cursor.execute("""
-           DROP TABLE IF EXISTS {0}, {1};
+           DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
-               AS SELECT {4},
-                         {5}, CAST(ROUND({6}, 0) AS INT) AS {6}
-               FROM     (SELECT  {4}, {5}, CAST({6} AS DOUBLE) AS {6}
-                        FROM {2})
-               WHERE {6} > 0.5;
-           ALTER TABLE {3} RENAME TO {1};
-           """.format(BUILDING_TABLE_NAME       , VEGETATION_TABLE_NAME,
-                      buildTablePreSrid         , vegTablePreSrid,
-                      GEOM_FIELD                , ID_FIELD_BUILD,
-                      HEIGHT_FIELD))
+               AS SELECT ST_SETSRID({1}, {2}) AS {1},
+                         {3}, CAST(ROUND({4}, 0) AS INT) AS {4},
+                         CAST(ROUND({6}, 0) AS INT) AS {6}, {7}
+               FROM     (SELECT  {1}, {3}, CAST({4} AS DOUBLE) AS {4},
+                                 CAST({6} AS DOUBLE) AS {6},
+                                 {7}
+                         FROM {5})
+               WHERE {4} > 0.5;
+           """.format(VEGETATION_TABLE_NAME         , GEOM_FIELD,
+                      h2gisBuildSrid                , ID_VEGETATION,
+                      VEGETATION_CROWN_TOP_HEIGHT   , vegTablePreSrid,
+                      VEGETATION_CROWN_BASE_HEIGHT  , VEGETATION_ATTENUATION_FACTOR))
     elif h2gisVegSrid != 0:
         cursor.execute("""
            DROP TABLE IF EXISTS {0};
            CREATE TABLE {0}
                AS SELECT ST_SETSRID({1}, {2}) AS {1},
                          {3}, CAST(ROUND({4}, 0) AS INT) AS {4}
-               FROM     (SELECT  {1}, {3}, CAST({4} AS DOUBLE) AS {4}
+               FROM     (SELECT  {1}, {3}, CAST({4} AS DOUBLE) AS {4},
                          FROM {5})
                WHERE {4} > 0.5;
            """.format(BUILDING_TABLE_NAME           , GEOM_FIELD,
