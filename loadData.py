@@ -295,7 +295,7 @@ def loadData(fromCad                        , prefix,
         # Drop intermediate tables
         cursor.execute("DROP TABLE IF EXISTS {0}".format(",".join([vegTablePreSrid, buildTablePreSrid])))
     
-def loadFile(cursor, filePath, tableName, srid = None):
+def loadFile(cursor, filePath, tableName, srid = None, srid_repro = None):
     """ Load a file in the database according to its extension
     
 		Parameters
@@ -309,6 +309,8 @@ def loadFile(cursor, filePath, tableName, srid = None):
                 Name of the table for the loaded file
             srid: int, default None
                 SRID of the loaded file (if known)
+            srid_repro: int, default None
+                SRID if you want to reproject the data
             
 		Returns
 		_ _ _ _ _ _ _ _ _ _ 
@@ -332,6 +334,13 @@ def loadFile(cursor, filePath, tableName, srid = None):
             CALL {2}('{1}','{0}');
             """.format( tableName, filePath, readFunction))
     
+    if srid_repro:
+        reproject_function = "ST_TRANSFORM("
+        reproject_srid = ", {0})".format(srid_repro)
+    else:
+        reproject_function = ""
+        reproject_srid = ""
+    
     if srid:
         listCols = DataUtil.getColumns(cursor, tableName)
         listCols.remove(GEOM_FIELD)
@@ -339,14 +348,16 @@ def loadFile(cursor, filePath, tableName, srid = None):
         cursor.execute("""
            DROP TABLE IF EXISTS TEMPO_LOAD;
            CREATE TABLE TEMPO_LOAD
-               AS SELECT {0}, ST_SETSRID({1}, {2}) AS {1}
+               AS SELECT {0}, {4}ST_SETSRID({1}, {2}){5} AS {1}
                FROM {3};
            DROP TABLE {3};
            ALTER TABLE TEMPO_LOAD RENAME TO {3}
            """.format(",".join(listCols), 
                        GEOM_FIELD, 
                        srid,
-                       tableName))
+                       tableName,
+                       reproject_function,
+                       reproject_srid))
         
 
 def fromShp3dTo2_5(cursor, triangles3d, TreesZone, buildTableName,
