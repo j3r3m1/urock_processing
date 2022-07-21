@@ -107,7 +107,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
     RASTER_OUTPUT = "RASTER_OUTPUT"
     INPUT_PROFILE_TYPE = "INPUT_PROFILE_TYPE"
     INPUT_PROFILE_FILE = "INPUT_PROFILE_FILE"
-    LIST_OF_PROFILES = pd.Series(['power', 'log', 'urban', 'user'])
+    LIST_OF_PROFILES = pd.Series(['power', 'urban', 'user'])
 
     # Output variables    
     OUTPUT_DIRECTORY = "UROCK_OUTPUT"

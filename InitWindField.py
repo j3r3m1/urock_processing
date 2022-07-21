@@ -2727,7 +2727,6 @@ def getVerticalProfile( cursor,
         used in QUIC-URB (Pardyjak et Brown, 2003),
         - urban: exponential below mean building height and log otherwise
         (used in Nelson et al., 2007)
-        - logarithmic: classic logarithmic wind profile
         - user: the profile is defined by the user (need to pass the 
                                                     'verticalProfileFile'
                                                     parameter)
@@ -2766,7 +2765,6 @@ def getVerticalProfile( cursor,
             profileType: String, default PROFILE_TYPE
                 Type of wind profile to use:
                     - "urban": exponential below building mean height and log otherwise
-                    - "log": traditional log profile
                     - "power": traditional power law profile
                     - "user": set by the user (in a text file)
             V_ref: float, default V_REF
@@ -2797,10 +2795,6 @@ def getVerticalProfile( cursor,
     verticalProfileFile = kwargs.get('verticalProfileFile', None)
     if profileType == "power":
         verticalWindProfile = pd.Series([V_ref * (z / z_ref) ** (0.12 * z0 + 0.18)
-                                                     for z in pointHeightList],
-                                        index = pointHeightList)
-    elif profileType == "log":
-        verticalWindProfile = pd.Series([V_ref * np.log((z - d) / z0) / np.log(z_ref / z0)
                                                      for z in pointHeightList],
                                         index = pointHeightList)
     elif profileType == "urban":
