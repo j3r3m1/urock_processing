@@ -242,54 +242,40 @@ def loadData(fromCad                        , prefix,
     # 3. SET VEGETATION AND BUILDING TABLE SRID AND REMOVE SMALL OBSTACLE 
     # If H2GIS does not identify any SRID for the tables, set the ones identied by GDAL
     if h2gisBuildSrid == 0 and h2gisVegSrid == 0:
-        cursor.execute("""
-           DROP TABLE IF EXISTS {0};
-           CREATE TABLE {0}
-               AS SELECT ST_SETSRID({1}, {2}) AS {1},
-                         {3}, CAST(ROUND({4}, 0) AS INT) AS {4}
-               FROM     (SELECT  {1}, {3}, CAST({4} AS DOUBLE) AS {4}
-                         FROM {5})
-               WHERE {4} > 0.5;
-           DROP TABLE IF EXISTS {6};
-           CREATE TABLE {6}
-               AS SELECT ST_SETSRID({1}, {2}) AS {1},
-                         {7}, {8}, {9}, {10}
-               FROM {11}
-               WHERE {9} > 0.5;
-           """.format(BUILDING_TABLE_NAME           , GEOM_FIELD,
-                      srid                          , ID_FIELD_BUILD,
-                      HEIGHT_FIELD                  , buildTablePreSrid,
-                      VEGETATION_TABLE_NAME         , ID_VEGETATION,
-                      VEGETATION_CROWN_BASE_HEIGHT  , VEGETATION_CROWN_TOP_HEIGHT,
-                      VEGETATION_ATTENUATION_FACTOR , vegTablePreSrid))
-    elif h2gisBuildSrid != 0:
-        cursor.execute("""
-           DROP TABLE IF EXISTS {0};
-           CREATE TABLE {0}
-               AS SELECT ST_SETSRID({1}, {2}) AS {1},
-                         {3}, CAST(ROUND({4}, 0) AS INT) AS {4},
-                         CAST(ROUND({6}, 0) AS INT) AS {6}, {7}
-               FROM     (SELECT  {1}, {3}, CAST({4} AS DOUBLE) AS {4},
-                                 CAST({6} AS DOUBLE) AS {6},
-                                 {7}
-                         FROM {5})
-               WHERE {4} > 0.5;
-           """.format(VEGETATION_TABLE_NAME         , GEOM_FIELD,
-                      h2gisBuildSrid                , ID_VEGETATION,
-                      VEGETATION_CROWN_TOP_HEIGHT   , vegTablePreSrid,
-                      VEGETATION_CROWN_BASE_HEIGHT  , VEGETATION_ATTENUATION_FACTOR))
-    elif h2gisVegSrid != 0:
-        cursor.execute("""
-           DROP TABLE IF EXISTS {0};
-           CREATE TABLE {0}
-               AS SELECT ST_SETSRID({1}, {2}) AS {1},
-                         {3}, CAST(ROUND({4}, 0) AS INT) AS {4}
-               FROM     (SELECT  {1}, {3}, CAST({4} AS DOUBLE) AS {4},
-                         FROM {5})
-               WHERE {4} > 0.5;
-           """.format(BUILDING_TABLE_NAME           , GEOM_FIELD,
-                      h2gisVegSrid                  , ID_FIELD_BUILD,
-                      HEIGHT_FIELD                  , buildTablePreSrid))
+        buildSrid = srid
+        vegSrid = srid
+    elif h2gisBuildSrid != 0 and h2gisVegSrid == 0:
+        buildSrid = h2gisBuildSrid
+        vegSrid = h2gisBuildSrid
+    elif h2gisBuildSrid == 0 and h2gisVegSrid != 0:
+        vegSrid = h2gisVegSrid
+        buildSrid = h2gisVegSrid
+    else:
+        vegSrid = h2gisVegSrid
+        buildSrid = h2gisBuildSrid
+    
+    cursor.execute("""
+       DROP TABLE IF EXISTS {0};
+       CREATE TABLE {0}
+           AS SELECT ST_SETSRID({1}, {2}) AS {1},
+                     {3}, CAST(ROUND({4}, 0) AS INT) AS {4}
+           FROM     (SELECT  {1}, {3}, CAST({4} AS DOUBLE) AS {4}
+                     FROM {5})
+           WHERE {4} > 0.5;
+       DROP TABLE IF EXISTS {6};
+       CREATE TABLE {6}
+           AS SELECT ST_SETSRID({1}, {12}) AS {1},
+                     {7}, {8}, {9}, {10}
+           FROM {11}
+           WHERE {9} > 0.5;
+       """.format(BUILDING_TABLE_NAME           , GEOM_FIELD,
+                  buildSrid                     , ID_FIELD_BUILD,
+                  HEIGHT_FIELD                  , buildTablePreSrid,
+                  VEGETATION_TABLE_NAME         , ID_VEGETATION,
+                  VEGETATION_CROWN_BASE_HEIGHT  , VEGETATION_CROWN_TOP_HEIGHT,
+                  VEGETATION_ATTENUATION_FACTOR , vegTablePreSrid,
+                  vegSrid))
+         
         
     if not DEBUG:
         # Drop intermediate tables
