@@ -18,7 +18,8 @@ Most of the vector data manipulations are performed using [H2GIS](http://www.h2g
 
 To use such database engine in Python, you also need to install the [Jaydebeapi](https://pypi.org/project/JayDeBeApi/) Python library.
 
-# How to use (temporary patch, soon included in UMEP)?
+# How to use ?
+(temporary patch, soon included in UMEP)
 In QGIS:
 1. "download as zip" from the github page
 2. import the zip in QGIS (from the top "toolbarPlugin" -> "Install and manage plugins" and then "Install from zip" on the left panel in the new window appearing)
