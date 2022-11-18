@@ -2726,7 +2726,8 @@ def getVerticalProfile( cursor,
         - power-law: proposed by Kuttler (2000) and initially
         used in QUIC-URB (Pardyjak et Brown, 2003),
         - urban: exponential below mean building height and log otherwise
-        (used in Nelson et al., 2007)
+        (proposed by Cionco, 1972 with constant a defined by MacDonald, 2000 and
+         used in Nelson et al., 2007)
         - user: the profile is defined by the user (need to pass the 
                                                     'verticalProfileFile'
                                                     parameter)
@@ -2739,6 +2740,7 @@ def getVerticalProfile( cursor,
         - the stability is not taken into account yet
     
     References:
+            
             Kuttler, Wilhelm. "Stadtklima." Umweltwissenschaften und
         Schadstoff-Forschung 16.3 (2004): 187-199.
             Matzarakis, A. and Endler, C., 2009: Physiologically Equivalent 
