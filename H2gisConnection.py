@@ -197,7 +197,6 @@ def getJavaDir(pluginDirectory):
                 JAVA variable path"""
     javaPath = os.environ.get("JAVA_HOME")
     javaPathFile = os.path.join(pluginDirectory, JAVA_PATH_FILENAME)
-    
     # For some reason, JAVA_HOME may be set to %JAVA_HOME% while there is no
     # Java home set. This should be associated to None
     if javaPath:
@@ -262,19 +261,23 @@ def identifyJavaDir(java_path_os_list):
                 JAVA variable path"""
     JavaExists = False
     i = 0
-    while(not JavaExists):
+    # Test some common folder paths to check whether a Java installation exists and stops once found
+    while(not (JavaExists or i >= len(java_path_os_list))):
         javaBaseDir = java_path_os_list[i]
         JavaExists = os.path.exists(javaBaseDir)
         i += 1
-    listJavaVersion = os.listdir(javaBaseDir)
-    listSplit = pd.Series({i: re.split('\.|\-', v) for i, v in enumerate(listJavaVersion)})
-    df_version = pd.DataFrame({"version": [listSplit[i][1] \
-                                            for i in listSplit.index],
-                                "startWith": [listSplit[i][0] \
-                                                for i in listSplit.index]})
-    highestVersion = df_version[(df_version.startWith == "java")\
-                                 | (df_version.startWith == "jdk")\
-                                 | (df_version.startWith == "jre1")].version.astype(int).idxmax()
-    javaPath = os.path.join(javaBaseDir, listJavaVersion[highestVersion])
+    if JavaExists:
+        listJavaVersion = os.listdir(javaBaseDir)
+        listSplit = pd.Series({i: re.split('\.|\-', v) for i, v in enumerate(listJavaVersion)})
+        df_version = pd.DataFrame({"version": [listSplit[i][1] \
+                                                for i in listSplit.index],
+                                    "startWith": [listSplit[i][0] \
+                                                    for i in listSplit.index]})
+        highestVersion = df_version[(df_version.startWith == "java")\
+                                     | (df_version.startWith == "jdk")\
+                                     | (df_version.startWith == "jre1")].version.astype(int).idxmax()
+        javaPath = os.path.join(javaBaseDir, listJavaVersion[highestVersion])
+    else:
+        javaPath = None
     
     return javaPath
