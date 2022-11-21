@@ -263,7 +263,7 @@ def identifyJavaDir(java_path_os_list):
     JavaExists = False
     i = 0
     # Test some common folder paths to check whether a Java installation exists and stops once found
-    while(not JavaExists or i < len(java_path_os_list)):
+    while(not (JavaExists or i >= len(java_path_os_list))):
         javaBaseDir = java_path_os_list[i]
         JavaExists = os.path.exists(javaBaseDir)
         i += 1
