@@ -48,7 +48,8 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingContext,
                        QgsProcessingParameterEnum,
                        QgsProcessingParameterFile,
-                       QgsProcessingException)
+                       QgsProcessingException,
+                       QgsProcessingFeedback)
 from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.utils import iface
 from pathlib import Path
@@ -131,10 +132,11 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         
         if not javaDirDefault:  # Raise an error if could not find a Java installation
             raise QgsProcessingException("No Java installation found")            
-        elif "Program Files (x86)" in javaDirDefault:   # Raise an error if could not find a 64 bits Java version
-            raise QgsProcessingException(""""Only a 32 bits version of Java has been found \
-                             on your computer. Please consider installing Java 64 bits.""")
-        else:   # Set a Java dir if not exist and save it into a file in the plugin repository
+        else:
+            if "Program Files (x86)" in javaDirDefault:   # Raise a warning if could not find a 64 bits Java version
+                raise QgsProcessingFeedback(""""Only a 32 bits version of Java has been found \
+                                            on your computer. Please consider replacing by Java 64 bits if you can.""")
+            # Set a Java dir if not exist and save it into a file in the plugin repository
             setJavaDir(javaDirDefault)
             saveJavaDir(javaPath = javaDirDefault,
                         pluginDirectory = plugin_directory)
