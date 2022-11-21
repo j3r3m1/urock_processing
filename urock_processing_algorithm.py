@@ -47,7 +47,8 @@ from qgis.core import (QgsProcessing,
                        QgsProject,
                        QgsProcessingContext,
                        QgsProcessingParameterEnum,
-                       QgsProcessingParameterFile)
+                       QgsProcessingParameterFile,
+                       QgsProcessingException)
 from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.utils import iface
 from pathlib import Path
@@ -127,10 +128,16 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         
         # Get the default value of the Java environment path if already exists
         javaDirDefault = getJavaDir(plugin_directory)
+        print("javaDirDefault is :"+javaDirDefault)
+        print(type(javaDirDefault))
+        
+        # Raise an error if could not find a Java installation
+        if not javaDirDefault:
+            raise QgsProcessingException("No Java installation found")            
         
         # Inform the user that the Java version should be 64 bits
         if "Program Files (x86)" in javaDirDefault:
-            iface.ValueError(""""Only a 32 bits version of Java has been found \
+            raise QgsProcessingException(""""Only a 32 bits version of Java has been found \
                              on your computer. Please consider installing Java 64 bits.""")
         else:
             # Set a Java dir if not exist and save it into a file in the plugin repository
@@ -345,7 +352,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                 veg_file = veg_file.split("|layername")[0]
             srid_veg = inputVegetationlayer.crs().postgisSrid()
             if srid_build != srid_veg:
-                feedback.pushInfo('Coordinate system of input building layer and vegetation layer differ!')
+                feedback.pushWarning('Coordinate system of input building layer and vegetation layer differ!')
         else:
             veg_file = None
             srid_veg = None
@@ -373,19 +380,19 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             if os.path.exists(Path(outputDirectory).parent.absolute()):
                 os.mkdir(outputDirectory)
             else:
-                feedback.pushInfo('The output directory does not exist, neither its parent directory')
+                raise QgsProcessingException('The output directory does not exist, neither its parent directory')
 
         # If there is an output raster, need to get some of its parameters
         if outputRaster:
             if inputBuildinglayer.crs().postgisSrid() != outputRaster.crs().postgisSrid():
-                feedback.pushInfo('Coordinate system of input building layer and output Raster layer differ!')
+                feedback.pushWarning('Coordinate system of input building layer and output Raster layer differ!')
             xres = (outputRaster.extent().xMaximum() - outputRaster.extent().xMinimum()) / outputRaster.width()
             yres = (outputRaster.extent().yMaximum() - outputRaster.extent().yMinimum()) / outputRaster.height()               
             # If there is a raster and no meshSize, take the mean of x and y raster resolution
             if not meshSize:
                 meshSize = float(xres + yres) / 2
         elif not meshSize:
-            feedback.pushInfo('You should either specify an output raster or a horizontal mesh size')
+            raise QgsProcessingException('You should either specify an output raster or a horizontal mesh size')
             
         # Make the calculations
         u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName,\
@@ -442,7 +449,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                                        "Wind at {0} m".format(z_i),
                                        "ogr")
                     if not loadedVector.isValid():
-                        feedback.pushInfo("Vector layer failed to load!")
+                        feedback.pushWarning("Vector layer failed to load!")
                         break
                     else:
                         loadedVector.loadNamedStyle(os.path.join(plugin_directory,\
@@ -463,7 +470,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                                        "Wind speed at {0} m".format(z_i),
                                        "gdal")
                     if not loadedRaster.isValid():
-                        feedback.pushInfo("Raster layer failed to load!")
+                        feedback.pushWarning("Raster layer failed to load!")
                         break
                     else:
                         context.addLayerToLoadOnCompletion(loadedRaster.id(),
