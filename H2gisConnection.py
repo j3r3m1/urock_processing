@@ -197,11 +197,9 @@ def getJavaDir(pluginDirectory):
                 JAVA variable path"""
     javaPath = os.environ.get("JAVA_HOME")
     javaPathFile = os.path.join(pluginDirectory, JAVA_PATH_FILENAME)
-    print("javaPath is :" + javaPath)
     # For some reason, JAVA_HOME may be set to %JAVA_HOME% while there is no
     # Java home set. This should be associated to None
     if javaPath:
-        print("crazy bug ?")
         if javaPath[0] == "%":
             javaPath == None
     if not javaPath:
@@ -209,9 +207,7 @@ def getJavaDir(pluginDirectory):
             javaFilePath = open(javaPathFile, "r")
             javaPath = javaFilePath.read()
             javaFilePath.close()
-            print("Java file exists..." + javaPath)
         else:
-            print("Java file does not exist")
             os_type = os.name
             if os_type == "posix":
                 javaPath = identifyJavaDir(JAVA_PATH_POSIX)
@@ -267,12 +263,9 @@ def identifyJavaDir(java_path_os_list):
     i = 0
     # Test some common folder paths to check whether a Java installation exists and stops once found
     while(not (JavaExists or i >= len(java_path_os_list))):
-        print(i)
         javaBaseDir = java_path_os_list[i]
         JavaExists = os.path.exists(javaBaseDir)
         i += 1
-    print("javaBaseDir is : " + javaBaseDir)
-    print("JavaExists is : " + JavaExists)
     if JavaExists:
         listJavaVersion = os.listdir(javaBaseDir)
         listSplit = pd.Series({i: re.split('\.|\-', v) for i, v in enumerate(listJavaVersion)})
@@ -286,8 +279,5 @@ def identifyJavaDir(java_path_os_list):
         javaPath = os.path.join(javaBaseDir, listJavaVersion[highestVersion])
     else:
         javaPath = None
-    
-    
-    print(javaPath)
     
     return javaPath
