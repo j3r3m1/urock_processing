@@ -197,7 +197,7 @@ def getJavaDir(pluginDirectory):
                 JAVA variable path"""
     javaPath = os.environ.get("JAVA_HOME")
     javaPathFile = os.path.join(pluginDirectory, JAVA_PATH_FILENAME)
-    print(javaPathFile)
+    
     # For some reason, JAVA_HOME may be set to %JAVA_HOME% while there is no
     # Java home set. This should be associated to None
     if javaPath:
@@ -263,7 +263,7 @@ def identifyJavaDir(java_path_os_list):
     JavaExists = False
     i = 0
     # Test some common folder paths to check whether a Java installation exists and stops once found
-    while(not JavaExists and i < len(java_path_os_list)):
+    while(not JavaExists or i < len(java_path_os_list)):
         javaBaseDir = java_path_os_list[i]
         JavaExists = os.path.exists(javaBaseDir)
         i += 1
