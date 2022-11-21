@@ -131,7 +131,6 @@ def loadData(fromCad                        , prefix,
             if idFieldBuild is None or idFieldBuild == "":
                 cursor.execute(""" 
                    ALTER TABLE {0} DROP COLUMN IF EXISTS {1};
-                   ALTER TABLE {0} DROP PRIMARY KEY;
                    ALTER TABLE {0} ADD COLUMN {1} SERIAL;
                    """.format( buildTablePreSrid     , ID_FIELD_BUILD))
                 idFieldBuild = ID_FIELD_BUILD
@@ -176,7 +175,6 @@ def loadData(fromCad                        , prefix,
             if idVegetation is None or idVegetation == "":
                 cursor.execute(""" 
                    ALTER TABLE {0} DROP COLUMN IF EXISTS {1};
-                   ALTER TABLE {0} DROP PRIMARY KEY;
                    ALTER TABLE {0} ADD COLUMN {1} SERIAL;
                    """.format( vegTablePreSrid     , ID_VEGETATION))
                 idVegetation = ID_VEGETATION
@@ -316,10 +314,13 @@ def loadFile(cursor, filePath, tableName, srid = None, srid_repro = None):
            CREATE TABLE {0} 
                AS SELECT * FROM {2}('{1}');
             """.format( tableName, filePath, readFunction))
-    else:
+    else: # Import and then copy into a new table to remove all constraints (primary keys...)
         cursor.execute("""
-           DROP TABLE IF EXISTS {0};
-            CALL {2}('{1}','{0}');
+           DROP TABLE IF EXISTS TEMPO;
+            CALL {2}('{1}','TEMPO');
+            CREATE TABLE {0}
+                AS SELECT *
+                FROM TEMPO;
             """.format( tableName, filePath, readFunction))
     
     if srid_repro:
