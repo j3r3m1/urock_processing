@@ -131,7 +131,6 @@ def loadData(fromCad                        , prefix,
             if idFieldBuild is None or idFieldBuild == "":
                 cursor.execute(""" 
                    ALTER TABLE {0} DROP COLUMN IF EXISTS {1};
-                   ALTER TABLE {0} DROP PRIMARY KEY;
                    ALTER TABLE {0} ADD COLUMN {1} SERIAL;
                    """.format( buildTablePreSrid     , ID_FIELD_BUILD))
                 idFieldBuild = ID_FIELD_BUILD
@@ -176,7 +175,6 @@ def loadData(fromCad                        , prefix,
             if idVegetation is None or idVegetation == "":
                 cursor.execute(""" 
                    ALTER TABLE {0} DROP COLUMN IF EXISTS {1};
-                   ALTER TABLE {0} DROP PRIMARY KEY;
                    ALTER TABLE {0} ADD COLUMN {1} SERIAL;
                    """.format( vegTablePreSrid     , ID_VEGETATION))
                 idVegetation = ID_VEGETATION
