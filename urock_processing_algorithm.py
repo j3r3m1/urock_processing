@@ -48,8 +48,7 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingContext,
                        QgsProcessingParameterEnum,
                        QgsProcessingParameterFile,
-                       QgsProcessingException,
-                       QgsProcessingFeedback)
+                       QgsProcessingException)
 from qgis.PyQt.QtWidgets import QMessageBox
 from qgis.utils import iface
 from pathlib import Path
@@ -133,9 +132,6 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         if not javaDirDefault:  # Raise an error if could not find a Java installation
             raise QgsProcessingException("No Java installation found")            
         else:
-            if "Program Files (x86)" in javaDirDefault:   # Raise a warning if could not find a 64 bits Java version
-                raise QgsProcessingFeedback(""""Only a 32 bits version of Java has been found \
-                                            on your computer. Please consider replacing by Java 64 bits if you can.""")
             # Set a Java dir if not exist and save it into a file in the plugin repository
             setJavaDir(javaDirDefault)
             saveJavaDir(javaPath = javaDirDefault,
@@ -319,6 +315,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         """
         Here is where the processing itself takes place.
         """
+        
         # Get the plugin directory to save some useful files
         plugin_directory = self.plugin_dir = os.path.dirname(__file__)
         
@@ -331,6 +328,11 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         dz = self.parameterAsInt(parameters, self.VERTICAL_RESOLUTION, context)
         profileType = self.LIST_OF_PROFILES.loc[self.parameterAsInt(parameters, self.INPUT_PROFILE_TYPE, context)]
         profileFile = self.parameterAsString(parameters, self.INPUT_PROFILE_FILE, context)
+        
+        # Push a warning if could not find a 64 bits Java version
+        if "Program Files (x86)" in javaEnvVar:
+            feedback.pushWarning(""""Only a 32 bits version of Java has been found \
+                                 on your computer. Please consider replacing by Java 64 bits if you can.""")
         
         # Get building layer and then file directory
         inputBuildinglayer = self.parameterAsVectorLayer(parameters, self.BUILDING_TABLE_NAME, context)
