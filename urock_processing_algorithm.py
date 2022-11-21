@@ -134,9 +134,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException("No Java installation found")            
         elif ("Program Files (x86)" in javaDirDefault) and (struct.calcsize("P") * 8 != 32):
             # Raise an error if Java is 32 bits but Python 64 bits
-            raise QgsProcessingException("""Only a 32 bits version of Java has been found
-                                         while your Python installation is 64 bits.
-                                         Consider installing a 64 bits Java version.""")
+            raise QgsProcessingException("""Only a 32 bits version of Java has been found while your Python installation is 64 bits. Consider installing a 64 bits Java version.""")
         else:   # Set a Java dir if not exist and save it into a file in the plugin repository
             setJavaDir(javaDirDefault)
             saveJavaDir(javaPath = javaDirDefault,
