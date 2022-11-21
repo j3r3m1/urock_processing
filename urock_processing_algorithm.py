@@ -127,20 +127,14 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         plugin_directory = self.plugin_dir = os.path.dirname(__file__)
         
         # Get the default value of the Java environment path if already exists
-        javaDirDefault = getJavaDir(plugin_directory)
-        print("javaDirDefault is :"+javaDirDefault)
-        print(type(javaDirDefault))
+        javaDirDefault = getJavaDir(plugin_directory)        
         
-        # Raise an error if could not find a Java installation
-        if not javaDirDefault:
+        if not javaDirDefault:  # Raise an error if could not find a Java installation
             raise QgsProcessingException("No Java installation found")            
-        
-        # Inform the user that the Java version should be 64 bits
-        if "Program Files (x86)" in javaDirDefault:
+        elif "Program Files (x86)" in javaDirDefault:   # Raise an error if could not find a 64 bits Java version
             raise QgsProcessingException(""""Only a 32 bits version of Java has been found \
                              on your computer. Please consider installing Java 64 bits.""")
-        else:
-            # Set a Java dir if not exist and save it into a file in the plugin repository
+        else:   # Set a Java dir if not exist and save it into a file in the plugin repository
             setJavaDir(javaDirDefault)
             saveJavaDir(javaPath = javaDirDefault,
                         pluginDirectory = plugin_directory)
