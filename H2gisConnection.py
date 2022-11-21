@@ -264,9 +264,12 @@ def identifyJavaDir(java_path_os_list):
     i = 0
     # Test some common folder paths to check whether a Java installation exists and stops once found
     while(not (JavaExists or i >= len(java_path_os_list))):
+        print(i)
         javaBaseDir = java_path_os_list[i]
         JavaExists = os.path.exists(javaBaseDir)
         i += 1
+    print(javaBaseDir)
+    print(JavaExists)
     if JavaExists:
         listJavaVersion = os.listdir(javaBaseDir)
         listSplit = pd.Series({i: re.split('\.|\-', v) for i, v in enumerate(listJavaVersion)})
@@ -280,5 +283,8 @@ def identifyJavaDir(java_path_os_list):
         javaPath = os.path.join(javaBaseDir, listJavaVersion[highestVersion])
     else:
         javaPath = None
+    
+    
+    print(javaPath)
     
     return javaPath
