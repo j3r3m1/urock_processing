@@ -316,10 +316,13 @@ def loadFile(cursor, filePath, tableName, srid = None, srid_repro = None):
            CREATE TABLE {0} 
                AS SELECT * FROM {2}('{1}');
             """.format( tableName, filePath, readFunction))
-    else:
+    else: # Import and then copy into a new table to remove all constraints (primary keys...)
         cursor.execute("""
-           DROP TABLE IF EXISTS {0};
-            CALL {2}('{1}','{0}');
+           DROP TABLE IF EXISTS TEMPO;
+            CALL {2}('{1}','TEMPO');
+            CREATE TABLE {0}
+                AS SELECT *
+                FROM TEMPO;
             """.format( tableName, filePath, readFunction))
     
     if srid_repro:
