@@ -134,7 +134,9 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException("No Java installation found")            
         elif ("Program Files (x86)" in javaDirDefault) and (struct.calcsize("P") * 8 != 32):
             # Raise an error if Java is 32 bits but Python 64 bits
-            raise QgsProcessingException("""Only a 32 bits version of Java has been found while your Python installation is 64 bits. Consider installing a 64 bits Java version.""")
+            raise QgsProcessingException('Only a 32 bits version of Java has been'+
+                                         'found while your Python installation is 64 bits.'+
+                                         'Consider installing a 64 bits Java version.')
         else:   # Set a Java dir if not exist and save it into a file in the plugin repository
             setJavaDir(javaDirDefault)
             saveJavaDir(javaPath = javaDirDefault,
@@ -146,14 +148,16 @@ class URockAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterFeatureSource(
                 self.BUILDING_TABLE_NAME,
                 self.tr('Building polygons'),
-                [QgsProcessing.TypeVectorPolygon]))
+                [QgsProcessing.TypeVectorPolygon],
+                optional = True))
         self.addParameter(
             QgsProcessingParameterField(
                 self.HEIGHT_FIELD_BUILD,
                 self.tr('Building height field'),
                 None,
                 self.BUILDING_TABLE_NAME,
-                QgsProcessingParameterField.Numeric))
+                QgsProcessingParameterField.Numeric,
+                optional = True))
         self.addParameter(
             QgsProcessingParameterField(
                 self.ID_FIELD_BUILD,
@@ -333,30 +337,42 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         
         # Get building layer and then file directory
         inputBuildinglayer = self.parameterAsVectorLayer(parameters, self.BUILDING_TABLE_NAME, context)
-        build_file = str(inputBuildinglayer.dataProvider().dataSourceUri())
-        if build_file.count("|layername") == 1:
-            build_file = build_file.split("|layername")[0]
-        srid_build = inputBuildinglayer.crs().postgisSrid()
+        heightBuild = self.parameterAsString(parameters, self.HEIGHT_FIELD_BUILD, context)
+        if inputBuildinglayer:
+            build_file = str(inputBuildinglayer.dataProvider().dataSourceUri())
+            if build_file.count("|layername") == 1:
+                build_file = build_file.split("|layername")[0]
+            srid_build = inputBuildinglayer.crs().postgisSrid()
+            if not heightBuild:
+                raise QgsProcessingException("A building height attribute should be defined")
+        else:
+            build_file = None
+            srid_build = None
 
         # Get vegetation layer if exists, check that it has the same SRID as building layer
         # and then get the file directory of the layer
         inputVegetationlayer = self.parameterAsVectorLayer(parameters, self.VEGETATION_TABLE_NAME, context)
+        topHeightVeg = self.parameterAsString(parameters, self.VEGETATION_CROWN_TOP_HEIGHT, context)
         if inputVegetationlayer:
             veg_file = str(inputVegetationlayer.dataProvider().dataSourceUri())
             if veg_file.count("|layername") == 1:
                 veg_file = veg_file.split("|layername")[0]
             srid_veg = inputVegetationlayer.crs().postgisSrid()
-            if srid_build != srid_veg:
+            if srid_build and (srid_build != srid_veg):
                 feedback.pushWarning('Coordinate system of input building layer and vegetation layer differ!')
+            if not topHeightVeg:
+                raise QgsProcessingException("A vegetation crown top height attribute should be defined")
         else:
             veg_file = None
             srid_veg = None
+            
+        if not veg_file and not build_file:
+            raise QgsProcessingException("Either building or vegetation file should be provided")
+            
         outputRaster = self.parameterAsRasterLayer(parameters, self.RASTER_OUTPUT, context)
         idBuild = self.parameterAsString(parameters, self.ID_FIELD_BUILD, context)
-        heightBuild = self.parameterAsString(parameters, self.HEIGHT_FIELD_BUILD, context)
         idVeg = self.parameterAsString(parameters, self.ID_FIELD_VEG, context)
         baseHeightVeg = self.parameterAsString(parameters, self.VEGETATION_CROWN_BASE_HEIGHT, context)
-        topHeightVeg = self.parameterAsString(parameters, self.VEGETATION_CROWN_TOP_HEIGHT, context)
         attenuationVeg = self.parameterAsString(parameters, self.ATTENUATION_FIELD, context)
         prefix = self.parameterAsString(parameters, self.PREFIX, context)
         
@@ -485,7 +501,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
         lowercase alphanumeric characters only and no spaces or other
         formatting characters.
         """
-        return 'urock'
+        return 'URock'
 
     def displayName(self):
         """
@@ -513,6 +529,23 @@ class URockAlgorithm(QgsProcessingAlgorithm):
 
     def tr(self, string):
         return QCoreApplication.translate('Processing', string)
+    
+    def shortHelpString(self):
+        return self.tr('The URock plugin can be used to calculate '+\
+                       'spatial variations of wind speed and wind direction'+
+                       ' in 3 dimensions using 2.5D building and vegetation data.\n'+
+                       'At least one of building or vegetation file should '+
+                       'be provided by the user. Minimum attribute column'+
+                       ' for building file is "roof height" '+
+                       '(note that roofs are considered flats in the current version)'+
+                       'Minimum attribute column for vegetation file is "vegetation crown top height".'
+        '\n'
+        '---------------\n'
+        'Full manual available via the <b>Help</b>-button.')
+
+    def helpUrl(self):
+        url = "https://github.com/j3r3m1/UMEP-Docs/blob/master/docs/source/processor/Wind%20model%20URock.rst"
+        return url
 
     def createInstance(self):
         return URockAlgorithm()
