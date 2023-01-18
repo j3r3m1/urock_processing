@@ -600,7 +600,10 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
                                     a.{4},
                                     b.{6},
                                     CAST(a.{7} AS INTEGER) AS {7},
-                                    POWER(a.{10}/(a.{7}-b.{8}),1.5) AS {11},
+                                    CASE  WHEN a.{7}-b.{8} > 0
+                                          THEN POWER(a.{10}/(a.{7}-b.{8}),1.5)
+                                          ELSE 0
+                                          END AS {11},
                                     CASE  WHEN a.{7}-b.{8} <= a.{10}
                                           THEN a.{4}*SQRT(1-POWER((a.{7}-b.{8})/
                                                                  a.{10}, 2))
@@ -690,6 +693,7 @@ def affectsPointToBuildZone(cursor, gridTable, dicOfBuildRockleZoneTable,
         {1};
         {2};
         {3};
+        DROP TABLE IF EXISTS {4};
         CREATE TABLE {4}
             AS SELECT   {5}
             FROM    {6} AS a RIGHT JOIN {7} AS b
