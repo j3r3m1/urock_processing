@@ -404,7 +404,7 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                 meshSize = float(xres + yres) / 2
         elif not meshSize:
             raise QgsProcessingException('You should either specify an output raster or a horizontal mesh size')
-            
+
         # Make the calculations
         u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName,\
         rotationCenterCoordinates, verticalWindProfile, dicVectorTables,\
