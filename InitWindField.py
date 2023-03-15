@@ -2815,9 +2815,10 @@ def getVerticalProfile( cursor,
         verticalProfileAbove = pd.Series([V_ref * np.log((z - d) / z0) / np.log(z_ref / z0)
                                                      for z in pointHeighAbove],
                                           index = pointHeighAbove)
-        verticalWindProfile = verticalProfileWithin\
-            .append(verticalProfileAbove[verticalProfileAbove > verticalProfileWithin.max()])\
-                .reindex(pointHeightIndex).interpolate(method = "index")
+        verticalWindProfile = pd.concat(
+            [verticalProfileWithin, verticalProfileAbove[verticalProfileAbove > verticalProfileWithin.max()]],
+            ignore_index=True).reindex(pointHeightIndex).interpolate(method="index")
+	
     elif profileType == "user":
         pointHeightIndex = pd.Index(pointHeightList)
         verticalWindProfile = pd.read_csv(verticalProfileFile, header = None, 

@@ -847,7 +847,7 @@ def identifyImpactingStackedBlocks(cursor,
         {0};{1};
         DROP TABLE IF EXISTS {2};
         CREATE TABLE {2}
-            AS SELECT a.{3}
+            AS SELECT DISTINCT(a.{3}) AS {3}
             FROM {4} AS a, {5} AS b
             WHERE a.{6} && b.{6} AND ST_INTERSECTS(a.{6}, b.{6})
         """.format(DataUtil.createIndex(tableName=tabAllBuildZones, 
@@ -865,8 +865,8 @@ def identifyImpactingStackedBlocks(cursor,
         {0};{1};
         DROP TABLE IF EXISTS {2};
         CREATE TABLE {2}
-            AS SELECT b.{3}, b.{7}
-            FROM {4} AS a LEFT JOIN {5} AS b
+            AS SELECT DISTINCT(b.{3}) AS {3}, b.{7}
+            FROM {4} AS a RIGHT JOIN {5} AS b
             ON a.{6} = b.{6}
         """.format(DataUtil.createIndex(tableName=tabTempStack, 
                                         fieldName=ID_FIELD_STACKED_BLOCK,
@@ -877,7 +877,7 @@ def identifyImpactingStackedBlocks(cursor,
                    tabTempBlock                    , ID_FIELD_BLOCK,
                    tabTempStack                    , stackedBlocksTable,
                    ID_FIELD_STACKED_BLOCK          , GEOM_FIELD))
-   
+
     # Identify which blocks are in the cross-wind extend of blocks and impacted zone
     cursor.execute("""
         DROP TABLE IF EXISTS {0};
@@ -889,11 +889,13 @@ def identifyImpactingStackedBlocks(cursor,
         {6};{7};
         DROP TABLE IF EXISTS {8};
         CREATE TABLE {8}
-            AS SELECT DISTINCT(a.{9}) AS {9}
-            FROM {10} AS a, {0} AS b
-            WHERE a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1})
-            UNION ALL
-            SELECT DISTINCT({9}) AS {9} FROM {11}
+            AS SELECT DISTINCT({9}) AS {9}
+            FROM (SELECT a.{9}
+                    FROM {10} AS a, {0} AS b
+                    WHERE a.{1} && b.{1} AND ST_INTERSECTS(a.{1}, b.{1})
+                    UNION ALL
+                    SELECT {9} 
+                    FROM {11})
         """.format( tabCrossExtBox                  , GEOM_FIELD,
                     crossWindExtend                 , stackedBlocksTable,
                     tabTempBlock                    , impactedZone,
