@@ -68,6 +68,7 @@ except Exception:
 from . import MainCalculation
 from .GlobalVariables import *
 from .H2gisConnection import getJavaDir, setJavaDir, saveJavaDir
+from . import WriteMetadataURock
 
 
 
@@ -404,6 +405,10 @@ class URockAlgorithm(QgsProcessingAlgorithm):
                 meshSize = float(xres + yres) / 2
         elif not meshSize:
             raise QgsProcessingException('You should either specify an output raster or a horizontal mesh size')
+        
+        if feedback:
+            feedback.setProgressText("Writing settings for this model run to specified output folder (Filename: RunInfoURock_YYYY_DOY_HHMM.txt)")
+        WriteMetadataURock.writeRunInfo(outputDirectory, build_file, veg_file, attenuationVeg)
 
         # Make the calculations
         u, v, w, u0, v0, w0, x, y, z, buildingCoordinates, cursor, gridName,\
