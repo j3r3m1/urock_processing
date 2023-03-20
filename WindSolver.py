@@ -207,6 +207,9 @@ def solver(x, y, z, dx, dy, dz, u0, v0, w0, buildingCoordinates, cells4Solver,
                                         np.round(eps,6),
                                         thresholdIterations)
                 feedback.setProgressText(textToSend)
+                if feedback.isCanceled():
+                    feedback.setProgressText("Calculation cancelled by user")
+                    break
             
     
     # Calculates the final wind speed
