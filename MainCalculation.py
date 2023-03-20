@@ -111,6 +111,9 @@ def main(javaEnvironmentPath,
     # ----------------------------------------------------------------------
     if feedback:
         feedback.setProgressText('Creates an H2GIS Instance and load data')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
     #Download H2GIS
     H2gisConnection.downloadH2gis(dbDirectory = pluginDirectory)
     #Initialize a H2GIS database connection
@@ -138,6 +141,9 @@ def main(javaEnvironmentPath,
     # -----------------------------------------------------------------------------------
     if feedback:
         feedback.setProgressText('Creates the stacked blocks used as obstacles')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
     # Create the stacked blocks
     blockTable, stackedBlockTable = \
         Obstacles.createsBlocks(cursor = cursor, 
@@ -156,6 +162,9 @@ def main(javaEnvironmentPath,
     # -----------------------------------------------------------------------------------
     if feedback:
         feedback.setProgressText('Rotates obstacles to the right direction and calculates geometry properties')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
     # Define a set of obstacles in a dictionary before the rotation
     dicOfObstacles = {BUILDING_TABLE_NAME       : stackedBlockTable,
                       VEGETATION_TABLE_NAME     : VEGETATION_TABLE_NAME}
@@ -239,6 +248,9 @@ def main(javaEnvironmentPath,
     # -----------------------------------------------------------------------------------
     if feedback:
         feedback.setProgressText('Creates the 2D Röckle zones')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
     # Creates the displacement zone (upwind)
     displacementZonesTable, displacementVortexZonesTable = \
         Zones.displacementZones(cursor = cursor,
@@ -379,6 +391,10 @@ def main(javaEnvironmentPath,
     # ----------------------------------------------------------------------
     if feedback:
         feedback.setProgressText('Creates the 2D grid')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
+        
     # Creates the grid of points
     gridPoint = InitWindField.createGrid(cursor = cursor, 
                                          dicOfInputTables = dict(dicOfBuildRockleZoneTable,
@@ -452,6 +468,9 @@ def main(javaEnvironmentPath,
     # -----------------------------------------------------------------------------------   
     if feedback:
         feedback.setProgressText('Initializes the 3D grid within Röckle zones')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
     # Calculates the 3D wind speed factors for each building Röckle zone
     dicOfBuildZone3DWindFactor, maxBuildZoneHeight = \
         InitWindField.calculates3dBuildWindFactor(cursor = cursor,
@@ -530,6 +549,9 @@ def main(javaEnvironmentPath,
     # ----------------------------------------------------------------
     if feedback:
         feedback.setProgressText('Deals with zones superimposition')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
     # Calculates the final weighting factor for each point, dealing with duplicates (superimposition)
     dicAllWeightFactorsTables = dicOfBuildZone3DWindFactor.copy()
     dicAllWeightFactorsTables[ALL_VEGETATION_NAME] = vegetationWeightFactorTable
@@ -574,6 +596,9 @@ def main(javaEnvironmentPath,
     # -------------------------------------------------------------------
     if feedback:
         feedback.setProgressText('Initialize the 3D wind in the grid')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
     # Identify 3D grid points intersected by buildings
     df_gridBuil = \
         InitWindField.identifyBuildPoints(cursor = cursor,
@@ -606,6 +631,9 @@ def main(javaEnvironmentPath,
     # -------------------------------------------------------------------
     if feedback:
         feedback.setProgressText('Rasterize the data')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
     # Set the ground as "building" (understand solid wall) - after getting grid size
     nx, ny, nz = nPoints.values()
     df_gridBuil = df_gridBuil.reindex(df_gridBuil.index.append(pd.MultiIndex.from_product([range(1,nx-1),
@@ -668,6 +696,9 @@ def main(javaEnvironmentPath,
     # ------------------------------------------------------------------- 
     if feedback:
         feedback.setProgressText('Apply the wind solver equations')
+        if feedback.isCanceled():
+            feedback.setProgressText("Calculation cancelled by user")
+            return {}
     if not onlyInitialization:
         # Apply a mass-flow balance to have a more physical 3D wind speed field
         u, v, w = \
